@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.9"
-__revision__ = "261010"
+__revision__ = "261015"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -185,13 +185,16 @@ class ConfigMgr(object):
         "ENABLEPKGLIST",
         "FORCECLOSE",
         "GETACTLIST",
+        "GETALARMLIST",
         "GETANRINFO",
         "GETAPPSTAT",
         "GETBATTERYINFO",
         "GETCPUINFO",
         "GETDISPLAYINFO",
+        "GETDOZEINFO",
         "GETDUMPLIST",
         "GETFEATURELIST",
+        "GETJOBLIST",
         "GETLIBRARYLIST",
         "GETGFXINFO",
         "GETPERMLIST",
@@ -201,6 +204,7 @@ class ConfigMgr(object):
         "GETBINDERSTATS",
         "GETPOWERINFO",
         "GETPROCLIST",
+        "GETPROCSTATS",
         "GETWAKELOCK",
         "GETSELINUX",
         "GETSETTINGS",
@@ -208,6 +212,8 @@ class ConfigMgr(object):
         "GETWINDOWINFO",
         "GETWINDOWSTAT",
         "GETTASKSTAT",
+        "GETSURFACESTAT",
+        "GETSERVICESTAT",
         "GRANTPERM",
         "CARKEY",
         "INPUT",
@@ -39400,7 +39406,23 @@ class AndroidMgr(object):
     @staticmethod
     def writeSetting(name, val, ns, recover=None):
         cmd = ("settings put %s %s" % (ns, name)).split()
-        SysMgr.executeCmdSync(cmd + [val], rederr=True)
+        ret = SysMgr.executeCmdSync(cmd + [val], rederr=True)
+
+        # unlike dumpsys's "Permission Denial"/"Can't find service" trap
+        # the other GET* commands already check for, a failed `settings
+        # put` (e.g. secure/global keys needing WRITE_SECURE_SETTINGS)
+        # never raises here -- executeCmdSync just returns BasicShell-
+        # CommandHandler.exec()'s own merged-stderr catch-all text
+        # ("Exception occurred while executing 'put': ...SecurityExcep-
+        # tion...", confirmed against AOSP's modules-utils source) as
+        # ordinary output lines, which the old code silently discarded
+        # before unconditionally reporting success #
+        if ret and any("Exception occurred while executing" in l for l in ret):
+            SysMgr.printErr(
+                "failed to set settings value '%s(%s)' to '%s' (%s)"
+                % (name, ns, val, next((l for l in ret if l), ret[-1]))
+            )
+            return
 
         SysMgr.printInfo(
             "set settings value '%s(%s)' to '%s'%s"
@@ -40529,6 +40551,14 @@ class AndroidMgr(object):
 
     @staticmethod
     def getGfxInfo(pkg):
+        # same "-g <pkg>" fallback as the sibling RESETGFXSTATS
+        # (resetGfxStats()) -- the documented usage pattern pairs
+        # "resetgfxstats -g <pkg>" with "getgfxinfo -g <pkg>" (no
+        # colon value on either), but this function never consulted
+        # SysMgr.filterGroup at all, so the documented example always
+        # hit the "no valid input" error #
+        if not pkg or pkg == "SET":
+            pkg = SysMgr.filterGroup[0] if SysMgr.filterGroup else None
         if not pkg or pkg == "SET":
             SysMgr.printErr("no valid input for getgfxinfo (format: package)")
             return
@@ -40551,7 +40581,7 @@ class AndroidMgr(object):
         windowData = {}
         curNum = None
         curBlock = []
-        focusAddr = None
+        focusAddrs = set()
         globalLines = []
         inGlobal = False
 
@@ -40561,21 +40591,28 @@ class AndroidMgr(object):
         # imeInputTarget is the only reliable "current input focus" marker
         # in this dumpsys version (mCurrentFocus/mFocusedApp are absent,
         # device-verified); its addr matches a window's own addr field,
-        # letting us flag the focused window #
+        # letting us flag the focused window. AOSP prints one such line
+        # PER DISPLAY (WindowManagerService#dumpWindowsLocked iterates
+        # mRoot.forAllDisplays(...) and prints a line for each display
+        # that currently has a non-null ime input target), so a multi-
+        # display device can legitimately emit more than one of these
+        # lines -- collect all of them instead of keeping only the last #
         focusPat = re.compile(r"imeInputTarget in display# \d+ Window\{(\S+) ")
         # device-level "mRotation=N" (bare digit) only ever appears as its
-        # own trailing-section line; the ROTATION_0-style name embedded
-        # inside the mGlobalConfiguration={...} line never matches \d+, so
-        # the two never collide despite sharing the same field name #
+        # own trailing-section line; the mGlobalConfiguration={...} line's
+        # own ROTATION_0-style name is deliberately NOT parsed as a
+        # separate field -- AOSP's Surface.rotationToString() is a pure,
+        # deterministic string transform of this exact int (0/90/180/270
+        # -> "ROTATION_0".."ROTATION_270", anything else -> the same int
+        # as a string), so capturing it too would just be the same value
+        # redundantly re-encoded, the same "Task=<N> field duplicating
+        # Name's own Task=<N>" shape ruled out in getsurfacestat #
         globalPats = {
             "topFocusedDisplayId": re.compile(r"\bmTopFocusedDisplayId=(\d+)"),
             "systemBooted": re.compile(r"\bmSystemBooted=(true|false)"),
             "displayEnabled": re.compile(r"\bmDisplayEnabled=(true|false)"),
             "displayFrozen": re.compile(r"\bmDisplayFrozen=(true|false)"),
             "deviceRotation": re.compile(r"\bmRotation=(\d+)\b"),
-            "globalRotationName": re.compile(
-                r"mGlobalConfiguration=.*?\bmRotation=(ROTATION_\d+)"
-            ),
             "animWindowScale": re.compile(
                 r"Animation settings:.*?\bwindow=([\d.]+)"
             ),
@@ -40740,7 +40777,7 @@ class AndroidMgr(object):
                 globalLines.append(raw)
                 fm = focusPat.search(raw)
                 if fm:
-                    focusAddr = fm.group(1)
+                    focusAddrs.add(fm.group(1))
                 continue
 
             # imeInputTarget only ever appears in the trailing global
@@ -40791,11 +40828,30 @@ class AndroidMgr(object):
             )
             return windowData, globalInfo
 
-        if focusAddr:
+        if focusAddrs:
             for info in windowData.values():
-                info["focused"] = info.get("addr") == focusAddr
+                info["focused"] = info.get("addr") in focusAddrs
 
         return windowData, globalInfo
+
+    @staticmethod
+    def _checkDumpsysDenied(lines, service):
+        # a permission-denied/missing-service dumpsys reply is a short,
+        # non-empty line (device-verified: "Can't find service: window"
+        # from an app context, exit code 0) that silently sails past a
+        # bare "if not lines" guard and then fails every caller's own
+        # header regex -- shared by every GET* andcmd command added or
+        # touched this session, previously copy-pasted into each one #
+        if len(lines) <= 2 and any(
+            "Permission Denial" in l or "Can't find service" in l
+            for l in lines
+        ):
+            SysMgr.printErr(
+                "dumpsys %s was denied -- run as root or a shell "
+                "with android.permission.DUMP (%s)" % (service, lines[0])
+            )
+            return True
+        return False
 
     @staticmethod
     def getWindowStat(pkg=""):
@@ -40878,21 +40934,7 @@ class AndroidMgr(object):
         if not lines:
             SysMgr.printErr("failed to get window info")
             return
-        # a permission-denied/missing-service dumpsys reply is a short,
-        # non-empty line (device-verified: "Can't find service: window"
-        # from an app context, exit code 0) that silently sails past the
-        # "if not lines" guard above and then fails every window header
-        # regex -- without this check, getwindowstat used to print
-        # nothing but the banner and exit, leaving no clue it wasn't a
-        # real empty-window-list case #
-        if len(lines) <= 2 and any(
-            "Permission Denial" in l or "Can't find service" in l
-            for l in lines
-        ):
-            SysMgr.printErr(
-                "dumpsys window windows was denied -- run as root or a "
-                "shell with android.permission.DUMP (%s)" % lines[0]
-            )
+        if AndroidMgr._checkDumpsysDenied(lines, "window windows"):
             return
 
         # dumpsys window windows's own display-list source is conditional
@@ -41037,16 +41079,41 @@ class AndroidMgr(object):
         SysMgr.printPipe("-" * len(header))
 
         nrVis = 0
+        nrPrinted = 0
         for num, info in sorted(windowData.items(), key=lambda x: int(x[0])):
             visible = info.get("visible", False)
-            if visible:
-                nrVis += 1
-            if onlyVis and not visible:
+
+            # resolved once here (rather than at its original later
+            # use site) so this check, the "visible" count/filter below,
+            # and the WinType display column all agree on the same
+            # value -- comparing against the raw info["winType"] would
+            # miss a device/build that ever emits ty=2022 unstringified
+            # (the same class of fallback case _resolveWinType()/
+            # _SYSTEM_WINDOW_TYPES exists for; 2022 is TYPE_INPUT_CONSUMER's
+            # FIRST_SYSTEM_WINDOW offset) #
+            winTypeName = _resolveWinType(info.get("winType"))
+            isInputOnly = winTypeName == "INPUT_CONSUMER"
+            # an INPUT_CONSUMER window (e.g. a touch-spy overlay) reports
+            # raw isVisible=true in dumpsys with no actual rendered
+            # content -- excluded from both the "visible" tally/footer
+            # and "-q ONLYVISWIN" so both match what the Vis column's
+            # own O/I marker already shows the user #
+            countsAsVisible = visible and not isInputOnly
+            if onlyVis and not countsAsVisible:
                 continue
 
             curPkg = info.get("package") or "-"
             if pkg and pkg not in curPkg:
                 continue
+
+            # both tallies are taken AFTER onlyVis/pkg filtering so the
+            # footer summarizes what was actually printed above it, not
+            # the whole unfiltered windowData -- getwindowstat:"pkg" or
+            # -q ONLYVISWIN would otherwise still report system-wide
+            # totals while the table itself shows only a subset #
+            nrPrinted += 1
+            if countsAsVisible:
+                nrVis += 1
 
             act = info.get("act", "")
             if "/" in act:
@@ -41062,15 +41129,6 @@ class AndroidMgr(object):
             else:
                 size = "-"
 
-            # resolved once here (rather than at its original later
-            # use site) so this check and the WinType display column
-            # agree on the same value -- comparing against the raw
-            # info["winType"] would miss a device/build that ever
-            # emits ty=2022 unstringified (the same class of fallback
-            # case _resolveWinType()/_SYSTEM_WINDOW_TYPES exists for;
-            # 2022 is TYPE_INPUT_CONSUMER's FIRST_SYSTEM_WINDOW offset) #
-            winTypeName = _resolveWinType(info.get("winType"))
-            isInputOnly = winTypeName == "INPUT_CONSUMER"
             if isInputOnly:
                 vis = "I"
             else:
@@ -41166,9 +41224,7 @@ class AndroidMgr(object):
             )
 
         SysMgr.printPipe("-" * len(header))
-        SysMgr.printPipe(
-            "Total: %d windows, %d visible" % (len(windowData), nrVis)
-        )
+        SysMgr.printPipe("Total: %d windows, %d visible" % (nrPrinted, nrVis))
 
     @staticmethod
     def parseActivityDump(lines):
@@ -41283,6 +41339,7 @@ class AndroidMgr(object):
                 nvm = nowVisiblePat.search(hb)
                 hist.append(
                     {
+                        "histIdx": int(hm.group(1)),
                         "addr": hm.group(2),
                         "act": hm.group(3),
                         "state": sm.group(1) if sm else None,
@@ -41465,19 +41522,7 @@ class AndroidMgr(object):
         if not lines:
             SysMgr.printErr("failed to get activity info")
             return
-        # same permission-denied/missing-service trap as getwindowstat --
-        # device-verified: "Permission Denial: can't dump ActivityManager
-        # ... due to missing android.permission.DUMP permission" is a
-        # non-empty line that would otherwise silently fail every Task
-        # header regex and exit with no explanation #
-        if len(lines) <= 2 and any(
-            "Permission Denial" in l or "Can't find service" in l
-            for l in lines
-        ):
-            SysMgr.printErr(
-                "dumpsys activity activities was denied -- run as root or "
-                "a shell with android.permission.DUMP (%s)" % lines[0]
-            )
+        if AndroidMgr._checkDumpsysDenied(lines, "activity activities"):
             return
 
         taskData, globalInfo = AndroidMgr.parseActivityDump(lines)
@@ -41787,6 +41832,7 @@ class AndroidMgr(object):
             return row, visible, curPkg
 
         nrVis = 0
+        nrPrinted = 0
         if showTree:
             # depth-first: a child task is rendered immediately after
             # its parent, with only the Package column marked -- every
@@ -41802,13 +41848,19 @@ class AndroidMgr(object):
                 )
 
             def _walk(taskId, depth):
-                nonlocal nrVis
+                nonlocal nrVis, nrPrinted
                 info = taskData[taskId]
                 row, visible, curPkg = _buildRow(taskId, info, depth)
-                if visible:
-                    nrVis += 1
+                # tallied AFTER the pkg filter so the footer summarizes
+                # what was actually printed above it, not the whole
+                # unfiltered taskData -- gettaskstat:"pkg" would
+                # otherwise still report system-wide totals while the
+                # tree itself shows only the matching subset #
                 if not (pkg and pkg not in curPkg):
                     SysMgr.printPipe(row)
+                    nrPrinted += 1
+                    if visible:
+                        nrVis += 1
                 # same DUMPORDER-vs-numeric choice as the root level below
                 # -- without this, "-q DUMPORDER,TREE" would preserve
                 # dumpsys order only for root tasks while silently
@@ -41837,16 +41889,1545 @@ class AndroidMgr(object):
             )
             for taskId, info in items:
                 row, visible, curPkg = _buildRow(taskId, info, 0)
-                if visible:
-                    nrVis += 1
                 if pkg and pkg not in curPkg:
                     continue
                 SysMgr.printPipe(row)
+                nrPrinted += 1
+                if visible:
+                    nrVis += 1
+
+        SysMgr.printPipe("-" * len(header))
+        SysMgr.printPipe("Total: %d tasks, %d visible" % (nrPrinted, nrVis))
+
+    @staticmethod
+    def parseServiceDump(lines):
+        # "dumpsys activity services" lists every ServiceRecord as a
+        # flat sequence (no nesting like Task/Hist) -- the user-section
+        # headers ("User 0 active services:") are informational only,
+        # the "u<N>" in each ServiceRecord{...} header is the
+        # authoritative per-record user id #
+        serviceHeaderPat = re.compile(
+            r"^\s*\* ServiceRecord\{\S+ u(\d+) (\S+)/(\S+)\}"
+        )
+        appPidPat = re.compile(r"\bapp=ProcessRecord\{\S+ (\d+):")
+        # isForeground= only appears as a line at all when true --
+        # device-verified on both 5af877f6/66aed018 that "false" is
+        # never spelled out, the field is simply absent otherwise #
+        foregroundPat = re.compile(r"\bisForeground=true\b")
+        createTimePat = re.compile(r"\bcreateTime=(\S+)")
+        lastActivityPat = re.compile(r"\blastActivity=(\S+)")
+        # client count currently bound to this service -- each
+        # "* Client AppBindRecord{...}" line is one distinct bound
+        # client process, NOT "* IntentBindRecord{...}" (that's one
+        # per distinct bind Intent, usually just 1, and can nest many
+        # Client AppBindRecord entries underneath -- device-verified
+        # com.android.car/.CarService has 1 IntentBindRecord but 70
+        # Client AppBindRecord entries on 5af877f6) #
+        bindingPat = re.compile(r"\* Client AppBindRecord\{")
+        # same presence-only convention as isForeground= -- device-
+        # verified "startRequested=false" does occur (unlike
+        # isForeground, which never spells out "false"), so this
+        # still only looks for the true case explicitly #
+        startRequestedPat = re.compile(r"\bstartRequested=true\b")
+        crashCountPat = re.compile(r"\bcrashCount=(\d+)")
+        # each unit ("d"/"h"/"m"/"s"/"ms") is independently optional --
+        # device-verified a short-lived service's createTime renders
+        # without the day/hour prefix at all (e.g. "-10m11s181ms"),
+        # and some omit minutes too (e.g. "-2h4m9s391ms" has no gap
+        # but a value under a minute could in principle be just
+        # "-181ms") #
+        elapsedPat = re.compile(
+            r"^-?(?:(\d+)d)?(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?(?:(\d+)ms)?$"
+        )
+
+        def _parseElapsedMs(s):
+            m = elapsedPat.match(s) if s else None
+            if not m or not any(m.groups()):
+                return None
+            d, h, mnt, sec, ms = (int(g) if g else 0 for g in m.groups())
+            return ((((d * 24 + h) * 60 + mnt) * 60 + sec) * 1000) + ms
+
+        services = []
+        blocks = re.split(
+            r"(?=^\s*\* ServiceRecord\{)", "\n".join(lines), flags=re.M
+        )
+        for block in blocks:
+            hm = serviceHeaderPat.match(block)
+            if not hm:
+                continue
+            user, package, serviceClass = hm.groups()
+            # same package-prefix-strip convention as getWindowStat()'s
+            # own Activity column, so a service class renders
+            # consistently whether dumpsys gave it as ".ClassName" or
+            # the fully-qualified "pkg.sub.ClassName" (both observed
+            # live on 5af877f6/66aed018) #
+            if serviceClass.startswith(package):
+                serviceClass = serviceClass[len(package) :]
+            serviceClass = serviceClass.lstrip(".") or serviceClass
+
+            pm = appPidPat.search(block)
+            fm = foregroundPat.search(block)
+            ctm = createTimePat.search(block)
+            lam = lastActivityPat.search(block)
+            createTime = ctm.group(1) if ctm else None
+            lastActivity = lam.group(1) if lam else None
+            createdMs = _parseElapsedMs(createTime)
+            lastActivityMs = _parseElapsedMs(lastActivity)
+            ccm = crashCountPat.search(block)
+            services.append(
+                {
+                    "user": user,
+                    "package": package,
+                    "serviceClass": serviceClass,
+                    "pid": pm.group(1) if pm else None,
+                    "foreground": bool(fm),
+                    "createTime": createTime,
+                    "lastActivity": lastActivity,
+                    "createdMs": createdMs,
+                    "lastActivityMs": lastActivityMs,
+                    "bindingCount": len(bindingPat.findall(block)),
+                    "startRequested": bool(startRequestedPat.search(block)),
+                    "crashCount": int(ccm.group(1)) if ccm else 0,
+                }
+            )
+
+        if not services:
+            SysMgr.printWarn(
+                "failed to parse any service from dumpsys output",
+                always=True,
+            )
+
+        return services
+
+    @staticmethod
+    def getServiceStat(pkg=""):
+        if pkg == "SET":
+            pkg = ""
+
+        cmd = ["dumpsys", "activity", "services"]
+        lines = SysMgr.executeCmdSync(cmd)
+        if not lines:
+            SysMgr.printErr("failed to get service info")
+            return
+        if AndroidMgr._checkDumpsysDenied(lines, "activity services"):
+            return
+
+        services = AndroidMgr.parseServiceDump(lines)
+        if not services:
+            return
+
+        if pkg:
+            services = [s for s in services if pkg in s["package"]]
+
+        # multiple services commonly share the same owning process
+        # (e.g. com.android.systemui's single process hosts 5
+        # services on 5af877f6) -- read each PID's /proc/<pid>/stat
+        # and cmdline only once, not once per service, then let every
+        # matching service row look up the same cached values #
+        pidCache = {}
+        utimeIdx = ConfigMgr.PROCSTAT_ATTR_DICT["UTIME"]
+        stimeIdx = ConfigMgr.PROCSTAT_ATTR_DICT["STIME"]
+        rssIdx = ConfigMgr.PROCSTAT_ATTR_DICT["RSS"]
+        commIdx = ConfigMgr.PROCSTAT_ATTR_DICT["COMM"]
+        for svc in services:
+            pid = svc.get("pid")
+            if not pid or pid in pidCache:
+                continue
+            entry = {"cpuTicks": None, "rss": None, "cmdline": None}
+            try:
+                with open("%s/%s/stat" % (SysMgr.procPath, pid), "r") as fd:
+                    statList = fd.read().split()
+                statList = SysMgr.mergeCommStat(statList, commIdx)
+                # raw jiffies (HZ=100), not converted to seconds -- a
+                # tick IS a percent-of-one-second unit (100 ticks ==
+                # 1 second == "100%"), so the accumulated utime+stime
+                # total doubles directly as a lifetime CPU% figure
+                # without any further conversion #
+                entry["cpuTicks"] = long(statList[utimeIdx]) + long(
+                    statList[stimeIdx]
+                )
+                entry["rss"] = long(statList[rssIdx]) * SysMgr.PAGESIZE
+            except SystemExit:
+                sys.exit(0)
+            except:
+                pass
+            entry["cmdline"] = SysMgr.getCmdline(pid, cache=True, save=True)
+            pidCache[pid] = entry
+
+        for svc in services:
+            pc = pidCache.get(svc.get("pid"), {})
+            svc["cpuTicks"] = pc.get("cpuTicks")
+            svc["rss"] = pc.get("rss")
+            svc["cmdline"] = pc.get("cmdline")
+
+        if SysMgr.jsonEnable:
+            SysMgr.printPipe(UtilMgr.convDict2Str({"services": services}))
+            return
+
+        # same terminal-width trim concern as getwindowstat/gettaskstat's
+        # tables -- "-q NOCUT" opts out via the same SysMgr.setStream()
+        # helper, default (trimmed) behavior unchanged #
+        if "NOCUT" in SysMgr.environList:
+            SysMgr.setStream()
+
+        # default sort groups foreground services first (then by
+        # package/class for stability); "-q SORT:CREATED" or
+        # "-q SORT:LASTACTIVITY" instead orders by that column's
+        # elapsed-ms value (ascending -- smaller elapsed means more
+        # recent), with unparseable entries pushed to the end #
+        sortBy = SysMgr.environList.get("SORT", [""])[0].upper()
+        if sortBy == "CREATED":
+            sortKey = lambda s: (
+                s["createdMs"] is None,
+                s["createdMs"] if s["createdMs"] is not None else 0,
+            )
+        elif sortBy == "LASTACTIVITY":
+            sortKey = lambda s: (
+                s["lastActivityMs"] is None,
+                s["lastActivityMs"] if s["lastActivityMs"] is not None else 0,
+            )
+        else:
+            sortKey = lambda s: (
+                0 if s["foreground"] else 1,
+                s["package"],
+                s["serviceClass"],
+            )
+        services = sorted(services, key=sortKey)
+
+        fgWidth = 4
+        fmt = (
+            "{0:>6} {1:>4} {2:^%d} {3:<16} {4:<16} {5:<28} {6:<30} "
+            "{7:>4} {8:^7} {9:>5} {10:>12} {11:>10} {12}" % fgWidth
+        )
+        header = fmt.format(
+            "PID",
+            "User",
+            "{0:^{1}}".format("FG", fgWidth),
+            "Created",
+            "LastActivity",
+            "Package",
+            "Service",
+            "Bind",
+            "Started",
+            "Crash",
+            "CPU(%)",
+            "RSS",
+            "Cmdline",
+        )
+        SysMgr.printPipe("=" * len(header))
+        SysMgr.printPipe(header)
+        SysMgr.printPipe("-" * len(header))
+
+        nrFg = 0
+        for svc in services:
+            fg = svc["foreground"]
+            if fg:
+                nrFg += 1
+            fgCol = "O" if fg else ""
+            fgCol = "{0:^{1}}".format(fgCol, fgWidth)
+            if fg:
+                fgCol = UtilMgr.convColor(fgCol, "GREEN")
+            # reuse the same UtilMgr.convTime() formatter (d:HH:MM:SS)
+            # gettaskstat's own Inactive column uses, rather than a
+            # bespoke one -- it takes seconds, so the already-parsed
+            # ms value (used for sorting) is simply divided down #
+            createdMs = svc["createdMs"]
+            lastActivityMs = svc["lastActivityMs"]
+            createdCol = (
+                UtilMgr.convTime(createdMs // 1000)
+                if createdMs is not None
+                else "-"
+            )
+            lastActivityCol = (
+                UtilMgr.convTime(lastActivityMs // 1000)
+                if lastActivityMs is not None
+                else "-"
+            )
+
+            # same "0/absent is the common case, hide it" convention
+            # as Dep/Win/VisWin (Bind/Crash) and FG/AVis (Started) #
+            bindCol = svc["bindingCount"] or ""
+            startedCol = "O" if svc["startRequested"] else ""
+            crashCol = svc["crashCount"] or ""
+
+            # CPU/RSS are properties of the OWNING PROCESS, not this
+            # specific service -- a process hosting multiple services
+            # (e.g. com.android.systemui) repeats the same value on
+            # every one of its service rows (user-approved tradeoff,
+            # there is no per-service breakdown in dumpsys) #
+            cpuTicks = svc["cpuTicks"]
+            cpuCol = UtilMgr.convNum(cpuTicks) if cpuTicks is not None else "-"
+            rss = svc["rss"]
+            rssCol = (
+                UtilMgr.convSize2Unit(rss, True) if rss is not None else "-"
+            )
+            # only shown when the owning process' actual cmdline
+            # differs from this service's declaring package --
+            # device-verified 13/162 (8%) of services on 5af877f6 run
+            # under a different process (android:process= attribute,
+            # e.g. ":remote" suffixes or a shared system process), the
+            # other 92% would just repeat the Package column #
+            cmdline = svc["cmdline"]
+            cmdlineCol = (
+                cmdline if cmdline and cmdline != svc["package"] else ""
+            )
+
+            SysMgr.printPipe(
+                fmt.format(
+                    svc["pid"] or "-",
+                    svc["user"],
+                    fgCol,
+                    createdCol,
+                    lastActivityCol,
+                    svc["package"][:28],
+                    svc["serviceClass"][:30],
+                    bindCol,
+                    startedCol,
+                    crashCol,
+                    cpuCol,
+                    rssCol,
+                    cmdlineCol,
+                )
+            )
 
         SysMgr.printPipe("-" * len(header))
         SysMgr.printPipe(
-            "Total: %d tasks, %d visible" % (len(taskData), nrVis)
+            "Total: %d services (%d foreground)" % (len(services), nrFg)
         )
+
+    @staticmethod
+    def parseAlarmDump(lines):
+        # each pending alarm is a flat block starting with
+        # "<TYPE> #<idx>: Alarm{<addr> type <N> origWhen <X>
+        # whenElapsed <Y> <callerPkg>}" -- callerPkg in the header is
+        # the UID that OWNS the AlarmManagerService-internal Alarm
+        # object (almost always "android" for system-registered
+        # alarms), not necessarily the app that will actually run
+        # when it fires -- that's "operation="'s PendingIntentRecord
+        # pkg when present, else there's no better answer than the
+        # header's own pkg (a bare "listener=" callback carries no
+        # separate target package at all) #
+        headerPat = re.compile(
+            r"^\s*(RTC|RTC_WAKEUP|ELAPSED|ELAPSED_WAKEUP) #(\d+): "
+            r"Alarm\{(\S+) type (\d+) origWhen (\S+) whenElapsed (\S+) "
+            r"(\S+)\}"
+        )
+        # the tag value is a free-form app/system-supplied string
+        # (AlarmManagerService's Alarm.dump() prints it via a bare
+        # "ipw.println(statsTag)" with no escaping) and can contain
+        # spaces -- device-verified live (e.g. "WifiHealthMonitor
+        # Schedule Daily Detection Timer") -- so match to end of line,
+        # not just the first \S+ run, or the tag silently truncates
+        # at the first space #
+        tagPat = re.compile(r"\btag=(.+?)\s*$", re.M)
+        # the per-block "whenElapsed=" line (distinct from the
+        # header's own whenElapsed field) is present for every alarm
+        # type including RTC/RTC_WAKEUP, and -- unlike the header
+        # field or "origWhen=" inside "type=..." -- is always a
+        # relative elapsed-time string, never an absolute date, so
+        # it's the one safe source for a single parse routine #
+        whenElapsedPat = re.compile(r"^\s*whenElapsed=(\S+)", re.M)
+        repeatPat = re.compile(r"\brepeatInterval=(\d+)")
+        opPkgPat = re.compile(
+            r"operation=PendingIntent\{\S+: PendingIntentRecord\{\S+ (\S+) "
+        )
+        # same independently-optional-unit shape as parseServiceDump()'s
+        # elapsedPat, extended to allow a leading "+" -- alarm's own
+        # elapsed fields are evenly split between past ("-19m8s5ms",
+        # already-fired/overdue) and future ("+19s426ms", scheduled
+        # ahead), device-verified roughly half-and-half on 5af877f6,
+        # whereas Service's createTime/lastActivity are always past #
+        elapsedPat = re.compile(
+            r"^[+-]?(?:(\d+)d)?(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?(?:(\d+)ms)?$"
+        )
+
+        def _parseElapsedMs(s):
+            if not s:
+                return None
+            if s == "0":
+                return 0
+            m = elapsedPat.match(s)
+            if not m or not any(m.groups()):
+                return None
+            d, h, mnt, sec, ms = (int(g) if g else 0 for g in m.groups())
+            val = ((((d * 24 + h) * 60 + mnt) * 60 + sec) * 1000) + ms
+            return -val if s.startswith("-") else val
+
+        alarms = []
+        blocks = re.split(
+            r"(?=^\s*(?:RTC|RTC_WAKEUP|ELAPSED|ELAPSED_WAKEUP) #\d+: "
+            r"Alarm\{)",
+            "\n".join(lines),
+            flags=re.M,
+        )
+        for block in blocks:
+            hm = headerPat.match(block.strip())
+            if not hm:
+                continue
+            atype, idx, addr, typeNum, origWhen, whenElapsedHdr, hdrPkg = (
+                hm.groups()
+            )
+            tm = tagPat.search(block)
+            wem = whenElapsedPat.search(block)
+            rm = repeatPat.search(block)
+            opm = opPkgPat.search(block)
+            whenStr = wem.group(1) if wem else whenElapsedHdr
+            alarms.append(
+                {
+                    "type": atype,
+                    "idx": int(idx),
+                    "tag": tm.group(1) if tm else None,
+                    # fallback order: PendingIntentRecord's own target
+                    # pkg (most accurate -- the actual broadcast
+                    # receiver), else the header's pkg (system
+                    # internal id, almost always "android" for a
+                    # listener-based alarm with no separate target) #
+                    "package": opm.group(1) if opm else hdrPkg,
+                    "whenElapsed": whenStr,
+                    "whenElapsedMs": _parseElapsedMs(whenStr),
+                    "repeatIntervalMs": int(rm.group(1)) if rm else 0,
+                    "wakeup": "WAKEUP" in atype,
+                }
+            )
+
+        if not alarms:
+            SysMgr.printWarn(
+                "failed to parse any alarm from dumpsys output",
+                always=True,
+            )
+
+        return alarms
+
+    @staticmethod
+    def getAlarmList(pkg=""):
+        if pkg == "SET":
+            pkg = ""
+
+        cmd = ["dumpsys", "alarm"]
+        lines = SysMgr.executeCmdSync(cmd)
+        if not lines:
+            SysMgr.printErr("failed to get alarm info")
+            return
+        if AndroidMgr._checkDumpsysDenied(lines, "alarm"):
+            return
+
+        alarms = AndroidMgr.parseAlarmDump(lines)
+        if not alarms:
+            return
+
+        if pkg:
+            alarms = [a for a in alarms if pkg in a["package"]]
+
+        onlyWakeup = "ONLYWAKEUP" in SysMgr.environList
+        if onlyWakeup:
+            alarms = [a for a in alarms if a["wakeup"]]
+            if not alarms:
+                SysMgr.printErr("no wakeup alarm matched the filter")
+                return
+
+        if SysMgr.jsonEnable:
+            SysMgr.printPipe(UtilMgr.convDict2Str({"alarms": alarms}))
+            return
+
+        # same terminal-width trim concern as the other andcmd tables #
+        if "NOCUT" in SysMgr.environList:
+            SysMgr.setStream()
+
+        # default sort: soonest-to-fire first (ascending whenElapsedMs
+        # -- a negative value means already overdue, so those sort
+        # first, which is itself a useful signal: an alarm that's
+        # overdue but still pending usually means its target process
+        # isn't currently reachable) #
+        alarms = sorted(
+            alarms,
+            key=lambda a: (
+                a["whenElapsedMs"] is None,
+                a["whenElapsedMs"] if a["whenElapsedMs"] is not None else 0,
+            ),
+        )
+
+        fmt = "{0:>3} {1:<15} {2:<40} {3:<28} {4:<14} {5:<14} {6:^6}"
+        header = fmt.format(
+            "No",
+            "Type",
+            "Tag",
+            "Package",
+            "When",
+            "Repeat",
+            "Wakeup",
+        )
+        SysMgr.printPipe("=" * len(header))
+        SysMgr.printPipe(header)
+        SysMgr.printPipe("-" * len(header))
+
+        nrWakeup = 0
+        for i, a in enumerate(alarms, 1):
+            if a["wakeup"]:
+                nrWakeup += 1
+            wakeupCol = "O" if a["wakeup"] else ""
+            if a["wakeup"]:
+                wakeupCol = UtilMgr.convColor(wakeupCol, "YELLOW")
+
+            # UtilMgr.convTime() assumes a non-negative second count
+            # (its divmod-based day/hour/min/sec breakdown produces a
+            # confusing result for a negative input, e.g. -1148
+            # becomes "-1:40:52" instead of a readable "-19:08") --
+            # sign and magnitude are split apart first so the overdue
+            # case renders as a plain "-"-prefixed duration instead #
+            whenMs = a["whenElapsedMs"]
+            if whenMs is None:
+                whenCol = "-"
+            else:
+                sign = "-" if whenMs < 0 else ""
+                whenCol = sign + UtilMgr.convTime(abs(whenMs) // 1000)
+
+            repeatMs = a["repeatIntervalMs"]
+            repeatCol = UtilMgr.convTime(repeatMs // 1000) if repeatMs else ""
+
+            SysMgr.printPipe(
+                fmt.format(
+                    i,
+                    a["type"],
+                    (a["tag"] or "-")[:40],
+                    a["package"][:28],
+                    whenCol,
+                    repeatCol,
+                    wakeupCol,
+                )
+            )
+
+        SysMgr.printPipe("-" * len(header))
+        SysMgr.printPipe(
+            "Total: %d alarms (%d wakeup)" % (len(alarms), nrWakeup)
+        )
+
+    @staticmethod
+    def parseDozeDump(lines):
+        # only a fixed, known set of "key=value" state fields are
+        # pulled out explicitly -- "dumpsys deviceidle" also prints a
+        # large "Settings:" block of tunable constants using the
+        # exact same "key=value" shape (e.g. "light_idle_to=
+        # +5m0s0ms"), so a generic greedy regex over every line would
+        # vacuum those up too; this device-verified set is only the
+        # actual CURRENT STATE fields, not configuration #
+        wantedKeys = (
+            "mLightEnabled",
+            "mDeepEnabled",
+            "mForceIdle",
+            "mScreenOn",
+            "mScreenLocked",
+            "mNetworkConnected",
+            "mCharging",
+            "mState",
+            "mLightState",
+            "mJobsActive",
+        )
+        statePat = re.compile(r"\b(" + "|".join(wantedKeys) + r")=(\S+)")
+        # each of the 4 whitelist sections is a header line followed
+        # by one package-name-or-appid per indented line, ending at
+        # the first line that doesn't match that 4-space-indent shape
+        # (device-verified: both devices emit all 4 sections in the
+        # same fixed order, "all app ids" numeric lists included) #
+        sectionHeaderPat = re.compile(
+            r"^  (Whitelist(?: \(except idle\))? "
+            r"(?:system apps|all app ids)):\s*$"
+        )
+        itemPat = re.compile(r"^    (\S+)$")
+
+        states = {}
+        whitelists = {}
+        curSection = None
+        for line in lines:
+            hm = sectionHeaderPat.match(line)
+            if hm:
+                curSection = hm.group(1)
+                whitelists[curSection] = []
+                continue
+            if curSection is not None:
+                im = itemPat.match(line)
+                if im:
+                    whitelists[curSection].append(im.group(1))
+                    continue
+                else:
+                    curSection = None
+            for k, v in statePat.findall(line):
+                states[k] = v
+
+        if not states:
+            SysMgr.printWarn(
+                "failed to parse any device-idle state from dumpsys " "output",
+                always=True,
+            )
+
+        return states, whitelists
+
+    @staticmethod
+    def getDozeInfo(pkg=""):
+        if pkg == "SET":
+            pkg = ""
+
+        cmd = ["dumpsys", "deviceidle"]
+        lines = SysMgr.executeCmdSync(cmd)
+        if not lines:
+            SysMgr.printErr("failed to get device-idle info")
+            return
+        if AndroidMgr._checkDumpsysDenied(lines, "deviceidle"):
+            return
+
+        states, whitelists = AndroidMgr.parseDozeDump(lines)
+        if not states:
+            return
+
+        if SysMgr.jsonEnable:
+            SysMgr.printPipe(
+                UtilMgr.convDict2Str(
+                    {"state": states, "whitelists": whitelists}
+                )
+            )
+            return
+
+        if "NOCUT" in SysMgr.environList:
+            SysMgr.setStream()
+
+        # one-line summary, same style as gettaskstat's own global
+        # summary line (short single values, comma-separated) #
+        def _b(key):
+            return states.get(key, "-")
+
+        SysMgr.printPipe(
+            "State: %s, LightState: %s, Enabled(deep/light): %s/%s, "
+            "Screen: %s, Charging: %s, Network: %s"
+            % (
+                _b("mState"),
+                _b("mLightState"),
+                _b("mDeepEnabled"),
+                _b("mLightEnabled"),
+                _b("mScreenOn"),
+                _b("mCharging"),
+                _b("mNetworkConnected"),
+            )
+        )
+
+        # flatten the 4 raw sections into one (package, scope) table --
+        # "except idle" scope keeps running even while idle/Doze is
+        # active, the plain scope only runs during maintenance windows;
+        # app-id-numbered entries (no package name available from this
+        # dump alone) are skipped from the table, same "only show what's
+        # actually resolvable" principle as getservicestat's cmdline #
+        rows = {}
+        for section, items in whitelists.items():
+            exceptIdle = "except idle" in section
+            isAppOnly = "all app ids" in section
+            if isAppOnly:
+                continue
+            for name in items:
+                if pkg and pkg not in name:
+                    continue
+                row = rows.setdefault(
+                    name, {"exceptIdle": False, "always": False}
+                )
+                if exceptIdle:
+                    row["exceptIdle"] = True
+                else:
+                    row["always"] = True
+
+        if rows:
+            fmt = "{0:<50} {1:^12} {2:^8}"
+            header = fmt.format("Package", "ExceptIdle", "Always")
+            SysMgr.printPipe("")
+            SysMgr.printPipe("=" * len(header))
+            SysMgr.printPipe(header)
+            SysMgr.printPipe("-" * len(header))
+            for name in sorted(rows):
+                row = rows[name]
+                SysMgr.printPipe(
+                    fmt.format(
+                        name[:50],
+                        "O" if row["exceptIdle"] else "",
+                        "O" if row["always"] else "",
+                    )
+                )
+            SysMgr.printPipe("-" * len(header))
+            SysMgr.printPipe("Total: %d whitelisted packages" % len(rows))
+
+    @staticmethod
+    def parseProcStatsDump(lines):
+        # "dumpsys procstats" (plain, human-readable mode -- NOT
+        # "--checkin", whose machine-oriented output was device-
+        # verified empty on both 5af877f6/66aed018 under normal
+        # operation) lists one "* <pkg> / <uid> / v<ver>:" header per
+        # process, followed by one line per lifecycle state it spent
+        # any time in during the observed window. Package names repeat
+        # across multiple blocks on a multi-user device (same app
+        # running as different uids) -- device-verified 97/408 blocks
+        # on 5af877f6 -- so (pkg, uid, ver) together, not pkg alone,
+        # is this dump's actual per-block identity #
+        headerPat = re.compile(r"^\s*\* (\S+) / (\S+) / v(\d+):", re.M)
+        # state label is free-form text (can contain a space, e.g.
+        # "Imp Fg"/"Bnd Fgs" -- both device-verified live) and can
+        # also be parenthesized (AOSP DumpUtils.STATE_LABELS includes
+        # "(Last Act)"/"(Home)"/"(Cached)"), ending in ":", then
+        # "N% (pssMin-pssAvg-pssMax/ussMin-ussAvg-ussMax/
+        # rssMin-rssAvg-rssMax over N)" -- only the three "avg" values
+        # are kept for the table (min/max still exposed via -J).
+        # ProcessState.print() (AOSP) only emits the "(...)" group
+        # when that state actually has at least one PSS sample
+        # (numPss > 0) -- a state can accumulate time with zero PSS
+        # samples, printing a bare "N%" with no parens at all, so the
+        # whole group must be optional or those lines (device-
+        # verified: 28/408 blocks affected on 5af877f6, including a
+        # bare "(Last Act): 3.1%" with no parens group whatsoever) are
+        # silently dropped from both the table and -J JSON #
+        statePat = re.compile(
+            r"^\s*([A-Za-z(][\w() ]*?)\s*:\s*(\d+(?:\.\d+)?)%"
+            r"(?:\s*\((\S+)-(\S+)-(\S+)/(\S+)-(\S+)-(\S+)/(\S+)-(\S+)-(\S+)"
+            r" over (\d+)\))?",
+            re.M,
+        )
+
+        procs = []
+        blocks = re.split(
+            r"(?=^\s*\* \S+ / \S+ / v\d+:)", "\n".join(lines), flags=re.M
+        )
+        for block in blocks:
+            hm = headerPat.match(block)
+            if not hm:
+                continue
+            pkg, uid, ver = hm.groups()
+            states = {}
+            for sm in statePat.finditer(block):
+                label = sm.group(1).strip()
+                # pct can be a decimal below 10% (AOSP's own
+                # DumpUtils.printPercent() switches from "%.0f" to
+                # "%.1f"/"%.2f" under 10%/1%, e.g. "5.9%"/"0.04%",
+                # device-verified live) -- int() would raise
+                # ValueError on those; the "(...)" min/avg/max/count
+                # group is itself optional (absent when that state has
+                # zero PSS samples), so sampleCount falls back to 0 #
+                states[label] = {
+                    "pct": float(sm.group(2)),
+                    "pssMin": sm.group(3),
+                    "pssAvg": sm.group(4),
+                    "pssMax": sm.group(5),
+                    "ussMin": sm.group(6),
+                    "ussAvg": sm.group(7),
+                    "ussMax": sm.group(8),
+                    "rssMin": sm.group(9),
+                    "rssAvg": sm.group(10),
+                    "rssMax": sm.group(11),
+                    "sampleCount": (int(sm.group(12)) if sm.group(12) else 0),
+                }
+            if not states:
+                continue
+            # TOTAL's own pct is always 100 (the states below it
+            # necessarily sum to the full observed window) -- the
+            # dominant non-TOTAL state is whichever one actually
+            # explains most of that window, used for the table's own
+            # single-state summary column #
+            nonTotal = {k: v for k, v in states.items() if k != "TOTAL"}
+            dominant = (
+                max(nonTotal.items(), key=lambda kv: kv[1]["pct"])[0]
+                if nonTotal
+                else None
+            )
+            procs.append(
+                {
+                    "package": pkg,
+                    "uid": uid,
+                    "ver": ver,
+                    "states": states,
+                    "dominant": dominant,
+                    "dominantPct": (
+                        nonTotal[dominant]["pct"] if dominant else 0
+                    ),
+                }
+            )
+
+        if not procs:
+            SysMgr.printWarn(
+                "failed to parse any process from dumpsys output",
+                always=True,
+            )
+
+        return procs
+
+    @staticmethod
+    def getProcStats(pkg=""):
+        if pkg == "SET":
+            pkg = ""
+
+        cmd = ["dumpsys", "procstats"]
+        lines = SysMgr.executeCmdSync(cmd)
+        if not lines:
+            SysMgr.printErr("failed to get process stats info")
+            return
+        if AndroidMgr._checkDumpsysDenied(lines, "procstats"):
+            return
+
+        procs = AndroidMgr.parseProcStatsDump(lines)
+        if not procs:
+            return
+
+        if pkg:
+            procs = [p for p in procs if pkg in p["package"]]
+
+        if SysMgr.jsonEnable:
+            SysMgr.printPipe(UtilMgr.convDict2Str({"procs": procs}))
+            return
+
+        if "NOCUT" in SysMgr.environList:
+            SysMgr.setStream()
+
+        # default sort: heaviest PSS-avg first (the dominant state's
+        # own PSS avg, since that's the state the process actually
+        # spent most of its observed time in); "-q SORT:PCT" instead
+        # orders by how skewed toward its dominant state a process is
+        # -- useful for spotting e.g. a process that's 95% Cached
+        # (barely used, yet still holding memory) #
+        sortBy = SysMgr.environList.get("SORT", [""])[0].upper()
+
+        def _pssAvgBytes(p):
+            if not p["dominant"]:
+                return 0
+            # a state with zero PSS samples has no "pssAvg" string at
+            # all (parseProcStatsDump leaves it None) -- device-
+            # verified real dominant states hit this (e.g. "Service
+            # Rs"/"Top" at low pct), so convUnit2Size(None) must be
+            # avoided rather than letting it raise #
+            pssAvg = p["states"][p["dominant"]]["pssAvg"]
+            if pssAvg is None:
+                return 0
+            return UtilMgr.convUnit2Size(pssAvg, verb=False)
+
+        if sortBy == "PCT":
+            sortKey = lambda p: p["dominantPct"]
+        else:
+            sortKey = _pssAvgBytes
+        procs = sorted(procs, key=sortKey, reverse=True)
+
+        fmt = "{0:>4} {1:<32} {2:>8} {3:<12} {4:>4} {5:>9} {6:>9} {7:>9}"
+        header = fmt.format(
+            "No",
+            "Package",
+            "UID",
+            "State",
+            "Pct",
+            "PSS(avg)",
+            "USS(avg)",
+            "RSS(avg)",
+        )
+        SysMgr.printPipe("=" * len(header))
+        SysMgr.printPipe(header)
+        SysMgr.printPipe("-" * len(header))
+
+        for i, p in enumerate(procs, 1):
+            dominant = p["dominant"]
+            st = p["states"].get(dominant, {}) if dominant else {}
+            # pssAvg/ussAvg/rssAvg are None (not absent) for a state
+            # with zero PSS samples -- "- or" would format() a bare
+            # None and crash, since the key IS present, just empty #
+            SysMgr.printPipe(
+                fmt.format(
+                    i,
+                    p["package"][:32],
+                    p["uid"],
+                    (dominant or "-")[:12],
+                    ("%d%%" % p["dominantPct"]) if dominant else "-",
+                    st.get("pssAvg") or "-",
+                    st.get("ussAvg") or "-",
+                    st.get("rssAvg") or "-",
+                )
+            )
+
+        SysMgr.printPipe("-" * len(header))
+        SysMgr.printPipe("Total: %d processes" % len(procs))
+
+    @staticmethod
+    def parseJobDump(lines):
+        # "dumpsys jobscheduler" lists each scheduled job as a flat
+        # block starting with "JOB #<uid>/<jobId>: <addr> <pkg>/
+        # <service>" -- jobId is observed negative on both devices
+        # (e.g. "#u0a42/-100"), so the sign must be allowed in the
+        # header regex #
+        headerPat = re.compile(
+            r"^\s*JOB #(\S+)/(-?\d+): (\S+) (\S+)/(\S+)", re.M
+        )
+        # the header's own pkg is the DECLARING package (where the
+        # JobService component lives), but a system service can
+        # schedule a job on an app's behalf -- "Source: uid=... pkg=
+        # ..." is the actual requester, device-verified identical to
+        # the header pkg for the vast majority of jobs but a safer
+        # match target for package filtering since it's always the
+        # true requester #
+        sourcePkgPat = re.compile(r"Source: uid=\S+ user=\S+ pkg=(\S+)")
+        # presence-only, like getservicestat's own isForeground= --
+        # a one-shot job simply has no "PERIODIC:" line at all #
+        periodicPat = re.compile(r"\bPERIODIC: interval=(\S+)")
+        priorityPat = re.compile(r"Priority: (-?\d+) \[(\w+)\]")
+        reqConstraintsPat = re.compile(r"Required constraints: (.*?) \[")
+        unsatConstraintsPat = re.compile(r"Unsatisfied constraints: (.*?) \[")
+        bucketPat = re.compile(r"Standby bucket: (\S+)")
+        readyPat = re.compile(r"Ready: (true|false)")
+
+        jobs = []
+        blocks = re.split(
+            r"(?=^\s*JOB #\S+/-?\d+: )", "\n".join(lines), flags=re.M
+        )
+        for block in blocks:
+            hm = headerPat.match(block)
+            if not hm:
+                continue
+            uid, jobId, addr, hdrPkg, service = hm.groups()
+            srcm = sourcePkgPat.search(block)
+            prim = priorityPat.search(block)
+            reqm = reqConstraintsPat.search(block)
+            unsatm = unsatConstraintsPat.search(block)
+            bktm = bucketPat.search(block)
+            rdym = readyPat.search(block)
+            jobs.append(
+                {
+                    "uid": uid,
+                    "jobId": int(jobId),
+                    "package": srcm.group(1) if srcm else hdrPkg,
+                    "service": service,
+                    "periodic": bool(periodicPat.search(block)),
+                    "priority": prim.group(1) if prim else None,
+                    "priorityLabel": prim.group(2) if prim else None,
+                    "requiredConstraints": (
+                        reqm.group(1).split() if reqm else []
+                    ),
+                    "unsatisfiedConstraints": (
+                        unsatm.group(1).split() if unsatm else []
+                    ),
+                    "bucket": bktm.group(1) if bktm else None,
+                    "ready": rdym.group(1) == "true" if rdym else False,
+                }
+            )
+
+        if not jobs:
+            SysMgr.printWarn(
+                "failed to parse any job from dumpsys output",
+                always=True,
+            )
+
+        return jobs
+
+    @staticmethod
+    def parseSurfaceDump(lines):
+        # "dumpsys SurfaceFlinger" prints the real layer TREE as a
+        # depth-first walk ("+ Layer (<name>#<id>) uid=<uid>" header per
+        # block, nesting conveyed by TEXT ORDER only, never indentation)
+        # -- device-verified on both test devices that EVERY layer name
+        # ends in "#<id>" and these ids are globally unique, so the
+        # trailing id (not the name itself, which can repeat -- e.g. 6
+        # distinct "SurfaceView[...]" layers observed on one device) is
+        # the reliable parent-child linkage key, not AOSP's own
+        # name-based "parent=<name>" text #
+        text = "\n".join(lines)
+        layerHeaderPat = re.compile(
+            r"^\+ Layer \((.*)#(\d+)\) uid=(-?\d+)", re.M
+        )
+        visibleRegionPat = re.compile(
+            r"Region VisibleRegion \(this=\S+ count=(\d+)\)"
+        )
+        fieldPat = re.compile(
+            r"layerStack=\s*(\d+), z=\s*(-?\d+), pos=\(([^)]*)\), "
+            r"size=\(\s*(\d+),\s*(\d+)\), "
+            r"crop=\[\s*(-?\d+),\s*(-?\d+),\s*(-?\d+),\s*(-?\d+)\].*?"
+            r"isOpaque=(\d).*?color=\(([^)]*)\).*?flags=0x([0-9a-fA-F]+)"
+        )
+        parentPat = re.compile(r"^\s*parent=(.+)$", re.M)
+        zOrderRelPat = re.compile(r"^\s*zOrderRelativeOf=(.+)$", re.M)
+        # metadata={...} is an unordered, comma-separated key:value bag
+        # (device-verified key order genuinely varies between layers on
+        # the SAME capture) -- matched independently of the other
+        # fieldPat groups rather than as a positional group there.
+        # ownerPid is the one real identifier more specific than the
+        # layer's own header uid= (which several unrelated layers can
+        # legitimately share, e.g. every layer a single multi-window
+        # app owns) -- it's the actual rendering process, not derivable
+        # from anything else already exposed. (A sibling "taskId:" key
+        # also exists in this same metadata bag, but device-verified on
+        # both test devices every layer carrying it is ALSO literally
+        # named "Task=<the same number>" -- that's the Name column
+        # already, so it was deliberately not added as its own field) #
+        ownerPidPat = re.compile(r"ownerPID:(\d+)")
+        activeBufferPat = re.compile(
+            r"activeBuffer=\[\s*(\d+)x\s*(\d+):\s*(\d+),(\S+)\]"
+        )
+
+        layers = {}
+        blocks = [(m.start(), m) for m in layerHeaderPat.finditer(text)]
+        for idx, (start, hm) in enumerate(blocks):
+            end = blocks[idx + 1][0] if idx + 1 < len(blocks) else len(text)
+            block = text[start:end]
+            lid = int(hm.group(2))
+            uid = int(hm.group(3))
+
+            vrm = visibleRegionPat.search(block)
+            fm = fieldPat.search(block)
+            pm = parentPat.search(block)
+            zrm = zOrderRelPat.search(block)
+            abm = activeBufferPat.search(block)
+            opm = ownerPidPat.search(block)
+
+            def _resolveRef(raw):
+                raw = raw.strip()
+                if raw == "none":
+                    return None
+                rm = re.match(r"^(.*)#(\d+)$", raw)
+                return int(rm.group(2)) if rm else None
+
+            info = {
+                "name": hm.group(1),
+                "uid": uid,
+                "visible": bool(vrm) and int(vrm.group(1)) > 0,
+                "parentId": _resolveRef(pm.group(1)) if pm else None,
+                "zOrderRelativeOf": (
+                    _resolveRef(zrm.group(1)) if zrm else None
+                ),
+                "ownerPid": int(opm.group(1)) if opm else None,
+            }
+            if fm:
+                info["layerStack"] = int(fm.group(1))
+                info["z"] = int(fm.group(2))
+                # "pos=(x,y)" is matched by fieldPat (group 3) but was
+                # never actually stored anywhere -- every sibling group
+                # in this same regex (layerStack/z/size/crop/isOpaque/
+                # color/flags) gets assigned into info[...], but pos
+                # alone was parsed and silently discarded, so it never
+                # reached either the TREE table or "-J" JSON mode (which
+                # just does dict(info)) even though a real device value
+                # was captured successfully the whole time. Unlike
+                # size=/crop= (whose own regex groups are \d+-only),
+                # pos='s capture group is "[^)]*" (unanchored to digits)
+                # because AOSP's real format string is "pos=(%g,%g)" --
+                # device-verified both test devices only ever print
+                # whole-number coordinates, but %g can legitimately
+                # print a fractional value (e.g. mid-animation), so
+                # float() here (not int(), which would raise on any
+                # decimal value) #
+                info["pos"] = [float(v) for v in fm.group(3).split(",")]
+                info["size"] = [int(fm.group(4)), int(fm.group(5))]
+                info["crop"] = [
+                    int(fm.group(6)),
+                    int(fm.group(7)),
+                    int(fm.group(8)),
+                    int(fm.group(9)),
+                ]
+                info["isOpaque"] = fm.group(10) == "1"
+                info["color"] = [float(v) for v in fm.group(11).split(",")]
+                info["flags"] = "0x" + fm.group(12)
+            if abm:
+                info["activeBuffer"] = {
+                    "w": int(abm.group(1)),
+                    "h": int(abm.group(2)),
+                    "stride": int(abm.group(3)),
+                    "format": abm.group(4),
+                }
+            layers[lid] = info
+
+        if not layers:
+            SysMgr.printWarn(
+                "failed to parse any layer from dumpsys output",
+                always=True,
+            )
+            return layers, {}
+
+        # "Display <id> (physical|virtual, "<name>")" blocks each carry
+        # their own "layerFilter={layerStack=N ...}" line -- the only
+        # place in this dumpsys output that maps a display's own id/name
+        # to the layerStack value every layer above independently
+        # reports, device-verified both single- and multi-display #
+        dispBlockPat = re.compile(
+            r'^Display (\d+) \((physical|virtual), "(.*)"\)', re.M
+        )
+        layerFilterPat = re.compile(r"layerFilter=\{layerStack=(\d+)")
+        dispMap = {}
+        dblocks = [(m.start(), m) for m in dispBlockPat.finditer(text)]
+        for idx, (start, dm) in enumerate(dblocks):
+            end = dblocks[idx + 1][0] if idx + 1 < len(dblocks) else len(text)
+            fm = layerFilterPat.search(text[start:end])
+            if fm:
+                dispMap[int(fm.group(1))] = {
+                    "displayId": dm.group(1),
+                    "name": dm.group(3),
+                    "type": dm.group(2),
+                }
+
+        return layers, dispMap
+
+    @staticmethod
+    def parseHwcLayerDump(lines):
+        # "Display <id> (active|inactive) HWC layers:" is a SEPARATE,
+        # already-flat per-display table (Layer::miniDumpHeader()/
+        # miniDump()) -- distinct from the layer tree above, no parent/
+        # child relationship here at all, one row per on-screen layer #
+        text = "\n".join(lines)
+        dispHeaderPat = re.compile(
+            r"^Display (\d+) \((active|inactive)\) HWC layers:", re.M
+        )
+        # the Frame Rate column (device-verified both test devices: it's
+        # blank/all-whitespace for every real row captured, since
+        # neither device has a layer with an active explicit frame-rate
+        # vote at capture time) is still captured as its own group here
+        # rather than swallowed into the preceding ".*" -- a device/
+        # layer that DOES have one set would otherwise silently never
+        # surface it in either the table or "-J" JSON output #
+        dataPat = re.compile(
+            r"^\s*(rel|abs)\s+(-?\d+)\s*\|\s*(\d+)\s*\|\s*(\S+)\s*\|\s*"
+            r"(\d+)\s*\|\s*(-?\d+)\s+(-?\d+)\s+(-?\d+)\s+(-?\d+)\s*\|\s*"
+            r"([\d.]+)\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)\s*\|\s*"
+            r"(.*?)\[([* ])\]",
+            re.M,
+        )
+
+        lines = text.splitlines()
+        displays = {}
+        curDisp = None
+        pendingName = None
+        for line in lines:
+            hm = dispHeaderPat.match(line)
+            if hm:
+                curDisp = hm.group(1)
+                displays[curDisp] = {
+                    "active": hm.group(2) == "active",
+                    "layers": [],
+                }
+                pendingName = None
+                continue
+            if curDisp is None:
+                continue
+            if (
+                line.startswith(" ")
+                and "|" not in line
+                and line.strip() != "Layer name"
+                and not line.startswith("---")
+            ):
+                pendingName = line.strip()
+                continue
+            dm = dataPat.match(line)
+            if dm and pendingName is not None:
+                displays[curDisp]["layers"].append(
+                    {
+                        "name": pendingName,
+                        "z": int(dm.group(2)),
+                        "winType": int(dm.group(3)),
+                        "compType": dm.group(4),
+                        "transform": int(dm.group(5)),
+                        "dispFrame": [
+                            int(dm.group(6)),
+                            int(dm.group(7)),
+                            int(dm.group(8)),
+                            int(dm.group(9)),
+                        ],
+                        "srcCrop": [
+                            float(dm.group(10)),
+                            float(dm.group(11)),
+                            float(dm.group(12)),
+                            float(dm.group(13)),
+                        ],
+                        "frameRate": dm.group(14).strip() or None,
+                        "focused": dm.group(15) == "*",
+                    }
+                )
+                pendingName = None
+
+        return displays
+
+    @staticmethod
+    def getJobList(pkg=""):
+        if pkg == "SET":
+            pkg = ""
+
+        cmd = ["dumpsys", "jobscheduler"]
+        lines = SysMgr.executeCmdSync(cmd)
+        if not lines:
+            SysMgr.printErr("failed to get job scheduler info")
+            return
+        if AndroidMgr._checkDumpsysDenied(lines, "jobscheduler"):
+            return
+
+        jobs = AndroidMgr.parseJobDump(lines)
+        if not jobs:
+            return
+
+        if pkg:
+            jobs = [j for j in jobs if pkg in j["package"]]
+
+        if SysMgr.jsonEnable:
+            SysMgr.printPipe(UtilMgr.convDict2Str({"jobs": jobs}))
+            return
+
+        if "NOCUT" in SysMgr.environList:
+            SysMgr.setStream()
+
+        # default sort: ready-to-run jobs first (same "most actionable
+        # first" idea as getservicestat's FG-first default), then by
+        # package/jobId for stability #
+        jobs = sorted(
+            jobs,
+            key=lambda j: (
+                0 if j["ready"] else 1,
+                j["package"],
+                j["jobId"],
+            ),
+        )
+
+        fmt = (
+            "{0:>9} {1:>5} {2:<28} {3:<30} {4:^4} {5:>4} {6:<10} " "{7:^6} {8}"
+        )
+        header = fmt.format(
+            "UID",
+            "JobId",
+            "Package",
+            "Service",
+            "Per",
+            "Pri",
+            "Bucket",
+            "Ready",
+            "Unsatisfied",
+        )
+        SysMgr.printPipe("=" * len(header))
+        SysMgr.printPipe(header)
+        SysMgr.printPipe("-" * len(header))
+
+        nrReady = 0
+        for j in jobs:
+            if j["ready"]:
+                nrReady += 1
+            readyCol = "O" if j["ready"] else ""
+            if j["ready"]:
+                readyCol = UtilMgr.convColor(readyCol, "GREEN")
+            periodicCol = "O" if j["periodic"] else ""
+            unsatCol = ",".join(j["unsatisfiedConstraints"])
+
+            SysMgr.printPipe(
+                fmt.format(
+                    j["uid"],
+                    j["jobId"],
+                    j["package"][:28],
+                    j["service"][:30],
+                    periodicCol,
+                    j["priority"] or "-",
+                    j["bucket"] or "-",
+                    readyCol,
+                    unsatCol,
+                )
+            )
+
+        SysMgr.printPipe("-" * len(header))
+        SysMgr.printPipe("Total: %d jobs (%d ready)" % (len(jobs), nrReady))
+
+    @staticmethod
+    def getSurfaceStat(pkg=""):
+        if pkg == "SET":
+            pkg = ""
+
+        cmd = ["dumpsys", "SurfaceFlinger"]
+        lines = SysMgr.executeCmdSync(cmd)
+        if not lines:
+            SysMgr.printErr("failed to get SurfaceFlinger info")
+            return
+        if AndroidMgr._checkDumpsysDenied(lines, "SurfaceFlinger"):
+            return
+
+        layers, dispMap = AndroidMgr.parseSurfaceDump(lines)
+        if not layers:
+            return
+        hwcDisplays = AndroidMgr.parseHwcLayerDump(lines)
+        # computed once here and reused by every consumer below (the
+        # JSON branch and _printSurfaceFlat() each used to rebuild this
+        # same dict independently) #
+        displayIdToStack = {v.get("displayId"): k for k, v in dispMap.items()}
+
+        # a layer's text dump carries only "uid=", never a package name
+        # -- join against packages.list's own uid field (same source
+        # getPkgList() already reads) to resolve a pkg filter the same
+        # substring-match way every other GET* command's pkg filter
+        # works, instead of inventing a uid-only filter syntax #
+        uidToPkg = {}
+        if pkg:
+            for appname, info in AndroidMgr.getPkgList().items():
+                try:
+                    uidToPkg.setdefault(int(info["uid"]), []).append(appname)
+                except (ValueError, TypeError):
+                    continue
+
+        def _pkgOf(uid):
+            names = uidToPkg.get(uid)
+            if not names:
+                return None
+            # a shared uid (android:sharedUserId) can map to multiple
+            # package names -- when a pkg filter is active, prefer the
+            # name that actually matches it instead of blindly picking
+            # names[0], otherwise a layer legitimately owned by the
+            # filtered-for package silently drops out just because some
+            # OTHER co-uid package happened to sort first #
+            if pkg:
+                for name in names:
+                    if pkg in name:
+                        return name
+            return names[0]
+
+        onlyDisplay = SysMgr.environList.get("DISPLAY")
+        onlyDisplay = int(onlyDisplay[0]) if onlyDisplay else None
+
+        showTree = "TREE" in SysMgr.environList
+        onlyVis = "ONLYVIS" in SysMgr.environList
+
+        if SysMgr.jsonEnable:
+            jsonLayers = {}
+            for lid, info in layers.items():
+                if (
+                    onlyDisplay is not None
+                    and info.get("layerStack") != onlyDisplay
+                ):
+                    continue
+                pkgName = _pkgOf(info["uid"]) if pkg else None
+                if pkg and (not pkgName or pkg not in pkgName):
+                    continue
+                if onlyVis and not info.get("visible"):
+                    continue
+                entry = dict(info)
+                entry["pkg"] = pkgName
+                jsonLayers[str(lid)] = entry
+            jsonHwc = {}
+            for did, d in hwcDisplays.items():
+                stack = displayIdToStack.get(did)
+                jsonHwc.setdefault(
+                    str(stack) if stack is not None else did, []
+                ).extend(d["layers"])
+            SysMgr.printPipe(
+                UtilMgr.convDict2Str(
+                    {"surfaceLayers": jsonLayers, "hwcLayers": jsonHwc}
+                )
+            )
+            return
+
+        if "NOCUT" in SysMgr.environList:
+            SysMgr.setStream()
+
+        if showTree:
+            AndroidMgr._printSurfaceTree(
+                layers, pkg, onlyDisplay, _pkgOf, onlyVis
+            )
+        else:
+            AndroidMgr._printSurfaceFlat(
+                hwcDisplays,
+                displayIdToStack,
+                pkg,
+                onlyDisplay,
+                layers,
+                _pkgOf,
+            )
+
+    @staticmethod
+    def _printSurfaceFlat(
+        hwcDisplays, displayIdToStack, pkg, onlyDisplay, layers, _pkgOf
+    ):
+        # flat mode reuses the dumpsys's OWN already-flat per-display
+        # HWC minidump table rather than flattening the layer tree a
+        # second time -- these are the layers actually composited on
+        # screen (Z/CompType/Transform/crop), the tree view below is
+        # for structural debugging instead #
+        # resolve each HWC row's owning layer (matched by name#id suffix
+        # in the raw name, same linkage the tree parser already uses)
+        # purely to support the pkg filter here -- the HWC table itself
+        # carries no uid of its own #
+        nameToLid = {}
+        for lid, info in layers.items():
+            nameToLid[info["name"] + "#" + str(lid)] = lid
+
+        # Name sits LAST and unpadded (not clipped to a fixed width like
+        # every other column) so the one field that actually identifies
+        # which layer a row is never gets truncated regardless of how
+        # long a real package/activity-qualified name gets #
+        fmt = (
+            "{0:>6} {1:>7} {2:>6} {3:<20} {4:>8} {5:<9} "
+            "{6:>24} {7:>24} {8:>9} {9:^5} {10}"
+        )
+        header = fmt.format(
+            "No",
+            "Display",
+            "Z",
+            "WinType",
+            "CompType",
+            "Transform",
+            "DispFrame",
+            "SrcCrop",
+            "FrameRate",
+            "Focus",
+            "Name",
+        )
+        SysMgr.printPipe("=" * len(header))
+        SysMgr.printPipe(header)
+        SysMgr.printPipe("-" * len(header))
+
+        rows = []
+        for did, d in hwcDisplays.items():
+            stack = displayIdToStack.get(did)
+            if onlyDisplay is not None and stack != onlyDisplay:
+                continue
+            for l in d["layers"]:
+                if pkg:
+                    lid = nameToLid.get(l["name"])
+                    pkgName = (
+                        _pkgOf(layers[lid]["uid"]) if lid is not None else None
+                    )
+                    if not pkgName or pkg not in pkgName:
+                        continue
+                rows.append((stack if stack is not None else -1, l))
+
+        rows.sort(key=lambda x: (x[0], x[1]["z"]))
+
+        nrPrinted = 0
+        nrFocused = 0
+        for stack, l in rows:
+            nrPrinted += 1
+            if l["focused"]:
+                nrFocused += 1
+            focusCol = "O" if l["focused"] else ""
+            SysMgr.printPipe(
+                fmt.format(
+                    nrPrinted,
+                    stack,
+                    l["z"],
+                    l["winType"],
+                    l["compType"],
+                    l["transform"],
+                    "[%d,%d,%d,%d]" % tuple(l["dispFrame"]),
+                    "[%.1f,%.1f,%.1f,%.1f]" % tuple(l["srcCrop"]),
+                    l["frameRate"] or "",
+                    focusCol,
+                    l["name"],
+                )
+            )
+
+        SysMgr.printPipe("-" * len(header))
+        SysMgr.printPipe(
+            "Total: %d layers, %d focused" % (nrPrinted, nrFocused)
+        )
+
+    @staticmethod
+    def _printSurfaceTree(layers, pkg, onlyDisplay, _pkgOf, onlyVis):
+        # same "name column gets '`- ' prefix, every other column stays
+        # at its fixed position" convention gettaskstat's own -q TREE
+        # mode already established, reused verbatim here rather than
+        # inventing a new tree-rendering style #
+        # Name sits LAST and unpadded (not clipped to a fixed width) so
+        # the "`- " nesting prefix plus a long package/activity-
+        # qualified name never gets truncated regardless of depth #
+        fmt = "{0:>9} {1:>5} {2:>5} {3:>8} {4:>7} {5:<13} " "{6:^4} {7:^3} {8}"
+        header = fmt.format(
+            "LayerId",
+            "Disp",
+            "Z",
+            "Uid",
+            "Pid",
+            "Size",
+            "Vis",
+            "Op",
+            "Name",
+        )
+        SysMgr.printPipe("=" * len(header))
+        SysMgr.printPipe("Layer Tree:")
+        SysMgr.printPipe("=" * len(header))
+        SysMgr.printPipe(header)
+        SysMgr.printPipe("-" * len(header))
+
+        childrenOf = {}
+        for lid, info in layers.items():
+            childrenOf.setdefault(info.get("parentId"), []).append(lid)
+
+        nrPrinted = 0
+        nrVis = 0
+
+        def _buildRow(lid, info, depth):
+            name = info.get("name") or "-"
+            if depth > 0:
+                name = "`- " + name
+            # "size=" in the raw dump is frequently (0,0) even for a
+            # fully-drawn, visible layer -- device-verified AOSP tracks
+            # the actual rendered dimensions on activeBuffer instead,
+            # so that's the field worth showing here, not the always-
+            # zero "size=" one. Blank (not "-") for a bufferless
+            # container layer -- same near-always-empty shape as Pid/
+            # FrameRate above, "-" there was pure visual noise #
+            buf = info.get("activeBuffer")
+            sizeCol = (
+                "[%dx%d]" % (buf["w"], buf["h"])
+                if buf and (buf["w"] or buf["h"])
+                else ""
+            )
+            # "V"/"O" instead of a shared "O" for both -- a quick scan
+            # of this column pair couldn't otherwise tell at a glance
+            # which one of Vis/Op was actually set on a given row #
+            return fmt.format(
+                lid,
+                info.get("layerStack", ""),
+                info.get("z", ""),
+                info["uid"],
+                info.get("ownerPid") or "",
+                sizeCol,
+                "V" if info.get("visible") else "",
+                "O" if info.get("isOpaque") else "",
+                name,
+            )
+
+        def _walk(lid, depth):
+            nonlocal nrPrinted, nrVis
+            info = layers[lid]
+            pkgName = _pkgOf(info["uid"]) if pkg else None
+            # pkg filter matches only the layer itself here (unlike
+            # gettaskstat's TREE mode, a layer's own uid/pkg is
+            # unrelated to its parent's -- a system container layer can
+            # legitimately own app-owned children, so pulling the whole
+            # subtree up on a parent match would mix in unrelated
+            # layers the filter was never meant to include) #
+            printed = not pkg or (pkgName and pkg in pkgName)
+            # same "ONLYVISWIN" idea as getwindowstat -- most of the
+            # tree is pure structural/container layers with no buffer
+            # of their own, so filtering to Vis=V-only is the one way
+            # to see just what's actually contributing visible pixels
+            # right now instead of the full (mostly invisible) tree #
+            if onlyVis and not info.get("visible"):
+                printed = False
+            if printed:
+                SysMgr.printPipe(_buildRow(lid, info, depth))
+                nrPrinted += 1
+                if info.get("visible"):
+                    nrVis += 1
+            childIds = childrenOf.get(lid, [])
+            # AOSP's own composition order: z<0 children print before
+            # the parent's siblings at this level, z>=0 after -- same
+            # negative-is-below convention the real dumpsys output uses #
+            childIds = sorted(childIds, key=lambda c: layers[c].get("z", 0))
+            # depth counts PRINTED ancestors only, not every ancestor in
+            # the real tree -- with a pkg filter active, most ancestors
+            # never print at all (they belong to other packages), so
+            # incrementing on every recursive step regardless produced
+            # a "dangling" `- `- `- ... prefix with no visible parent
+            # chain above it; a filtered-out node is invisible to the
+            # printed output, so it must not advance depth for its
+            # children either #
+            childDepth = depth + 1 if printed else depth
+            for childId in childIds:
+                _walk(childId, childDepth)
+
+        rootIds = childrenOf.get(None, [])
+        if onlyDisplay is not None:
+            rootIds = [
+                r
+                for r in rootIds
+                if layers[r].get("layerStack") == onlyDisplay
+            ]
+        rootIds = sorted(rootIds, key=lambda r: layers[r].get("z", 0))
+        for rootId in rootIds:
+            _walk(rootId, 0)
+
+        SysMgr.printPipe("-" * len(header))
+        SysMgr.printPipe("Total: %d layers, %d visible" % (nrPrinted, nrVis))
 
     @staticmethod
     def getBatteryInfo():
@@ -41974,7 +43555,21 @@ class AndroidMgr(object):
 
     @staticmethod
     def getWakeLockInfo():
-        # Try kernel wakeup_sources first (requires debugfs/root access)
+        # Try kernel wakeup_sources first (requires debugfs/root access).
+        # The two sources use DIFFERENT field layouts, confirmed against
+        # the real kernel sources:
+        # - "/sys/kernel/debug/wakeup_sources" (drivers/base/power/
+        #   wakeup.c's print_wakeup_source_stats(), modern kernels):
+        #   name<TAB>active_count<TABTAB>event_count<TABTAB>
+        #   wakeup_count<TABTAB>expire_count<TABTAB>active_since<TABTAB>
+        #   total_time<TABTAB>max_time<TABTAB>last_change<TABTAB>
+        #   prevent_suspend_time -- every field after name is separated
+        #   by TWO tabs, not one, so split("\t") interleaves an empty
+        #   string between each value #
+        # - "/proc/wakelocks" (legacy Android out-of-tree wakelock.c,
+        #   older kernels): name count expire_count active_since
+        #   wake_count total_time sleep_time max_time last_change --
+        #   single-tab separated, different column order entirely #
         for path in ("/sys/kernel/debug/wakeup_sources", "/proc/wakelocks"):
             data = SysMgr.readFile(path, verb=False)
             if not data:
@@ -41985,18 +43580,36 @@ class AndroidMgr(object):
                 fmt % ("WAKELOCK", "COUNT", "ACTIVE_MS", "TOTAL_MS", "ACT")
             )
             SysMgr.printPipe("-" * 80)
+            isLegacy = path == "/proc/wakelocks"
             found = 0
             for line in lines[1:]:
-                parts = line.split("\t")
-                if len(parts) < 7:
-                    continue
-                name = parts[0].strip()
-                try:
-                    active_count = int(parts[1])
-                    active_since = int(parts[5])
-                    total_time = int(parts[6])
-                except (ValueError, IndexError):
-                    continue
+                if isLegacy:
+                    parts = line.split()
+                    if len(parts) < 9:
+                        continue
+                    name = parts[0].strip('"')
+                    try:
+                        active_count = int(parts[1])
+                        active_since = int(parts[3])
+                        total_time = int(parts[5])
+                    except (ValueError, IndexError):
+                        continue
+                else:
+                    # fields, with empty strings from the TABTAB
+                    # separator already filtered out: name(0),
+                    # active_count(1), event_count(2), wakeup_count(3),
+                    # expire_count(4), active_since(5), total_time(6),
+                    # max_time(7), last_change(8), prevent_suspend_time(9) #
+                    parts = [p for p in line.split("\t") if p != ""]
+                    if len(parts) < 7:
+                        continue
+                    name = parts[0].strip()
+                    try:
+                        active_count = int(parts[1])
+                        active_since = int(parts[5])
+                        total_time = int(parts[6])
+                    except (ValueError, IndexError):
+                        continue
                 is_active = "Yes" if active_since > 0 else "No"
                 SysMgr.printPipe(
                     fmt
@@ -42109,7 +43722,13 @@ class AndroidMgr(object):
                     cur_pid = int(s.split()[1])
                 except Exception:
                     cur_pid = -1
-                cur_name = SysMgr.getComm(cur_pid) if cur_pid >= 0 else ""
+                # getComm() returns None (its "default" arg) when the pid
+                # already exited between the kernel dumping its binder
+                # stats and this lookup (TOCTOU) -- the "name in cur_name"
+                # filter_name match below needs a str, not None #
+                cur_name = (
+                    (SysMgr.getComm(cur_pid) or "") if cur_pid >= 0 else ""
+                )
             else:
                 buf.append("  " + s)
 
@@ -42200,9 +43819,21 @@ class AndroidMgr(object):
     @staticmethod
     def getUserList():
         userList = {}
+        # the trailing status word (e.g. "running") is only printed
+        # for a user that's actually started -- a stopped/not-yet-
+        # switched-into user (Guest/secondary profile, Work Profile
+        # not unlocked) prints "UserInfo{10:Guest:14}" with no
+        # trailing word at all, so the status group must be optional
+        # or that user is silently dropped from the whole list #
+        # UserInfo.toString() renders flags via Integer.toHexString(),
+        # not decimal (confirmed against AOSP's UserInfo.java) -- a
+        # flags value with any hex letter (e.g. "c13", commonly seen
+        # for a device-owner/admin user) made the \d+ group fail to
+        # match, dropping the WHOLE line (user_id/name too) since the
+        # flag group isn't optional #
         pattern = (
             r"UserInfo\{(?P<user_id>\d+):(?P<name>[^:]+):"
-            r"(?P<flag>\d+)\}\s+(?P<status>\w+)"
+            r"(?P<flag>[0-9a-fA-F]+)\}(?:\s+(?P<status>\w+))?"
         )
 
         cmd = ["cmd", "user", "list"]
@@ -42215,6 +43846,7 @@ class AndroidMgr(object):
             d = m.groupdict()
             user = d.pop("user_id", None)
             if user:
+                d["status"] = d.get("status") or "stopped"
                 userList[user] = d
 
         return userList
@@ -42253,10 +43885,44 @@ class AndroidMgr(object):
         inputCmd, inputVal = items
         for v in inputVal.split("|"):
             if inputCmd == "listall":
+                # the per-"|"-split filter value "v" was built but never
+                # used, so every filter in a multi-filter list ran the
+                # exact same unfiltered 'dumpsys package providers' command.
+                # Unlike "listact"'s AOSP target (dumpsys activity
+                # providers), confirmed via DumpHelper.doDump() the
+                # package-manager side reads exactly ONE top-level
+                # positional token ("providers" itself) and never loops
+                # over further args, so a trailing filter token would be
+                # silently ignored by AOSP rather than acting as a filter
+                # -- do the filtering here instead, client-side #
                 cmd = ["dumpsys", "package", "providers"]
+                lines = SysMgr.executeCmdSync(cmd)
+                if v and v != "*":
+                    lines = [l for l in lines if v in l]
+                SysMgr.printPipe("\n".join(lines))
+                continue
             elif inputCmd == "listact":
+                # same bug as "listall" above -- AOSP's own
+                # ActivityManagerService.dumpProvidersLocked()/ItemMatcher
+                # accepts trailing args after "providers" to filter by
+                # component name/object id/substring #
                 cmd = ["dumpsys", "activity", "providers"]
+                if v and v != "*":
+                    cmd.append(v)
             elif inputCmd == "notify":
+                # NOTE: unlike query/insert/update/delete/call, AOSP's
+                # real Content.java has no "notify" sub-command at all
+                # (confirmed against master and android16-release), and
+                # no shipped AOSP ContentProvider.call() implementation
+                # (SettingsProvider/MediaProvider/ContactsProvider all
+                # checked) recognizes a "notifyChange" method name -- so
+                # this branch's constructed 'content call ... --method
+                # notifyChange' always hits the target provider's own
+                # "invalid/unsupported method" fallback and never fires
+                # a real notifyChange(). Left as a best-effort passthrough
+                # (not removed) since a custom app provider could choose
+                # to implement a method literally named "notifyChange",
+                # but this is NOT guaranteed by any AOSP contract #
                 cmd = [
                     "content",
                     "call",
@@ -42266,7 +43932,14 @@ class AndroidMgr(object):
                     "notifyChange",
                 ]
             else:
-                cmd = ["content", inputCmd, "--uri"] + v.split(" ")
+                # UtilMgr.parseCommand() instead of a plain v.split(" ")
+                # so a flag value containing a literal space (e.g. --sort
+                # "name ASC") stays as ONE token -- AOSP's own 'content'
+                # tool consumes exactly one token per --sort/--where/
+                # --projection and throws "Unsupported argument" on any
+                # leftover bare token, so a naive space-split silently
+                # breaks every multi-word --sort value #
+                cmd = ["content", inputCmd, "--uri"] + UtilMgr.parseCommand(v)
             SysMgr.printPipe("\n".join(SysMgr.executeCmdSync(cmd)))
 
     @staticmethod
@@ -42304,7 +43977,14 @@ class AndroidMgr(object):
                 if not v.startswith("KEYCODE_"):
                     v = "KEYCODE_" + v
 
-            cmd = ["input", inputCmd] + v.split(" ")
+            if inputCmd == "text":
+                # AOSP's runText() calls getNextArgRequired() exactly
+                # ONCE -- the whole string must land as a single argv
+                # token, not be broken up on spaces like the other
+                # commands' numeric args are #
+                cmd = ["input", inputCmd, v]
+            else:
+                cmd = ["input", inputCmd] + v.split(" ")
             SysMgr.executeCmdSync(cmd)
 
     @staticmethod
@@ -42350,31 +44030,50 @@ class AndroidMgr(object):
             SysMgr.printErr("unknown keycode '%s'" % keyName)
             return
 
-        base = ["cmd", "car_service", "inject-key", str(keyCode)]
+        # AOSP's real syntax is
+        # "inject-key [-d display] [-s seat] [-a down|up] key_code" --
+        # down/up and display MUST be passed via their own "-a"/"-d"
+        # flags, never as bare positional tokens (CarShellCommand's
+        # arg loop throws "key_code already set" the moment it sees a
+        # second bare token after key_code, device-verified against
+        # AOSP source). Omitting "-a" entirely injects a full down+up
+        # click in one call, which "click" (the default action) maps
+        # to directly instead of two separate invocations #
+        base = ["cmd", "car_service", "inject-key"]
+        if display is not None:
+            base += ["-d", display]
 
         def _run(act):
-            cmd = base + [str(act)]
-            if display is not None:
-                cmd.append(display)
-            SysMgr.executeCmdSync(cmd)
+            SysMgr.executeCmdSync(base + ["-a", act, str(keyCode)])
 
         if action in ("down", "0"):
-            _run(0)
+            _run("down")
         elif action in ("up", "1"):
-            _run(1)
-        else:  # click (default)
-            _run(0)
-            _run(1)
+            _run("up")
+        else:  # click (default) -- no "-a" lets AOSP inject down+up itself
+            SysMgr.executeCmdSync(base + [str(keyCode)])
 
     @staticmethod
     def getPkgInfo(pkg=None, item=None):
-        title = {
-            "activity": "Activity Resolver Table:",
-            "dump": "*",
-            "package": "Packages:",
-            "permission": "Permissions:",
+        # "package" maps to more than one top-level section header --
+        # AOSP's Settings.dumpPackagesLPr() prints "Packages:" and then,
+        # gated by the SAME per-package filter, "Renamed packages:" and
+        # "Hidden system packages:" as separate unindented sibling
+        # headers right after it (confirmed via android.googlesource.com).
+        # A single-title stop condition cut the extraction off at the
+        # first of those siblings, silently dropping e.g. a disabled/
+        # replaced system app's "Hidden system packages:" entry #
+        titleList = {
+            "activity": ["Activity Resolver Table:"],
+            "dump": ["*"],
+            "package": [
+                "Packages:",
+                "Renamed packages:",
+                "Hidden system packages:",
+            ],
+            "permission": ["Permissions:"],
         }.get(item, None)
-        if pkg and not title:
+        if pkg and not titleList:
             SysMgr.printErr("no '%s' info of package in dumpsys")
             return
 
@@ -42383,31 +44082,46 @@ class AndroidMgr(object):
             cmd += [pkg]
         ret = SysMgr.executeCmdSync(cmd)
 
+        isDump = titleList == ["*"]
+
         pkgLines = []
-        started = title in ("*", None)
+        started = isDump or titleList is None
         for l in ret:
             if not l:
                 continue
             elif started:
-                if title not in ("*", None) and (l[0] != " " and l != title):
+                if (
+                    not isDump
+                    and titleList is not None
+                    and l[0] != " "
+                    and l not in titleList
+                ):
                     break
                 else:
                     pkgLines.append(l)
-            elif l.startswith(title):
+            elif any(l.startswith(t) for t in titleList):
                 started = True
         return pkgLines
 
     @staticmethod
     def runVehicleCmd(cscmd=None, vhal=True):
         if cscmd:
-            restr, inputMapList, mapData, color = UtilMgr.getParseMapAttr(
-                reverse=True
-            )
+            # use the forward (alias -> value) map here, matching the
+            # same map doPerfetto()'s CSCMD/VHALCMD dispatch loop already
+            # applies before calling this function -- reverse=True looked
+            # up the ALREADY-substituted real value (e.g. "0x1234") in a
+            # value->alias map and replaced it back with the alias string
+            # (e.g. "BREAK"), undoing the outer substitution and sending
+            # the unresolved alias to car_service/VHAL. Using the forward
+            # map here is idempotent if the outer loop already substituted
+            # (the real value isn't a key in it) and still resolves the
+            # alias correctly if this is ever called before/without it #
+            restr, inputMapList, mapData, color = UtilMgr.getParseMapAttr()
             if mapData:
                 cscmdList = cscmd.split()
                 for idx in range(len(cscmdList)):
                     if cscmdList[idx] in mapData:
-                        cscmdList[idx] = mapData[cscmdList[idx]][0]
+                        cscmdList[idx] = mapData[cscmdList[idx]]
                 cscmd = " ".join(cscmdList)
 
         if vhal:
@@ -42516,13 +44230,20 @@ class AndroidMgr(object):
         cmd = ["dumpsys", "activity", "activities"]
         ret = SysMgr.executeCmdSync(cmd)
 
+        # AOSP's real dump chain (ActivityTaskSupervisor.dump() ->
+        # RootWindowContainer.dump() -> DisplayContent.dump(), confirmed
+        # against android.googlesource.com) prints several genuine blank
+        # pw.println() separator lines WITHIN the section (between
+        # "mFocusedApp=" and "Display areas in top down Z order:", and
+        # again before "Task display areas in top down Z order:") -- a
+        # blank line is NOT a section terminator here, so breaking on the
+        # first one (old code) silently dropped the vast majority of the
+        # section (Display areas/Task display areas/Resumed activities/
+        # TaskSupervisor/TaskOrganizerController/ActiveUids tail) #
         started = False
         for l in ret:
             if started:
-                if not l or not l[0]:
-                    break
-                else:
-                    SysMgr.printPipe(l)
+                SysMgr.printPipe(l)
             elif l.startswith("ActivityTaskSupervisor state:"):
                 started = True
 
@@ -42555,13 +44276,16 @@ class AndroidMgr(object):
     @staticmethod
     def broadcastIntent(i):
         items = i.split(":", 1)
-        if len(items) == 1:
+        action = items[0]
+        if not action:
             SysMgr.printErr("no input value")
             return
 
-        inputCmd, inputVal = items
-        for v in inputVal.split("|"):
-            cmd = ["am", "broadcast", inputCmd, "--uri"] + v.split(" ")
+        extra = items[1] if len(items) > 1 else ""
+        for v in extra.split("|") if extra else [""]:
+            cmd = ["am", "broadcast", "-a", action]
+            if v:
+                cmd += v.split(" ")
             SysMgr.printPipe("\n".join(SysMgr.executeCmdSync(cmd)))
 
     @staticmethod
@@ -42571,7 +44295,6 @@ class AndroidMgr(object):
             "package",
             "resolve-activity",
             "--brief",
-            name,
         ]
 
         activity = SysMgr.executeCmdSync(cmd + [name])
@@ -42775,7 +44498,7 @@ class AndroidMgr(object):
         for pid, values in sorted(
             diff.items(),
             key=lambda x: (
-                nameList[info[x[0]].get("name")],
+                nameList.get(info[x[0]].get("name"), 0),
                 x[1]["hist"].get("total", 0),
             ),
             reverse=True,
@@ -42803,7 +44526,7 @@ class AndroidMgr(object):
                 total = UtilMgr.convNum(total)
                 total = _convColor(total, "GREEN")
 
-            cpu = long(values.pop("cpu", 0) / float(SysMgr.uptimeDiff))
+            cpu = long(values.pop("cpu", 0) / float(uptimeDiff))
             if cpu:
                 cpu = _convColor("%d%%" % cpu, "YELLOW")
 
@@ -43019,7 +44742,7 @@ class AndroidMgr(object):
     def getGfxStats(targetList, reset=False):
         gfxData = {}
         for target in targetList:
-            gfxData.update(AndroidMgr.getGfxStat(target, reset=reset))
+            gfxData.update(AndroidMgr.getGfxStat(target, reset=reset) or {})
         return gfxData
 
     @staticmethod
@@ -43886,6 +45609,20 @@ class AndroidMgr(object):
         if "PERFHISTORY" in SysMgr.environList:
             _savePerfHistory(outPath)
 
+        # bound each COLLECT andcmd the same way log.txt collection is
+        # already bounded (see LOGWAITTIMEOUT/_waitPidDeadline above) --
+        # a stuck dumpsys call (e.g. a deadlocked system_server, exactly
+        # the kind of condition a bugreport is often taken to diagnose)
+        # used to hang this wait=True launchGuider() call forever, which
+        # in turn skipped every remaining COLLECT item plus prop.txt/
+        # packageinfo.txt/the ANR-ANDROID scan/description/zip assembly
+        # that all run strictly after this loop; opt-in only, same
+        # false-positive rationale as LOGWAITTIMEOUT (a legitimately
+        # slow dumpsys must not be mistaken for a hung one by default) #
+        collectWaitDeadline = (
+            time.time() + logWaitTimeout if logWaitTimeout else None
+        )
+
         for cond, cmd in (
             (
                 "NOSCR" not in SysMgr.environList,
@@ -43921,10 +45658,114 @@ class AndroidMgr(object):
                 "NOTASKSTAT" not in SysMgr.environList,
                 ["andcmd", "gettaskstat", "-o" + outPath + "taskstat.txt"],
             ),
+            (
+                "NOSURFACESTAT" not in SysMgr.environList,
+                [
+                    "andcmd",
+                    "getsurfacestat",
+                    "-o" + outPath + "surfacestat.txt",
+                ],
+            ),
+            (
+                "NOSERVICESTAT" not in SysMgr.environList,
+                [
+                    "andcmd",
+                    "getservicestat",
+                    "-o" + outPath + "servicestat.txt",
+                ],
+            ),
+            (
+                "NOALARMLIST" not in SysMgr.environList,
+                ["andcmd", "getalarmlist", "-o" + outPath + "alarmlist.txt"],
+            ),
+            (
+                "NODOZEINFO" not in SysMgr.environList,
+                ["andcmd", "getdozeinfo", "-o" + outPath + "dozeinfo.txt"],
+            ),
+            (
+                "NOPROCSTATS" not in SysMgr.environList,
+                ["andcmd", "getprocstats", "-o" + outPath + "procstats.txt"],
+            ),
+            (
+                "NOJOBLIST" not in SysMgr.environList,
+                ["andcmd", "getjoblist", "-o" + outPath + "joblist.txt"],
+            ),
+            # the following GET* andcmd commands existed in ANDCMDLIST and
+            # andcmd --help but were never wired into this COLLECT block,
+            # so bugrep/bugrec silently produced a report missing battery/
+            # ANR/cpu/display/feature/library/user/power/wakelock/SELinux/
+            # binder info with no error or warning #
+            (
+                "NOBATTERYINFO" not in SysMgr.environList,
+                [
+                    "andcmd",
+                    "getbatteryinfo",
+                    "-o" + outPath + "batteryinfo.txt",
+                ],
+            ),
+            (
+                "NOANRINFO" not in SysMgr.environList,
+                ["andcmd", "getanrinfo", "-o" + outPath + "anrinfo.txt"],
+            ),
+            (
+                "NOCPUDUMPINFO" not in SysMgr.environList,
+                ["andcmd", "getcpuinfo", "-o" + outPath + "cpuinfo.txt"],
+            ),
+            (
+                "NODISPLAYINFO" not in SysMgr.environList,
+                [
+                    "andcmd",
+                    "getdisplayinfo",
+                    "-o" + outPath + "displayinfo.txt",
+                ],
+            ),
+            (
+                "NOFEATURELIST" not in SysMgr.environList,
+                [
+                    "andcmd",
+                    "getfeaturelist",
+                    "-o" + outPath + "featurelist.txt",
+                ],
+            ),
+            (
+                "NOLIBRARYLIST" not in SysMgr.environList,
+                [
+                    "andcmd",
+                    "getlibrarylist",
+                    "-o" + outPath + "librarylist.txt",
+                ],
+            ),
+            (
+                "NOUSERLIST" not in SysMgr.environList,
+                ["andcmd", "getuserlist", "-o" + outPath + "userlist.txt"],
+            ),
+            (
+                "NOPOWERINFO" not in SysMgr.environList,
+                ["andcmd", "getpowerinfo", "-o" + outPath + "powerinfo.txt"],
+            ),
+            (
+                "NOWAKELOCK" not in SysMgr.environList,
+                ["andcmd", "getwakelock", "-o" + outPath + "wakelock.txt"],
+            ),
+            (
+                "NOSELINUX" not in SysMgr.environList,
+                ["andcmd", "getselinux", "-o" + outPath + "selinux.txt"],
+            ),
+            (
+                "NOBINDERSTATS" not in SysMgr.environList,
+                [
+                    "andcmd",
+                    "getbinderstats",
+                    "-o" + outPath + "binderstats.txt",
+                ],
+            ),
         ):
             if not cond:
                 continue
-            SysMgr.launchGuider(cmd, stderr=True, wait=True, setComm=True)
+            ret = SysMgr.launchGuider(
+                cmd, pipe=False, stderr=True, wait=False, setComm=True
+            )
+            _waitPidDeadline(ret, collectWaitDeadline, " ".join(cmd))
 
         props = [] if "NOPROP" in SysMgr.environList else AndroidMgr.getProp()
         if props:
@@ -44344,7 +46185,7 @@ class AndroidMgr(object):
 
             p = p.rsplit("#", 3)
             extend = p[3] if len(p) == 4 else None
-            data = p[2] if len(p) == 3 else None
+            data = p[2] if len(p) >= 3 else None
             action = p[1] if len(p) > 1 else None
             p = p[0]
 
@@ -44434,12 +46275,20 @@ class AndroidMgr(object):
         if not keepRun and processed:
             sys.exit(0)
 
+        # processed AFTER the full "* repeatCnt" sequence (rather than
+        # exiting the moment the first non-empty plist is seen) so
+        # "-q REPEAT:N" actually re-runs each of package/activity/
+        # permission/dump N times as intended, instead of running the
+        # first matching category exactly once and exiting #
+        infoProcessed = False
         for pname, plist in (
             ("package", getPkgAttr),
             ("activity", getActList),
             ("permission", getPermList),
             ("dump", getDumpList),
         ) * repeatCnt:
+            if plist:
+                infoProcessed = True
             for p in plist:
                 targetList = [x for x in pkgList if UtilMgr.isValidStr(x, [p])]
                 if not targetList:
@@ -44458,8 +46307,8 @@ class AndroidMgr(object):
                     if sleep:
                         time.sleep(sleep)
                 runCmd = True
-            if not keepRun and plist:
-                sys.exit(0)
+        if not keepRun and infoProcessed:
+            sys.exit(0)
 
         overlayList = SysMgr.environList.get("OVERLAY", [])
         for t in overlayList:
@@ -44472,6 +46321,27 @@ class AndroidMgr(object):
         if not keepRun and overlayList:
             sys.exit(0)
 
+        # RESETGFXSTATS is dispatched here, BEFORE the GETGFXINFO loop
+        # below, so the documented "reset before measurement" usage
+        # pattern (resetgfxstats,getgfxinfo:<pkg> -q KEEPRUN) actually
+        # resets first -- it used to sit in the later "finished" loop
+        # (originally right after GETBINDERSTATS), which runs AFTER
+        # GETGFXINFO's own dispatch loop, so a combined invocation
+        # always measured gfxinfo before resetting it, backwards from
+        # what both the function name and the help example promise #
+        if SysMgr.environList.get("RESETGFXSTATS"):
+            _printInfo("reset gfx stats")
+            AndroidMgr.resetGfxStats()
+            runCmd = True
+            if sleep:
+                time.sleep(sleep)
+            if not keepRun:
+                sys.exit(0)
+
+        # same "run the full * repeatCnt sequence before exiting" fix as
+        # the package-attr block above -- otherwise "-q REPEAT:N" would
+        # run only the first matching item's input list once and exit #
+        inputProcessed = False
         for item, name, func in (
             ("INPUT", "input", AndroidMgr.injectInputEvent),
             ("CARKEY", "carkey", AndroidMgr.injectCarKey),
@@ -44487,6 +46357,12 @@ class AndroidMgr(object):
             ("GETWINDOWINFO", "windowinfo", AndroidMgr.getWindowInfo),
             ("GETWINDOWSTAT", "windowstat", AndroidMgr.getWindowStat),
             ("GETTASKSTAT", "taskstat", AndroidMgr.getTaskStat),
+            ("GETSURFACESTAT", "surfacestat", AndroidMgr.getSurfaceStat),
+            ("GETSERVICESTAT", "servicestat", AndroidMgr.getServiceStat),
+            ("GETALARMLIST", "alarmlist", AndroidMgr.getAlarmList),
+            ("GETDOZEINFO", "dozeinfo", AndroidMgr.getDozeInfo),
+            ("GETPROCSTATS", "procstats", AndroidMgr.getProcStats),
+            ("GETJOBLIST", "joblist", AndroidMgr.getJobList),
             ("SETORIENTATION", "orientation", AndroidMgr.setOrientation),
             ("TOGGLEWIFI", "togglewifi", AndroidMgr.toggleWifi),
             ("TOGGLEBT", "togglebt", AndroidMgr.toggleBt),
@@ -44495,6 +46371,8 @@ class AndroidMgr(object):
             ("DUMPHEAP", "dumpheap", AndroidMgr.dumpHeap),
         ) * repeatCnt:
             inputList = SysMgr.environList.get(item, [])
+            if inputList:
+                inputProcessed = True
             for i in inputList:
                 _printInfo("%s '%s'" % (name, i))
                 func(i)
@@ -44502,8 +46380,8 @@ class AndroidMgr(object):
 
                 if sleep:
                     time.sleep(sleep)
-            if not keepRun and inputList:
-                sys.exit(0)
+        if not keepRun and inputProcessed:
+            sys.exit(0)
 
         finished = False
         for item, log, func in (
@@ -44555,7 +46433,18 @@ class AndroidMgr(object):
                 AndroidMgr.getSelinuxEnforce,
             ),
             ("GETBINDERSTATS", "show binder stats", AndroidMgr.getBinderStats),
-            ("RESETGFXSTATS", "reset gfx stats", AndroidMgr.resetGfxStats),
+            # GETPROCLIST's only prior implementation routed through the
+            # Perfetto heapProf=True section (building "statConfig" into
+            # a linux.process_stats trace), but nothing in
+            # convPerfettoSample()/_parsePerfettoTrace() ever parses a
+            # process_tree/process_stats packet out of the resulting
+            # trace -- the command silently produced no output (or hit
+            # "no profiled sample data") regardless of the dispatch-
+            # gate carve-out. SysMgr.doPs() is the existing, already-
+            # correct process-list implementation (used by the plain
+            # "ps"/"pslist" modes); it already handles table vs -J
+            # JSON output on its own #
+            ("GETPROCLIST", "show process list", SysMgr.doPs),
         ):
             if SysMgr.environList.get(item):
                 _printInfo(log)
@@ -44988,32 +46877,33 @@ class AndroidMgr(object):
                 sys.exit(0)
 
             # WARN: target app will be restarted
-            for t, cmd in (
-                ("SETDEBUG", "set-debug-app"),
-                ("CLEARDEBUG", "clear-debug-app"),
-            ):
-                for a in SysMgr.environList.get(t, []):
-                    if a == "SET":
-                        a = target
-                    if not isinstance(a, list):
-                        a = [a]
-                    for i in a:
-                        if not i:
-                            continue
-                        SysMgr.executeCommand(
-                            [
-                                "am %s -w %s%s"
-                                % (
-                                    cmd,
-                                    (
-                                        "--persistent "
-                                        if "PERSISTENT" in SysMgr.environList
-                                        else ""
-                                    ),
-                                    i,
-                                )
-                            ]
-                        )
+            # "am clear-debug-app" (AOSP's ActivityManagerShellCommand)
+            # takes NO arguments at all -- it only ever needs to run
+            # once per CLEARDEBUG invocation, unlike SETDEBUG which
+            # takes one "-w [--persistent] <pkg>" per listed package #
+            for i in SysMgr.environList.get("SETDEBUG", []):
+                if i == "SET":
+                    i = target
+                if not isinstance(i, list):
+                    i = [i]
+                for pkg in i:
+                    if not pkg:
+                        continue
+                    SysMgr.executeCommand(
+                        [
+                            "am set-debug-app -w %s%s"
+                            % (
+                                (
+                                    "--persistent "
+                                    if "PERSISTENT" in SysMgr.environList
+                                    else ""
+                                ),
+                                pkg,
+                            )
+                        ]
+                    )
+            if SysMgr.environList.get("CLEARDEBUG"):
+                SysMgr.executeCommand(["am clear-debug-app"])
 
             # refer to https://perfetto.dev/docs/reference/trace-config-proto #
 
@@ -52262,7 +54152,7 @@ Commands:
         - GETANRINFO/GETBATTERYINFO/GETCPUINFO
         - GETFEATURELIST/GETLIBRARYLIST/GETUSERLIST
         - GETCONF
-        - GETGFXINFO/GETWINDOWINFO/GETWINDOWSTAT/GETTASKSTAT|Option
+        - GETGFXINFO/GETWINDOWINFO/GETWINDOWSTAT/GETTASKSTAT/GETSERVICESTAT|Option
         - GETPEAK
         - GETPKG/GETPKGINFO/GETPKGLIST/GETPKGLISTINFO{|Option}
         - GETPKGATTR/GETPERMLIST/GETACTLIST/GETAPPSTAT/GETDUMPLIST|Option
@@ -57133,6 +59023,7 @@ Commands:
             subBlocks = []
             inSubBlock = False
             subBlockText = ""
+            subDepth = 0
 
             for line in blockText.splitlines():
                 line = line.strip()
@@ -57144,18 +59035,25 @@ Commands:
                 elif line.endswith("<"):
                     if inSubBlock:
                         subBlockText += line + "\n"
+                        subDepth += 1
                     else:
                         inSubBlock = True
                         currentKey = line[:-1].strip()
                         subBlockText = ""
+                        subDepth = 0
                 elif line == ">":
                     if inSubBlock:
-                        subBlocks.append(_parseBlock(subBlockText))
-                        inSubBlock = False
-                        result[currentKey] = (
-                            result.get(currentKey, []) + subBlocks
-                        )
-                        subBlocks = []
+                        if subDepth > 0:
+                            subBlockText += line + "\n"
+                            subDepth -= 1
+                        else:
+                            subBlocks.append(_parseBlock(subBlockText))
+                            inSubBlock = False
+                            result[currentKey] = (
+                                result.get(currentKey, []) + subBlocks
+                            )
+                            subBlocks = []
+                            subBlockText = ""
                 elif inSubBlock:
                     subBlockText += line + "\n"
                 elif ":" in line:
@@ -74584,7 +76482,11 @@ Examples:
     - {2:1} without specific features
         # {0:1} {1:1} -q NOLOG, NOVIDEO, NOPIC, NOPERFMON, NOINCPERFREP, NOSETTINGLIST
         # {0:1} {1:1} -q NOOPENFILE, NOERR, NOPROP, NOSCR, NOPKGINFO, NOPKGLIST
-        # {0:1} {1:1} -q NOWINSTAT, NOTASKSTAT
+        # {0:1} {1:1} -q NOWINSTAT, NOTASKSTAT, NOSURFACESTAT, NOSERVICESTAT
+        # {0:1} {1:1} -q NOALARMLIST, NODOZEINFO, NOPROCSTATS, NOJOBLIST
+        # {0:1} {1:1} -q NOBATTERYINFO, NOANRINFO, NOCPUDUMPINFO, NODISPLAYINFO
+        # {0:1} {1:1} -q NOFEATURELIST, NOLIBRARYLIST, NOUSERLIST, NOPOWERINFO
+        # {0:1} {1:1} -q NOWAKELOCK, NOSELINUX, NOBINDERSTATS
 
     - {2:1} with a log collection timeout in case logd hangs (disabled
       unless set, since a content filter like BUF can legitimately
@@ -74814,7 +76716,7 @@ Examples:
 
     - Inject input event
         # {0:1} {1:1} input:text:"OK!" -q SLEEP:0.5, REPEAT:5
-        # {0:1} {1:1} input:key:"POWER|TAP|ESCAPE|DEL"
+        # {0:1} {1:1} input:key:"POWER|TAB|ESCAPE|DEL"
         # {0:1} {1:1} input:key:"ENTER|HOME|BACK|APP_SWITCH"
         # {0:1} {1:1} input:key:"VOLUME_UP|VOLUME_DOWN|VOLUME_MUTE"
         # {0:1} {1:1} input:key:"MENU|CAMERA|SEARCH|SETTINGS"
@@ -74824,8 +76726,8 @@ Examples:
         # {0:1} {1:1} input:touch:"100 50"
         # {0:1} {1:1} input:swipe:"100 200 100 200 1000"
         # {0:1} {1:1} input:swipe:"100 200 400 500 1000"
-        # {0:1} {1:1} input:mouse:"tab 100 100"
-        # {0:1} {1:1} input:mouse:"move 100 500"
+        # {0:1} {1:1} input:mouse:"tap 100 100"
+        # {0:1} {1:1} input:mouse:"roll 50 50"
 
     - Inject car key event (AAOS only, via cmd car_service inject-key)
         # {0:1} {1:1} carkey:BACK
@@ -74843,8 +76745,8 @@ Examples:
         # {0:1} {1:1} content:listact:"*"
         # {0:1} {1:1} content:query:content://settings/system -q SLEEP:0.5, REPEAT:5
         # {0:1} {1:1} content:query:"content://settings/system --where name='screen_brightness'"
-        # {0:1} {1:1} content:query:"content://settings/system --projection name,value"
-        # {0:1} {1:1} content:query:"content://settings/system --sort name ASC"
+        # {0:1} {1:1} content:query:"content://settings/system --projection name:value"
+        # {0:1} {1:1} content:query:"content://settings/system --sort \"name ASC\""
         # {0:1} {1:1} content:query:"content://com.example.app/items"
         # {0:1} {1:1} content:query:"content://com.example.app/items|content://com.example.app/status"
         # {0:1} {1:1} content:call:"content://settings/system --method getHiddenApps --user 10"
@@ -74857,7 +76759,7 @@ Examples:
     - Broadcast intent
         # {0:1} {1:1} broadcast:android.intent.action.BOOT_COMPLETED
         # {0:1} {1:1} broadcast:com.example.ACTION_TEST:"-n com.example.app/.MyReceiver"
-        # {0:1} {1:1} broadcast:com.example.ACTION_TEST:"--es 'key' 'value' --ei 'number' 123"
+        # {0:1} {1:1} broadcast:com.example.ACTION_TEST:"--es key value --ei number 123"
         # {0:1} {1:1} broadcast:com.example.test.category:"--es category testTab"
 
     - Print GPU rendering stats
@@ -74875,64 +76777,29 @@ Examples:
         # {0:1} {1:1} getwindowstat -J
 
         Global stats printed above the per-window table:
-            Displays             current size (WxH) per display ID, from
-                                  "dumpsys display" (reflects "wm size"
-                                  overrides, not just the physical panel);
-                                  an "(offset X,Y)" suffix is shown when
-                                  the override region is shifted within
-                                  the physical panel instead of anchored
-                                  at its origin
-            Rotation              current device rotation (0/1/2/3 = 0/90/
-                                  180/270 degrees)
+            Displays             current size (WxH) per display ID, from "dumpsys display" (reflects "wm size" overrides)
+            Rotation              current device rotation (0/1/2/3 = 0/90/180/270 degrees)
             TopFocusedDisplay     display ID currently holding input focus
             Booted                whether the system has finished booting
             DisplayEnabled        whether the display is enabled for output
-            DisplayFrozen         whether display updates are frozen (e.g.
-                                  during a rotation or configuration change)
-            AnimScale             window/transition/animator animation
-                                  duration scale factors (1.0 = normal
-                                  speed, from Developer Options)
+            DisplayFrozen         whether display updates are frozen (e.g. during a rotation or configuration change)
+            AnimScale             window/transition/animator animation duration scale factors (1.0 = normal speed)
+
+        Displays' "(offset X,Y)" suffix is shown when the override region is shifted within the physical panel instead of anchored at its origin.
 
         Per-window columns:
-            Vis                   O = visible with real content, I = an
-                                  input-only window with no drawable
-                                  content (e.g. a touch-spy overlay),
-                                  blank = not visible
-            TaskMode              this window's root task's Mode
-                                  (fullscreen/multi-window), joined from
-                                  "gettaskstat" -- lets you tell split-
-                                  screen windows apart without cross-
-                                  referencing the Size column
-            Focus                 marks the window currently holding IME
-                                  input focus
-            Anim                  marks a window whose enter animation
-                                  hasn't finished yet
-            Alpha                 current Surface alpha (opacity); shown
-                                  only once a Surface has been allocated,
-                                  highlighted when below 1.0 (fading in/out)
-            RootTask              the window's immediate task ID; an
-                                  appended "*" marks a window whose
-                                  immediate task is nested under a
-                                  different root task (child task case)
-            WinType               this window's AOSP/AAOS window type
-                                  (ty= in "dumpsys window windows"),
-                                  with a "/AppOp" suffix appended when
-                                  this window's AppOps mode isn't NONE
-                                  (e.g. SYSTEM_ALERT_WINDOW for a
-                                  "draw over other apps" window);
-                                  blank when the type is one of the
-                                  common app-window types (BASE_
-                                  APPLICATION etc) and AppOp is NONE --
-                                  a few AOSP window type constants
-                                  newer than this device's own string-
-                                  conversion table (e.g.
-                                  NOTIFICATION_SHADE) are resolved from
-                                  a built-in fallback table instead of
-                                  showing a raw number
+            Vis                   O = visible with real content, I = input-only (e.g. a touch-spy overlay), blank = not visible
+            TaskMode              this window's root task's Mode (fullscreen/multi-window), joined from "gettaskstat"
+            Focus                 marks the window currently holding IME input focus
+            Anim                  marks a window whose enter animation hasn't finished yet
+            Alpha                 current Surface alpha (opacity); highlighted when below 1.0 (fading in/out)
+            RootTask              the window's immediate task ID; "*" marks a window nested under a different root task
+            WinType               this window's AOSP/AAOS window type (ty=), with a "/AppOp" suffix when AppOp isn't NONE
 
-        "-q NOCUT" disables the terminal-width trim on each row -- useful
-        when a long Package/Activity/WinType combination would
-        otherwise be clipped at the default terminal width.
+        WinType is blank when the type is a common app-window type (BASE_APPLICATION etc) and AppOp is NONE.
+        A few AOSP window types newer than this device's string table (e.g. NOTIFICATION_SHADE) resolve from a fallback instead of a raw number.
+
+        "-q NOCUT" disables the terminal-width trim on each row -- useful when Package/Activity/WinType would otherwise be clipped.
 
     - Print task/activity-stack summary (taskId/mode/activity/state)
         # {0:1} {1:1} gettaskstat
@@ -74942,126 +76809,214 @@ Examples:
         # {0:1} {1:1} gettaskstat -q NOCUT
         # {0:1} {1:1} gettaskstat -q DUMPORDER
 
-        Global summary printed above the table (one line, comma-
-        separated, only present fields shown):
-            TopFocusedTask        currently focused root task's TaskId
-                                  (and package in parens if available),
-                                  from ActivityTaskSupervisor's own
-                                  topDisplayFocusedRootTask
-            ResumedActivity       the activity currently in RESUMED
-                                  state system-wide (distinct from
-                                  getwindowstat's Focus column, which
-                                  marks IME input focus)
-            Keyguard              whether the lockscreen is currently
-                                  shown
-            LockTaskMode          kiosk/pinned-screen mode state
-                                  (NONE/LOCKED/PINNED)
+        Global summary printed above the table (one line, comma-separated, only present fields shown):
+            TopFocusedTask        currently focused root task's TaskId (and package), from topDisplayFocusedRootTask
+            ResumedActivity       the activity currently in RESUMED state system-wide (distinct from getwindowstat's Focus)
+            Keyguard              whether the lockscreen is currently shown
+            LockTaskMode          kiosk/pinned-screen mode state (NONE/LOCKED/PINNED)
 
         Per-task columns:
-            TaskId                root or child task identifier (#N in
-                                  "dumpsys activity activities")
-            PTID                  parent task's TaskId when this is a
-                                  nested child task, blank for top-level
-                                  tasks (e.g. a split-screen pane's
-                                  launcher child task under the home root).
-                                  Omitted entirely with "-q TREE" since
-                                  indentation already shows the relationship
+            TaskId                root or child task identifier (#N in "dumpsys activity activities")
+            PTID                  parent task's TaskId for a nested child task, blank for top-level tasks; omitted with "-q TREE"
             DP                    display ID the task is shown on
-            PID                   topmost (Hist #0) activity's owning
-                                  process ID; "-" if the task has no
-                                  activity of its own (a TaskId is a back
-                                  stack, not a process -- a task CAN in
-                                  theory host activities running in
-                                  different processes via android:process,
-                                  so this is only the topmost one's PID)
-            Mode                  fullscreen or multi-window, from the
-                                  Task header itself
-            Type                  this task's AOSP ActivityType
-                                  (standard/home/recents/assistant/
-                                  dream/undefined) -- distinct from
-                                  Mode (windowing mode); e.g. the home
-                                  launcher's root task is always "home"
-                                  type regardless of its current
-                                  windowing mode
-            Package/Activity      topmost (Hist #0) activity's package
-                                  and class name, "-" if the task has no
-                                  activity yet (e.g. an organizer-created
-                                  placeholder task)
-            State                 topmost activity's lifecycle state
-                                  (RESUMED/PAUSED/STOPPED/...), "-" if none
-            Drawn                 O = the topmost activity's own
-                                  windows have all finished rendering
-                                  (allDrawn=); blank otherwise,
-                                  including when the task has no Hist
-                                  entry at all. A visible task that
-                                  stays blank here flags a stalled/
-                                  slow-drawing activity that State/Vis
-                                  alone wouldn't show
-            AVis                  O = the topmost activity itself is
-                                  currently on screen (nowVisible=),
-                                  distinct from the Task-level Vis
-                                  column (a visible task's topmost
-                                  activity can still be not-yet-
-                                  visible); blank otherwise, including
-                                  when there's no Hist entry
-            Vis                   O = task is currently visible, blank =
-                                  not visible
-            Dep                   number of entries in the task's back
-                                  stack (Hist count)
-            Seq                   this task's 0-based position in
-                                  "dumpsys activity recents"'s own
-                                  most-recently-used list (0 = top of
-                                  stack); blank when the task has no
-                                  recents entry at all (e.g. the root
-                                  home container, or an empty
-                                  organizer-created placeholder task)
-                                  -- a different ordering axis than
-                                  "-q DUMPORDER" (which reflects
-                                  dumpsys activity activities' own
-                                  listing order, not recency of use).
-                                  Also the table's default sort key
-                                  (recents-having tasks first, ordered
-                                  by this value, then the rest by
-                                  TaskId) unless "-q DUMPORDER" is set
-            Inactive               elapsed time since this task was
-                                  last active (dumpsys activity
-                                  recents' own "inactive for Ns" value,
-                                  formatted as d:HH:MM:SS); unlike
-                                  Seq (position only), this is the
-                                  actual duration, so a low Seq
-                                  task that's genuinely been untouched
-                                  for a long time is distinguishable
-                                  from one just backgrounded a moment
-                                  ago; blank when the task has no
-                                  recents entry
-            Org                   marked with "*" when this task is
-                                  registered with a TaskOrganizer (System
-                                  UI/Shell split-screen or PiP management)
-            Win/VisWin            number of WindowManager windows (and
-                                  how many of those are visible) whose
-                                  rootTaskId points to this task -- a
-                                  system UI root task commonly aggregates
-                                  many windows here, while a plain
-                                  foreground app task usually has exactly
-                                  one
+            PID                   topmost (Hist #0) activity's owning process ID, "-" if none
+            Mode                  fullscreen or multi-window, from the Task header itself
+            Type                  this task's AOSP ActivityType (standard/home/recents/assistant/dream/undefined); distinct from Mode
+            Package/Activity      topmost (Hist #0) activity's package and class name, "-" if none
+            State                 topmost activity's lifecycle state (RESUMED/PAUSED/STOPPED/...), "-" if none
+            Drawn                 O = topmost activity's windows have all finished rendering (allDrawn=); blank otherwise
+            AVis                  O = topmost activity itself is currently on screen (nowVisible=); distinct from the Task-level Vis column
+            Vis                   O = task is currently visible, blank = not visible
+            Dep                   number of entries in the task's back stack (Hist count)
+            Seq                   this task's 0-based position in "dumpsys activity recents"'s MRU list (0 = top); blank if no recents entry
+            Inactive              elapsed time since last active (dumpsys's "inactive for Ns", as d:HH:MM:SS); blank if no recents entry
+            Org                   "*" when this task is registered with a TaskOrganizer (System UI/Shell split-screen or PiP)
+            Win/VisWin            number of WindowManager windows (and how many visible) whose rootTaskId points to this task
 
-        "-q TREE" prints the same columns (minus PTID) as a depth-first
-        tree instead of a flat list, with a "`- " prefix on the Package
-        column marking nested child tasks under their parent.
+        Drawn/AVis are per-activity signals distinct from the Task-level State/Vis columns, and both read blank when the task has no Hist entry at all.
+        Seq is also the table's default sort key (recents-having tasks first by this value, then the rest by TaskId) unless "-q DUMPORDER" is set.
+        Inactive is the elapsed duration behind that ordering, so a low-Seq task untouched a long time is distinguishable from one just backgrounded.
 
-        "-q NOCUT" disables the terminal-width trim on each row -- useful
-        when a long Package/Activity combination would otherwise be
-        clipped at the default terminal width.
+        "-q TREE" prints the same columns (minus PTID) as a depth-first tree instead of a flat list.
+        A "`- " prefix on the Package column marks nested child tasks under their parent.
 
-        "-q DUMPORDER" lists tasks in "dumpsys activity activities"'s own
-        "top to bottom" order instead of sorting by TaskId -- this order
-        reflects actual recency/focus (the most recently foregrounded
-        task is always listed first; AOSP walks the task history in
-        reverse to produce it), so the first row is the task currently
-        holding top focus on its display. The default TaskId sort
-        discards this signal entirely. Applies to both the flat table
-        (whole listing) and "-q TREE" (root-level ordering only --
-        children of a given parent still sort by TaskId).
+        "-q NOCUT" disables the terminal-width trim on each row -- useful when a long Package/Activity combination would otherwise be clipped.
+
+        "-q DUMPORDER" lists tasks in "dumpsys activity activities"'s own "top to bottom" order instead of sorting by TaskId.
+        This is the actual recency/focus order (AOSP walks the task history in reverse to produce it, so the first row holds top focus).
+        Applies to both the flat table and "-q TREE" (root-level ordering only -- children of a given parent still sort by TaskId).
+
+    - Print SurfaceFlinger's composited layer list, or its real parent/child layer tree with "-q TREE" (dumpsys SurfaceFlinger)
+        # {0:1} {1:1} getsurfacestat
+        # {0:1} {1:1} getsurfacestat:"com.example.app"
+        # {0:1} {1:1} getsurfacestat -J
+        # {0:1} {1:1} getsurfacestat -q TREE
+        # {0:1} {1:1} getsurfacestat -q TREE, ONLYVIS
+        # {0:1} {1:1} getsurfacestat -q DISPLAY:0
+        # {0:1} {1:1} getsurfacestat -q NOCUT
+
+        Per-layer columns (default, flat HWC-composited view):
+            No                    row number (1-based)
+            Display               the layerStack id this layer's owning display reports (0 = primary on most devices)
+            Z                     this display's own composition order for the row, lower first
+            WinType               AOSP WindowManager type constant for the backing window, if any
+            CompType              DEVICE = composited by the hardware compositor, CLIENT = pre-composited by the GPU
+            Transform             AOSP transform bitmask (rotation/flip) applied before composition
+            DispFrame/SrcCrop     destination and source rectangles, both as [L,T,R,B]
+            FrameRate             this layer's own explicit frame-rate vote, if any; blank when none is set (the common case)
+            Focus                 O = this display's currently focused layer, blank otherwise
+            Name                  the composited layer's own name, same "#N" id suffix as "-q TREE"'s Name column; always LAST and unclipped
+
+        Per-layer columns ("-q TREE", the real SurfaceFlinger parent/child hierarchy instead of the flat composited view):
+            LayerId               SurfaceFlinger's own numeric layer id (the "#N" suffix on every raw layer name)
+            Disp                  layerStack this layer belongs to
+            Z                     this layer's z-order relative to its own parent (negative = composited below/before it)
+            Uid                   owning uid; -1 or 1000 for layers SurfaceFlinger/system_server itself owns, not any one app
+            Pid                   the actual process rendering this layer's buffer; blank when SurfaceFlinger never recorded one (most containers)
+            Size                  this layer's actual rendered buffer size as [WxH]; blank for a layer with no buffer of its own (a pure container)
+            Vis                   V = this layer's VisibleRegion is non-empty, blank = currently not contributing any visible pixels
+            Op                    O = isOpaque is set on this layer, blank otherwise
+            Name                  layer name, with a "`- " prefix on nested children (same convention as "gettaskstat -q TREE"); always LAST and unclipped
+
+        A WindowManager window ("getwindowstat") commonly maps to MORE than one SurfaceFlinger layer here (shadow/blur/crop child layers).
+        The reverse is also common -- a container layer with no window of its own at all, existing purely to group its children.
+        "-q TREE" is the only view in this tool that shows that nesting directly.
+        The flat view mirrors the dumpsys's own already-flattened per-display HWC composition table instead.
+
+        Pid is the actual process behind a layer's own Uid, from SurfaceFlinger's own metadata.
+        Set only on buffer-owning content layers, not pure containers.
+        A layer backing a Task already shows that TaskId in its own Name (as "Task=<id>"), joinable against "gettaskstat" without a separate column for it.
+
+        "-q ONLYVIS" (TREE and "-J" only) filters to Vis=V rows -- most of a real tree is pure structural/container layers with no buffer of their own.
+        The default (unfiltered) flat view already shows only what's actually on-screen right now, so "-q ONLYVIS" has no effect there.
+
+        Unlike every other andcmd pkg filter, a layer's raw dump carries only a numeric uid, never a package name.
+        "getsurfacestat:pkg" resolves this uid against packages.list (the same source "getpkglist" reads) before matching.
+        A package with no installed/running app at all simply matches nothing rather than erroring.
+
+        "-q DISPLAY:N" filters to layers belonging to layerStack N only; omit it to see every display's layers together.
+        Useful on a multi-display/AAOS build where a layer's own Display column may not be the one you expect.
+
+        "-q NOCUT" disables the terminal-width trim on each row.
+        Useful since a SurfaceFlinger layer dump is frequently larger than this tool's other GET* tables.
+
+    - Print all AMS-managed services (bound/started Service components --
+      a different, much larger population than Task/Activity, since
+      most Service-based UI like SystemUI's status/navigation bars
+      never shows up in gettaskstat at all)
+        # {0:1} {1:1} getservicestat
+        # {0:1} {1:1} getservicestat:"com.example.app"
+        # {0:1} {1:1} getservicestat -J
+        # {0:1} {1:1} getservicestat -q NOCUT
+        # {0:1} {1:1} getservicestat -q SORT:CREATED
+        # {0:1} {1:1} getservicestat -q SORT:LASTACTIVITY
+
+        Per-service columns:
+            PID                   owning process ID, "-" if none
+            User                  Android user id the service runs under (ServiceRecord's own "u<N>"), e.g. 0/10
+            FG                    O = foreground service (isForeground=true), blank otherwise
+            Created               elapsed time since creation (dumpsys's createTime=, as d:HH:MM:SS)
+            LastActivity          elapsed time since last activity (lastActivity=), same format as Created
+            Package/Service       owning package and service class name (package prefix stripped)
+            Bind                  number of bound client processes (Client AppBindRecord count); blank when 0
+            Started               O = explicitly started via startService() (startRequested=true)
+            Crash                 number of process crashes/restarts (crashCount=); blank when 0
+            CPU(%)                owning process' total CPU usage, unitless (100 = 1 second of CPU time)
+            RSS                   owning process' current resident memory
+            Cmdline               owning process' /proc/<pid>/cmdline; blank when it matches Package
+
+        CPU/RSS/Cmdline are properties of the OWNING PROCESS, not the service.
+        A process hosting multiple services (e.g. com.android.systemui) repeats the same CPU/RSS value on every one of its service rows.
+        Cmdline is shown only when the service runs under a different process than its declaring package (android:process=, e.g. a ":remote" suffix).
+        In "-J" JSON mode the raw cmdline is always included regardless of match.
+
+        Default sort groups foreground services first, then by Package/Service for stability.
+        "-q SORT:CREATED"/"-q SORT:LASTACTIVITY" orders services by that column's elapsed time (ascending), ignoring the foreground grouping.
+        Services whose time value couldn't be parsed sort last.
+
+        "-q NOCUT" disables the terminal-width trim on each row -- useful since Cmdline (when shown) can push a row past the default width.
+
+    - Print AlarmManager's pending alarms (dumpsys alarm)
+        # {0:1} {1:1} getalarmlist
+        # {0:1} {1:1} getalarmlist:"com.example.app"
+        # {0:1} {1:1} getalarmlist -J
+        # {0:1} {1:1} getalarmlist -q ONLYWAKEUP
+        # {0:1} {1:1} getalarmlist -q NOCUT
+
+        Per-alarm columns:
+            Type                  RTC/RTC_WAKEUP/ELAPSED/ELAPSED_WAKEUP, from the alarm's own type field
+            Tag                   AOSP's own alarm identifier string (dumpsys's tag=), e.g. "*walarm*:TIME_TICK"
+            Package               the alarm's actual target package, "android" for most system-internal alarms
+            When                  elapsed time until this alarm fires, as d:HH:MM:SS; a leading "-" means overdue
+            Repeat                repeat interval for a periodic alarm, as d:HH:MM:SS; blank for a one-shot alarm
+            Wakeup                O = a *_WAKEUP type (wakes the device from sleep when it fires), blank otherwise
+
+        Default sort orders by When (ascending) so the soonest-to-fire alarm is first; an overdue (negative When) alarm sorts even earlier than that.
+        "-q ONLYWAKEUP" filters to Wakeup=O rows only -- the subset that actually matters for battery-drain diagnosis.
+        A non-wakeup alarm can only ever fire while the device is already awake for some other reason.
+        Package is read from the alarm's own PendingIntentRecord target when present (the actual broadcast receiver).
+        A listener-based alarm with no separate target falls back to "android".
+
+        "-q NOCUT" disables the terminal-width trim on each row -- useful when a long Tag string would otherwise be clipped.
+
+    - Print DeviceIdleController's current Doze state and whitelists (dumpsys deviceidle)
+        # {0:1} {1:1} getdozeinfo
+        # {0:1} {1:1} getdozeinfo:"com.example.app"
+        # {0:1} {1:1} getdozeinfo -J
+
+        Summary line fields:
+            State/LightState      overall and light-Doze state machine value (ACTIVE, IDLE, IDLE_PENDING, etc.)
+            Enabled               whether deep/light Doze is enabled on this device at all
+            Screen/Charging/Network   current mScreenOn/mCharging/mNetworkConnected flags
+
+        Whitelist table columns:
+            Package               a package name from either whitelist section
+            ExceptIdle            O = exempt even while idle/Doze is active (dumpsys's "except idle" scope)
+            Always                O = exempt during maintenance windows too (dumpsys's plain "Whitelist" scope)
+
+        Many AAOS builds run with deep Doze disabled entirely (Enabled shows deep=false).
+        State still reflects the light-Doze/active state machine regardless.
+        Only the two package-name whitelist sections are shown in the table.
+        The two numeric app-id sections carry no resolvable package name on their own, so they're omitted here (still present in "-J" JSON mode).
+
+    - Print per-process lifecycle-state memory stats (dumpsys procstats)
+        # {0:1} {1:1} getprocstats
+        # {0:1} {1:1} getprocstats:"com.example.app"
+        # {0:1} {1:1} getprocstats -J
+        # {0:1} {1:1} getprocstats -q SORT:PCT
+
+        Per-process columns:
+            Package               package name; the same package can repeat across uids on a multi-user device
+            UID                   the process' app uid for this block (part of this dump's actual per-row identity, along with Package)
+            State                 this process' DOMINANT lifecycle state (highest % of the observed window), e.g. Persistent/Top/Fgs/Imp Fg/Cached
+            Pct                   the dominant state's own share of the observed window
+            PSS/USS/RSS(avg)      that state's average PSS/USS/RSS memory while the process was in it
+
+        Default sort orders by the dominant state's PSS(avg) descending (heaviest memory user first).
+        "-q SORT:PCT" instead orders by Pct descending.
+        Useful for spotting a process spent nearly its whole window in one state (e.g. 95%+ Cached, barely used yet still holding memory).
+        A process can have more than one non-TOTAL state (e.g. split between Top and Fgs); only the dominant one is shown in the table.
+        "-J" JSON mode exposes every state with its own min/avg/max instead.
+
+    - Print JobScheduler's scheduled jobs (dumpsys jobscheduler)
+        # {0:1} {1:1} getjoblist
+        # {0:1} {1:1} getjoblist:"com.example.app"
+        # {0:1} {1:1} getjoblist -J
+
+        Per-job columns:
+            UID                   the job's app uid
+            JobId                 the app-assigned job id (unique only within that uid, can be negative)
+            Package               the job's actual requester (dumpsys's Source: pkg=), not necessarily the declaring component's own package
+            Service               the JobService component that runs when this job fires
+            Per                   O = a PERIODIC job (recurring on its own interval), blank = a one-shot job
+            Pri                   the job's numeric priority (dumpsys's Priority:); higher runs before lower
+            Bucket                the job's App Standby bucket (EXEMPTED/ACTIVE/WORKING_SET/FREQUENT/RARE/NEVER/RESTRICTED)
+            Ready                 O = every constraint is currently satisfied (this job could run right now)
+            Unsatisfied           comma-separated list of constraints still blocking this job; blank when Ready=O
+
+        Default sort puts Ready=O jobs first (then by Package/JobId for stability) -- the subset actually eligible to run right now.
+        Package is matched against the job's Source: requester, which can differ from the JobService's own declaring package.
+        That happens when a system service schedules work on an app's behalf.
 
     - Print battery info
         # {0:1} {1:1} getbatteryinfo
@@ -84802,7 +86757,28 @@ Key Value List:
                         sys.argv[2] = andcmd_val
                 try:
                     AndroidMgr.checkAndCmd()
-                    AndroidMgr.doPerfetto(False)
+                    # same GETPKGLISTINFO/GETPROCLIST/MEMTOP carve-out as
+                    # the CLI andcmd dispatch site -- all three are only
+                    # ever actually handled in doPerfetto()'s heapProf=
+                    # True-only Perfetto section (GETPKGLISTINFO reads the
+                    # packages_list data source, GETPROCLIST the
+                    # linux.process_stats one, MEMTOP calls
+                    # AndroidMgr.saveMemDump() in a loop a few hundred
+                    # lines further down the same section), unlike every
+                    # other andcmd quick option, which doPerfetto()
+                    # handles without perfetto below its own heapProf=
+                    # False early-return/"andcmd mode: never fall
+                    # through" guard. Without this, andcmd:getpkglistinfo/
+                    # getproclist/memtop over TCP/UDS always hit that
+                    # early-return (silently, for GETPROCLIST/MEMTOP --
+                    # they have no explicit "no support yet" guard of
+                    # their own) even though the identical command works
+                    # from the CLI #
+                    AndroidMgr.doPerfetto(
+                        SysMgr.hasEnvironVar(
+                            ["GETPKGLISTINFO", "GETPROCLIST", "MEMTOP"]
+                        )
+                    )
                 except SystemExit:
                     sys.exit(0)
                 except:
@@ -92688,11 +94664,19 @@ Key Value List:
 
         elif SysMgr.checkMode("andcmd"):
             AndroidMgr.checkAndCmd()
-            # GETPKGLISTINFO needs an actual perfetto trace (it reads the
-            # packages_list data source), unlike the other andcmd quick
-            # options which are handled without perfetto below the
-            # heapProf=False early-return in doPerfetto() #
-            AndroidMgr.doPerfetto("GETPKGLISTINFO" in SysMgr.environList)
+            # GETPKGLISTINFO/GETPROCLIST/MEMTOP all need an actual
+            # perfetto trace -- they're only ever handled inside
+            # doPerfetto()'s heapProf=True-only Perfetto section
+            # (packages_list / linux.process_stats data sources, and
+            # AndroidMgr.saveMemDump() respectively), unlike the other
+            # andcmd quick options which are handled without perfetto
+            # below the heapProf=False early-return/"andcmd mode: never
+            # fall through" guard in doPerfetto() #
+            AndroidMgr.doPerfetto(
+                SysMgr.hasEnvironVar(
+                    ["GETPKGLISTINFO", "GETPROCLIST", "MEMTOP"]
+                )
+            )
 
         elif SysMgr.checkMode("getprop"):
             AndroidMgr.doHandleProp()
@@ -105816,6 +107800,60 @@ Key Value List:
 
     @staticmethod
     def doLeaktrace(restart=False):
+        # cap how long doLeaktrace() will wait for a child 'remote'/'hook'
+        # launchGuider() call to finish; those children ptrace-attach to
+        # the TARGET process and remote-call into it, so a target stuck in
+        # D-state (or otherwise wedged, exactly the kind of condition this
+        # memory-leak tracer is often attached to diagnose) used to make
+        # this wait=True call block forever. Opt-in only, same false-
+        # positive rationale as doBugRecord's LOGWAITTIMEOUT (a legitimately
+        # slow remote call must not be mistaken for a hung one by default) #
+        remoteWaitTimeout = UtilMgr.getEnvironNum(
+            "LOGWAITTIMEOUT", False, None, False, isInt=True
+        )
+
+        def _waitPidDeadline(pid, cmd):
+            if not pid or pid < 0:
+                return
+
+            if not remoteWaitTimeout:
+                try:
+                    os.waitpid(pid, 0)
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    pass
+                return
+
+            deadline = time.time() + remoteWaitTimeout
+            while 1:
+                try:
+                    waited, _ = os.waitpid(pid, os.WNOHANG)
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    return
+
+                if waited == pid:
+                    return
+
+                if time.time() >= deadline:
+                    SysMgr.printWarn(
+                        "'%s' exceeded log wait timeout, "
+                        "continuing without applying the command" % cmd,
+                        True,
+                    )
+                    try:
+                        os.kill(pid, signal.SIGINT)
+                        os.waitpid(pid, 0)
+                    except SystemExit:
+                        sys.exit(0)
+                    except:
+                        pass
+                    return
+
+                time.sleep(0.2)
+
         def _sendSignal(sig, comm, pid, purpose):
             if LeakAnalyzer.markedIdlePages:
                 SysMgr.printStat(r"start checking all idle pages...")
@@ -105962,9 +108000,10 @@ Key Value List:
             if hookCmd:
                 SysMgr.printInfo(r"start applying hook commands... ")
 
-                SysMgr.launchGuider(
-                    hookCmd, pipe=False, stderr=True, log=True, wait=True
+                ret = SysMgr.launchGuider(
+                    hookCmd, pipe=False, stderr=True, log=True, wait=False
                 )
+                _waitPidDeadline(ret, " ".join(hookCmd))
 
             if (
                 not sig
@@ -106375,7 +108414,7 @@ Key Value List:
             if remoteCmd:
                 SysMgr.printInfo(r"start applying environment commands... ")
 
-                SysMgr.launchGuider(
+                remoteRet = SysMgr.launchGuider(
                     [
                         "remote",
                         "-g%s" % pid,
@@ -106387,8 +108426,9 @@ Key Value List:
                     pipe=False,
                     stderr=True,
                     log=True,
-                    wait=True,
+                    wait=False,
                 )
+                _waitPidDeadline(remoteRet, "remote " + ",".join(remoteCmd))
 
             try:
                 ret = FileAnalyzer.getMapFilePath(pid, "libleaktracer")
@@ -106494,9 +108534,10 @@ Key Value List:
 
                 SysMgr.printInfo(r"start applying hook commands... ")
 
-                SysMgr.launchGuider(
-                    hcmd, pipe=False, stderr=True, log=True, wait=True
+                hcmdRet = SysMgr.launchGuider(
+                    hcmd, pipe=False, stderr=True, log=True, wait=False
                 )
+                _waitPidDeadline(hcmdRet, " ".join(hcmd))
                 hcmd = []
 
             if startSize > 0:
@@ -106511,9 +108552,10 @@ Key Value List:
             if hookCmd:
                 SysMgr.printInfo(r"start applying hook commands... ")
 
-                SysMgr.launchGuider(
-                    hcmd, pipe=False, stderr=True, log=True, wait=True
+                hcmdRet = SysMgr.launchGuider(
+                    hcmd, pipe=False, stderr=True, log=True, wait=False
                 )
+                _waitPidDeadline(hcmdRet, " ".join(hcmd))
                 hcmd = []
 
             _sendSignal(startSig, comm, pid, "start")
@@ -111709,16 +113751,24 @@ Key Value List:
         if not commIdx:
             commIdx = ConfigMgr.PROCSTAT_ATTR_DICT["COMM"]
 
-        if statList[commIdx][-1] == ")":
+        # find the real end of the comm field: a renamed task (e.g. via
+        # prctl(PR_SET_NAME)) can embed ')' or spaces anywhere inside its
+        # comm, so the LAST token still containing ')' (every field after
+        # comm is purely numeric and can never contain ')') marks the
+        # actual boundary, not just the first token ending with ')' #
+        endIdx = commIdx
+        for idx in range(commIdx, len(statList)):
+            if ")" in statList[idx]:
+                endIdx = idx
+
+        if endIdx == commIdx:
             return statList
 
-        idx = commIdx + 1
-        while 1:
-            tmpStr = str(statList[idx])
+        while commIdx + 1 <= endIdx:
+            tmpStr = str(statList[commIdx + 1])
             statList[commIdx] = "%s %s" % (statList[commIdx], tmpStr)
-            statList.pop(idx)
-            if ")" in tmpStr:
-                break
+            statList.pop(commIdx + 1)
+            endIdx -= 1
 
         return statList
 
@@ -112165,14 +114215,22 @@ Key Value List:
                                         pathSet.add(rpath)
                         except Exception:
                             pass
-                    # also try package list (Android)
+                    # also try "pm path" (Android) -- getPkgList()'s
+                    # own "path" field is the package's DATA directory
+                    # (packages.list's 4th field, e.g.
+                    # "/data/user/0/<pkg>"), never a .apk file, so it
+                    # can never satisfy os.path.isfile() below; "pm
+                    # path" is AOSP's actual package-name -> APK-path
+                    # lookup, and can print more than one "package:"
+                    # line for a split-APK package #
                     if not pathSet:
                         try:
-                            pkglist = (
-                                AndroidMgr.getPkgList(target=target) or {}
-                            )
-                            for pkg, info in pkglist.items():
-                                apk = (info or {}).get("path")
+                            ret = SysMgr.executeCmdSync(["pm", "path", target])
+                            for line in ret or []:
+                                line = line.strip()
+                                if not line.startswith("package:"):
+                                    continue
+                                apk = line[len("package:") :]
                                 if apk and os.path.isfile(apk):
                                     pathSet.add(apk)
                         except Exception:
@@ -146317,9 +148375,11 @@ class BpfMgr(object):
         """
         Parse tcp/tcp_probe format file to get field offsets.
         Returns dict with key 'srtt' (u32, in microseconds).
-        Defaults: srtt=104 (Linux 4.15+).
+        Defaults: srtt=100 (post-5.11 layout with the 'family' field;
+        matches TP_STRUCT__entry: saddr[28],daddr[28],sport,dport,family,
+        mark,data_len,snd_nxt,snd_una,snd_cwnd,ssthresh,snd_wnd,srtt,...).
         """
-        defaults = {"srtt": 104}
+        defaults = {"srtt": 100}
         tp_path = SysMgr.getTraceEventPath()
         if not tp_path:
             return defaults
@@ -146342,7 +148402,7 @@ class BpfMgr(object):
         return offsets
 
     @staticmethod
-    def genTcpProbeHistProg(hist_map_fd, srtt_off=104):
+    def genTcpProbeHistProg(hist_map_fd, srtt_off=100):
         """
         Tracepoint tcp/tcp_probe: read srtt (u32, microseconds),
         convert to ns (×1000), compute log2, increment hist_map[bucket].
@@ -203908,6 +205968,8 @@ class TaskAnalyzer(object):
 
         leakHistory = {}
         leakComm = {}
+        leakStartTime = {}
+        starttimeIdx = ConfigMgr.PROCSTAT_ATTR_DICT["STARTTIME"] - 2
 
         _samp_cond, _samp_idle, _samp_nr_cores = BpfMgr._initSampCond()
 
@@ -203968,8 +206030,23 @@ class TaskAnalyzer(object):
                         or UtilMgr.isValidStr(str(pid))
                     ):
                         continue
-                    if pid not in leakHistory:
+                    # detect PID reuse via /proc/pid/stat starttime so a new
+                    # process reusing an old PID doesn't inherit (and get
+                    # blamed for) a dead process's growth history #
+                    startTick = None
+                    statBuf = readFile("%s/stat" % pdir, verb=False)
+                    if statBuf:
+                        try:
+                            rest = statBuf[statBuf.rindex(")") + 2 :].split()
+                            startTick = rest[starttimeIdx]
+                        except:
+                            startTick = None
+                    if pid not in leakHistory or (
+                        startTick is not None
+                        and leakStartTime.get(pid) != startTick
+                    ):
                         leakHistory[pid] = deque(maxlen=window)
+                    leakStartTime[pid] = startTick
                     leakHistory[pid].append(
                         (rssMb, swapMb, vssMb, curTimestamp)
                     )
@@ -203984,6 +206061,7 @@ class TaskAnalyzer(object):
                 if pid not in activePids:
                     del leakHistory[pid]
                     leakComm.pop(pid, None)
+                    leakStartTime.pop(pid, None)
 
             leakList = []
             for pid, history in leakHistory.items():
@@ -239626,6 +241704,16 @@ function isAutoNamedPlot(name) {{
                     raise Exception()
 
                 prevData = self.prevProcData[pid]["stat"]
+
+                # pid reuse: a different starttime means this pid now
+                # belongs to an unrelated new process, not the one sampled
+                # last interval, so diffing utime/stime against prevData
+                # would compute a nonsensical (often negative) CPU usage;
+                # fall through to the except branch's fresh (non-diffed)
+                # calculation instead, same as the totalEnable case above #
+                if nowData[self.starttimeIdx] != prevData[self.starttimeIdx]:
+                    raise Exception()
+
                 if self.prevProcData[pid]["created"]:
                     value["created"] = True
                     if not value["comm"].startswith("*"):
