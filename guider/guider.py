@@ -43363,10 +43363,19 @@ class AndroidMgr(object):
             # "V"/"O" instead of a shared "O" for both -- a quick scan
             # of this column pair couldn't otherwise tell at a glance
             # which one of Vis/Op was actually set on a given row #
+            z = info.get("z", "")
+            # -2147483648 (INT32_MIN) is not a real distance -- it's
+            # AOSP's own "always below every sibling" sentinel (see
+            # ActivityRecordInputSink/SurfaceView-background callers of
+            # Layer::setLayer(INT32_MIN), device-verified both devices).
+            # The raw int is still exact and sorts correctly either way,
+            # so only the display string changes here, not the value
+            # _walk()'s own sort key reads from info["z"] #
+            zCol = "MIN" if z == -2147483648 else z
             return fmt.format(
                 lid,
                 info.get("layerStack", ""),
-                info.get("z", ""),
+                zCol,
                 info["uid"],
                 info.get("ownerPid") or "",
                 sizeCol,
@@ -76870,7 +76879,7 @@ Examples:
         Per-layer columns ("-q TREE", the real SurfaceFlinger parent/child hierarchy instead of the flat composited view):
             LayerId               SurfaceFlinger's own numeric layer id (the "#N" suffix on every raw layer name)
             Disp                  layerStack this layer belongs to
-            Z                     this layer's z-order relative to its own parent (negative = composited below/before it)
+            Z                     this layer's z-order relative to its own parent (negative = composited below/before it); shown as MIN for AOSP's own INT32_MIN "always below every sibling" sentinel (-J keeps the raw -2147483648)
             Uid                   owning uid; -1 or 1000 for layers SurfaceFlinger/system_server itself owns, not any one app
             Pid                   the actual process rendering this layer's buffer; blank when SurfaceFlinger never recorded one (most containers)
             Size                  this layer's actual rendered buffer size as [WxH]; blank for a layer with no buffer of its own (a pure container)
