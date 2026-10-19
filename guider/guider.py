@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.9"
-__revision__ = "261015"
+__revision__ = "261019"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -40964,6 +40964,16 @@ class AndroidMgr(object):
             # separately just to learn fullscreen vs multi-window #
             jsonWindows = {}
             for num, info in windowData.items():
+                # the table below filters by pkg via this exact same
+                # "package or '-'" substring check before printing a
+                # row; this branch used to skip it entirely and always
+                # dump every window regardless of "getwindowstat:pkg"
+                # -- same "JSON branch forgot the filter the table
+                # remembered" gap already found and fixed in
+                # getsurfacestat/gettaskstat's own "-J" modes #
+                curPkg = info.get("package") or "-"
+                if pkg and pkg not in curPkg:
+                    continue
                 entry = dict(info)
                 rtid = info.get("rootTaskId")
                 # "-1" (AOSP's INVALID_TASK_ID) is a valid regex match
@@ -41056,12 +41066,13 @@ class AndroidMgr(object):
         # headroom for the longest AOSP type name alone
         # (ACCESSIBILITY_MAGNIFICATION_OVERLAY = 35 chars) #
         fmt = (
-            "{0:>3} {1:>2} {2:>6} {3:<28} {4:<30} {5:<13} {6:<22} "
-            "{7} {8:^5} {9:^4} {10} {11:<%d} {12}" % rootTaskWidth
+            "{0:>3} {1:>2} {2:>4} {3:>6} {4:<28} {5:<30} {6:<13} {7:<22} "
+            "{8} {9:^5} {10:^4} {11} {12:<%d} {13}" % rootTaskWidth
         )
         header = fmt.format(
             "No",
             "DP",
+            "User",
             "PID",
             "Package",
             "Activity",
@@ -41205,10 +41216,20 @@ class AndroidMgr(object):
                 winTypeCol = appopPart
             winTypeCol = winTypeCol[:40]
 
+            # the header's own "u<N>" (device-verified both u0/u10 mixed
+            # in the same real capture) is distinct from mOwnerUid's
+            # package-ownership uid -- same "parsed but never reached
+            # the table" gap gettaskstat's/getservicestat's own User
+            # column fixes already found, "u" prefix stripped to match
+            # their plain-digit convention #
+            uidRaw = info.get("uid")
+            userCol = uidRaw.lstrip("u") if uidRaw else "-"
+
             SysMgr.printPipe(
                 fmt.format(
                     num,
                     info.get("displayId", "-"),
+                    userCol,
                     info.get("pid", "-"),
                     curPkg[:28],
                     act[:30],
@@ -41576,15 +41597,27 @@ class AndroidMgr(object):
             info["inactiveSec"] = recentActiveTime.get(taskId)
 
         if SysMgr.jsonEnable:
+            # the table below filters by pkg via this exact same
+            # "package or '-'" substring check before printing a row;
+            # this branch used to skip it entirely and always dump
+            # every task regardless of "gettaskstat:pkg" -- same
+            # "JSON branch forgot the filter the table remembered" gap
+            # already found and fixed in getsurfacestat's own "-J" mode
+            # (see [[getsurfacestat_andcmd_feature]]) #
+            jsonTasks = {
+                tid: info
+                for tid, info in taskData.items()
+                if not (pkg and pkg not in (info.get("package") or "-"))
+            }
             organizer = {
                 tid: info["organizerMode"]
-                for tid, info in taskData.items()
+                for tid, info in jsonTasks.items()
                 if info.get("organizerMode")
             }
             SysMgr.printPipe(
                 UtilMgr.convDict2Str(
                     {
-                        "tasks": taskData,
+                        "tasks": jsonTasks,
                         "organizer": organizer,
                         "global": globalInfo,
                     }
@@ -41652,13 +41685,14 @@ class AndroidMgr(object):
         # twice and add visual noise (user feedback) #
         if showTree:
             fmt = (
-                "{0:>7} {1:>2} {2:>6} {3:<13} {4:<10} {5:<28} {6:<30} "
-                "{7:<8} {8:^5} {9:^4} {10} {11:>3} {12:>3} {13:<12} "
-                "{14:^3} {15:>3} {16:>6}"
+                "{0:>7} {1:>2} {2:>4} {3:>6} {4:<13} {5:<10} {6:<28} {7:<30} "
+                "{8:<8} {9:^5} {10:^4} {11} {12:>3} {13:>3} {14:<12} "
+                "{15:^3} {16:>3} {17:>6}"
             )
             header = fmt.format(
                 "TaskId",
                 "DP",
+                "User",
                 "PID",
                 "Mode",
                 "Type",
@@ -41677,14 +41711,15 @@ class AndroidMgr(object):
             )
         else:
             fmt = (
-                "{0:>7} {1:>6} {2:>2} {3:>6} {4:<13} {5:<10} {6:<28} {7:<30} "
-                "{8:<8} {9:^5} {10:^4} {11} {12:>3} {13:>3} {14:<12} "
-                "{15:^3} {16:>3} {17:>6}"
+                "{0:>7} {1:>6} {2:>2} {3:>4} {4:>6} {5:<13} {6:<10} {7:<28} "
+                "{8:<30} {9:<8} {10:^5} {11:^4} {12} {13:>3} {14:>3} "
+                "{15:<12} {16:^3} {17:>3} {18:>6}"
             )
             header = fmt.format(
                 "TaskId",
                 "PTID",
                 "DP",
+                "User",
                 "PID",
                 "Mode",
                 "Type",
@@ -41788,10 +41823,20 @@ class AndroidMgr(object):
                 else ""
             )
 
+            # Android's own multi-user id (AOSP's "U=<N>" header field,
+            # distinct from uid=package ownership) -- device-verified
+            # both test devices actually mix U=0 and U=10 tasks in the
+            # same dump, the same "parsed but never reached the table"
+            # gap getservicestat's own User column fix (see
+            # [[getservicestat_andcmd_feature]]) already found and
+            # fixed for its sibling command #
+            userCol = info.get("user", "-")
+
             if showTree:
                 row = fmt.format(
                     taskId,
                     info.get("displayId", "-"),
+                    userCol,
                     pid,
                     info.get("mode", "-"),
                     typeCol,
@@ -41813,6 +41858,7 @@ class AndroidMgr(object):
                     taskId,
                     info.get("parentTaskId") or "",
                     info.get("displayId", "-"),
+                    userCol,
                     pid,
                     info.get("mode", "-"),
                     typeCol,
@@ -41856,7 +41902,8 @@ class AndroidMgr(object):
                 # unfiltered taskData -- gettaskstat:"pkg" would
                 # otherwise still report system-wide totals while the
                 # tree itself shows only the matching subset #
-                if not (pkg and pkg not in curPkg):
+                printed = not (pkg and pkg not in curPkg)
+                if printed:
                     SysMgr.printPipe(row)
                     nrPrinted += 1
                     if visible:
@@ -41869,8 +41916,19 @@ class AndroidMgr(object):
                 childIds = childrenOf.get(taskId, [])
                 if not dumpOrder:
                     childIds = sorted(childIds, key=lambda x: int(x))
+                # depth counts PRINTED ancestors only -- a pkg filter
+                # can hide a parent while still printing its child
+                # (device-verified: both test devices have a parent
+                # placeholder task with no package at all, whose only
+                # child DOES match a real pkg filter), and incrementing
+                # depth regardless left that child with a dangling
+                # "`- " prefix and no visible parent chain above it to
+                # justify it. Same fix as getsurfacestat's own TREE
+                # mode (see [[getsurfacestat_andcmd_feature]]'s UX
+                # follow-up round) applied here #
+                childDepth = depth + 1 if printed else depth
                 for childId in childIds:
-                    _walk(childId, depth + 1)
+                    _walk(childId, childDepth)
 
             rootIds = childrenOf.get(None, [])
             if not dumpOrder:
@@ -41910,6 +41968,12 @@ class AndroidMgr(object):
             r"^\s*\* ServiceRecord\{\S+ u(\d+) (\S+)/(\S+)\}"
         )
         appPidPat = re.compile(r"\bapp=ProcessRecord\{\S+ (\d+):")
+        # bind permission -- only present on a service that declares
+        # android:permission in its manifest (device-verified 47/165
+        # and a similar fraction on 66aed018, not a near-always-absent
+        # field the way RootTask's "-" placeholder would misleadingly
+        # suggest), absent entirely for every other service's block #
+        permissionPat = re.compile(r"^\s*permission=(\S+)", re.M)
         # isForeground= only appears as a line at all when true --
         # device-verified on both 5af877f6/66aed018 that "false" is
         # never spelled out, the field is simply absent otherwise #
@@ -41974,6 +42038,7 @@ class AndroidMgr(object):
             createdMs = _parseElapsedMs(createTime)
             lastActivityMs = _parseElapsedMs(lastActivity)
             ccm = crashCountPat.search(block)
+            pem = permissionPat.search(block)
             services.append(
                 {
                     "user": user,
@@ -41988,6 +42053,7 @@ class AndroidMgr(object):
                     "bindingCount": len(bindingPat.findall(block)),
                     "startRequested": bool(startRequestedPat.search(block)),
                     "crashCount": int(ccm.group(1)) if ccm else 0,
+                    "permission": pem.group(1) if pem else None,
                 }
             )
 
@@ -42095,9 +42161,16 @@ class AndroidMgr(object):
         services = sorted(services, key=sortKey)
 
         fgWidth = 4
+        # Cmdline gets a fixed width here (unlike every other GET*
+        # table's own last-column convention of unclipped+unpadded) so
+        # Permission can sit after it as the new last, unclipped
+        # column -- device-verified Cmdline (when actually shown, i.e.
+        # differs from Package) tops out around 46 chars on both
+        # devices, so 48 leaves headroom without needing NOCUT just to
+        # see the common case #
         fmt = (
             "{0:>6} {1:>4} {2:^%d} {3:<16} {4:<16} {5:<28} {6:<30} "
-            "{7:>4} {8:^7} {9:>5} {10:>12} {11:>10} {12}" % fgWidth
+            "{7:>4} {8:^7} {9:>5} {10:>12} {11:>10} {12:<48} {13}" % fgWidth
         )
         header = fmt.format(
             "PID",
@@ -42113,6 +42186,7 @@ class AndroidMgr(object):
             "CPU(%)",
             "RSS",
             "Cmdline",
+            "Permission",
         )
         SysMgr.printPipe("=" * len(header))
         SysMgr.printPipe(header)
@@ -42171,6 +42245,12 @@ class AndroidMgr(object):
             cmdlineCol = (
                 cmdline if cmdline and cmdline != svc["package"] else ""
             )
+            # bind permission, when the service's own manifest entry
+            # declares one -- blank (not "-") since this is a genuine
+            # presence/absence signal, same convention as Bind/Crash
+            # above, not a "value usually exists but is occasionally
+            # missing" field #
+            permissionCol = svc.get("permission") or ""
 
             SysMgr.printPipe(
                 fmt.format(
@@ -42187,6 +42267,7 @@ class AndroidMgr(object):
                     cpuCol,
                     rssCol,
                     cmdlineCol,
+                    permissionCol,
                 )
             )
 
@@ -42974,8 +43055,21 @@ class AndroidMgr(object):
         # rather than swallowed into the preceding ".*" -- a device/
         # layer that DOES have one set would otherwise silently never
         # surface it in either the table or "-J" JSON output #
+        # "rel" was wrongly assumed required -- AOSP's own
+        # Layer::miniDump() (frameworks/native/services/surfaceflinger/
+        # Layer.cpp) only prints the "rel" prefix when the layer has a
+        # zOrderRelativeOf/drawing parent; a true top-level layer (no
+        # parent at all) prints a bare "  %10d | " with NO prefix at
+        # all -- "abs" is not a real AOSP string literal anywhere, this
+        # tool's own regex invented it. Both real devices happen to
+        # have zero top-level HWC-table layers at capture time (every
+        # row here has a drawing parent), so this never surfaced
+        # on-device, but a bare-numeral row would otherwise fail this
+        # whole regex and silently drop that entire layer from both the
+        # table and "-J" JSON -- made the "rel" prefix optional instead
+        # of requiring one of two fixed alternatives #
         dataPat = re.compile(
-            r"^\s*(rel|abs)\s+(-?\d+)\s*\|\s*(\d+)\s*\|\s*(\S+)\s*\|\s*"
+            r"^\s*(?:(rel)\s+)?(-?\d+)\s*\|\s*(\d+)\s*\|\s*(\S+)\s*\|\s*"
             r"(\d+)\s*\|\s*(-?\d+)\s+(-?\d+)\s+(-?\d+)\s+(-?\d+)\s*\|\s*"
             r"([\d.]+)\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)\s*\|\s*"
             r"(.*?)\[([* ])\]",
@@ -43074,19 +43168,21 @@ class AndroidMgr(object):
             ),
         )
 
-        fmt = (
-            "{0:>9} {1:>5} {2:<28} {3:<30} {4:^4} {5:>4} {6:<10} " "{7:^6} {8}"
-        )
+        # package/service sits LAST and unpadded (not clipped to a fixed
+        # width) so the one field that identifies which job a row is never
+        # truncated, however long the component name gets (device-
+        # measured up to 109 chars); Unsatisfied, whose longest observed
+        # value is 21 chars, moves in front of it with a fixed width #
+        fmt = "{0:>9} {1:>9} {2:^4} {3:>4} {4:<10} {5:^6} {6:<22} {7}"
         header = fmt.format(
             "UID",
             "JobId",
-            "Package",
-            "Service",
             "Per",
             "Pri",
             "Bucket",
             "Ready",
             "Unsatisfied",
+            "Package/Service",
         )
         SysMgr.printPipe("=" * len(header))
         SysMgr.printPipe(header)
@@ -43096,7 +43192,10 @@ class AndroidMgr(object):
         for j in jobs:
             if j["ready"]:
                 nrReady += 1
-            readyCol = "O" if j["ready"] else ""
+            # pre-padded to the column width before colorizing: the ANSI
+            # escape bytes would otherwise count toward the width and
+            # shift every column after it #
+            readyCol = "{0:^6}".format("O" if j["ready"] else "")
             if j["ready"]:
                 readyCol = UtilMgr.convColor(readyCol, "GREEN")
             periodicCol = "O" if j["periodic"] else ""
@@ -43106,13 +43205,12 @@ class AndroidMgr(object):
                 fmt.format(
                     j["uid"],
                     j["jobId"],
-                    j["package"][:28],
-                    j["service"][:30],
                     periodicCol,
                     j["priority"] or "-",
                     j["bucket"] or "-",
                     readyCol,
                     unsatCol,
+                    "%s/%s" % (j["package"], j["service"]),
                 )
             )
 
@@ -43140,6 +43238,13 @@ class AndroidMgr(object):
         # JSON branch and _printSurfaceFlat() each used to rebuild this
         # same dict independently) #
         displayIdToStack = {v.get("displayId"): k for k, v in dispMap.items()}
+        # same dedup rationale as displayIdToStack above -- resolves an
+        # HWC-table row (which carries no uid of its own) back to its
+        # owning layer's id purely to support the pkg filter, needed by
+        # both the JSON branch below and _printSurfaceFlat() #
+        nameToLid = {}
+        for lid, info in layers.items():
+            nameToLid[info["name"] + "#" + str(lid)] = lid
 
         # a layer's text dump carries only "uid=", never a package name
         # -- join against packages.list's own uid field (same source
@@ -43192,12 +43297,33 @@ class AndroidMgr(object):
                 entry = dict(info)
                 entry["pkg"] = pkgName
                 jsonLayers[str(lid)] = entry
+
+            # "-q DISPLAY:N"/pkg filters both apply to jsonLayers above
+            # and to the table in _printSurfaceFlat(), but this branch
+            # built jsonHwc straight from the raw hwcDisplays dict with
+            # neither filter applied -- "-q DISPLAY:0 -J" on a real
+            # multi-display capture kept Display 1's (empty) key in
+            # hwcLayers and would have kept any of its real rows too,
+            # silently diverging from surfaceLayers' own filtered view
+            # in the exact same response #
+            def _hwcRowMatchesPkg(l):
+                lid = nameToLid.get(l["name"])
+                pkgName = (
+                    _pkgOf(layers[lid]["uid"]) if lid is not None else None
+                )
+                return pkgName and pkg in pkgName
+
             jsonHwc = {}
             for did, d in hwcDisplays.items():
                 stack = displayIdToStack.get(did)
+                if onlyDisplay is not None and stack != onlyDisplay:
+                    continue
+                rowsHwc = d["layers"]
+                if pkg:
+                    rowsHwc = [l for l in rowsHwc if _hwcRowMatchesPkg(l)]
                 jsonHwc.setdefault(
                     str(stack) if stack is not None else did, []
-                ).extend(d["layers"])
+                ).extend(rowsHwc)
             SysMgr.printPipe(
                 UtilMgr.convDict2Str(
                     {"surfaceLayers": jsonLayers, "hwcLayers": jsonHwc}
@@ -43220,25 +43346,27 @@ class AndroidMgr(object):
                 onlyDisplay,
                 layers,
                 _pkgOf,
+                nameToLid,
             )
 
     @staticmethod
     def _printSurfaceFlat(
-        hwcDisplays, displayIdToStack, pkg, onlyDisplay, layers, _pkgOf
+        hwcDisplays,
+        displayIdToStack,
+        pkg,
+        onlyDisplay,
+        layers,
+        _pkgOf,
+        nameToLid,
     ):
         # flat mode reuses the dumpsys's OWN already-flat per-display
         # HWC minidump table rather than flattening the layer tree a
         # second time -- these are the layers actually composited on
         # screen (Z/CompType/Transform/crop), the tree view below is
         # for structural debugging instead #
-        # resolve each HWC row's owning layer (matched by name#id suffix
-        # in the raw name, same linkage the tree parser already uses)
-        # purely to support the pkg filter here -- the HWC table itself
-        # carries no uid of its own #
-        nameToLid = {}
-        for lid, info in layers.items():
-            nameToLid[info["name"] + "#" + str(lid)] = lid
-
+        # nameToLid (HWC row -> owning layer id, by name#id suffix) is
+        # now built once by the caller and shared with the "-J" JSON
+        # branch's own pkg filter instead of being rebuilt here #
         # Name sits LAST and unpadded (not clipped to a fixed width like
         # every other column) so the one field that actually identifies
         # which layer a row is never gets truncated regardless of how
@@ -45162,22 +45290,38 @@ class AndroidMgr(object):
 
         taskEventList = []
 
-        def _waitPidDeadline(pid, deadline, cmd):
-            # bound waitpid() on a specific child so a hung logd (or any
-            # other stuck log-collecting task) cannot make bugrep/bugrec
-            # hang forever; give up at the deadline and keep whatever
-            # partial data was already collected instead of blocking #
-            if not pid or pid < 0:
-                return
+        # seconds between "still waiting" notices, and how long a child
+        # gets to honor SIGINT before a timed-out wait escalates to SIGKILL #
+        progressInterval = 10
+        killGraceTime = 3
+        # sleep between waitpid(WNOHANG) polls; a long interval is paid on
+        # EVERY step as detection delay (device-measured: 200ms added ~100ms
+        # per andcmd, ~2s over a whole report), while 20ms costs under
+        # 0.25% of one core even over a 30s wait #
+        pollInterval = 0.02
 
-            if deadline is None:
-                try:
-                    os.waitpid(pid, 0)
-                except SystemExit:
-                    sys.exit(0)
-                except:
-                    pass
-                return
+        def _waitPidDeadlineImpl(pid, timeout, cmd, started=None):
+            # wait for a specific child, optionally bounded by "timeout"
+            # seconds counted from THIS call (not from a deadline shared
+            # with earlier waits -- a shared budget let one slow item
+            # exhaust it and get every later, healthy item killed on its
+            # very first poll). Without a timeout (LOGWAITTIMEOUT unset,
+            # the default) nothing is ever killed: how long a healthy
+            # collection may take on a given device cannot be known in
+            # advance, so only the user can decide when to give up. A
+            # progress line is printed periodically either way so a slow
+            # wait can be told apart from a hung one by eye #
+            if not pid or pid < 0:
+                return True
+
+            # "started" lets a caller that launched several children before
+            # waiting on the first one pass each child's REAL launch time;
+            # otherwise a later child, which has been running all along,
+            # would get a fresh budget when its turn to be waited on comes
+            # and its timeout/elapsed time would be under-counted #
+            if started is None:
+                started = time.time()
+            nextNotice = started + progressInterval
 
             while 1:
                 try:
@@ -45185,27 +45329,95 @@ class AndroidMgr(object):
                 except SystemExit:
                     sys.exit(0)
                 except:
-                    return
+                    return True
 
                 if waited == pid:
-                    return
+                    return True
 
-                if time.time() >= deadline:
+                now = time.time()
+
+                if timeout and now - started >= timeout:
                     _printWarn(
-                        "'%s' exceeded log wait timeout, "
-                        "continuing with partial data" % cmd,
+                        "'%s' exceeded the wait timeout(%ss), "
+                        "continuing with partial data" % (cmd, timeout),
                         True,
                     )
-                    try:
-                        os.kill(pid, signal.SIGINT)
-                        os.waitpid(pid, 0)
-                    except SystemExit:
-                        sys.exit(0)
-                    except:
-                        pass
-                    return
+                    # SIGINT first so the child can flush what it has,
+                    # then SIGKILL only if it ignores it -- a child stuck
+                    # in an uninterruptible state never honors SIGINT,
+                    # and an unbounded waitpid() after it would hang the
+                    # whole report again #
+                    for sig, grace in (
+                        (signal.SIGINT, killGraceTime),
+                        (signal.SIGKILL, None),
+                    ):
+                        try:
+                            os.kill(pid, sig)
+                        except SystemExit:
+                            sys.exit(0)
+                        except:
+                            return False
 
-                time.sleep(0.2)
+                        graceEnd = (
+                            None if grace is None else time.time() + grace
+                        )
+                        while 1:
+                            try:
+                                if grace is None:
+                                    os.waitpid(pid, 0)
+                                    return False
+                                waited, _ = os.waitpid(pid, os.WNOHANG)
+                            except SystemExit:
+                                sys.exit(0)
+                            except:
+                                return False
+
+                            if waited == pid:
+                                return False
+                            elif time.time() >= graceEnd:
+                                break
+
+                            time.sleep(pollInterval)
+                    return False
+
+                if now >= nextNotice:
+                    _printInfo(
+                        "still waiting for '%s' (%.0fs elapsed)"
+                        % (cmd, now - started)
+                    )
+                    nextNotice = now + progressInterval
+
+                time.sleep(pollInterval)
+
+        def _printElapsed(cmd, started, note=""):
+            # print how long a step took, at the moment it ends; printWarn
+            # is silent unless "-v" is given, so no extra gate is needed #
+            SysMgr.printWarn(
+                "'%s' %s in %.2fs"
+                % (cmd, note or "finished", time.time() - started)
+            )
+
+        def _waitPidDeadline(pid, timeout, cmd, started=None):
+            if started is None:
+                started = time.time()
+            ret = _waitPidDeadlineImpl(pid, timeout, cmd, started)
+            # False means the child had to be killed after the timeout,
+            # True means it ended by itself (or was never a valid pid) #
+            _printElapsed(
+                cmd, started, "finished" if ret else "killed after timeout"
+            )
+            return ret
+
+        def _timed(cmd, func, *args, **kwargs):
+            # run a step in this process and report its elapsed time with
+            # "-v"; the result is returned untouched so call sites keep
+            # their existing assignment shape. The time is printed even
+            # if the step raises, then the exception propagates as before #
+            started = time.time()
+            try:
+                return func(*args, **kwargs)
+            finally:
+                _printElapsed(cmd, started)
 
         def _startProcMon(pid, cmd):
             try:
@@ -45302,12 +45514,34 @@ class AndroidMgr(object):
 
         def _savePerfHistory(outPath):
             perfOutPath = outPath + "perf.out"
-            SysMgr.launchGuider(
+            ret = SysMgr.launchGuider(
                 ["event", "CMD_SAVERAW:#" + perfOutPath],
                 stderr=True,
-                wait=True,
+                wait=False,
+                pipe=False,
                 setComm=True,
             )
+            if not _waitPidDeadline(
+                ret, logWaitTimeout, "perf history saving"
+            ):
+                _printWarn(
+                    "perf history was not saved, "
+                    "the report may lack '%s'" % perfOutPath,
+                    True,
+                )
+
+        # cap how long bugrep/bugrec will wait on each collecting child
+        # (logd log data, screenshot, perf history, ...); a hung one used
+        # to make both commands wait forever. opt-in only (no default)
+        # because there is no way to know how long a healthy collection
+        # may take on a given device (e.g. a content filter such as
+        # -q BUF:<buf> inherited via MERGEENVLIST can produce a long,
+        # healthy silence that looks identical to a hang), and forcing a
+        # child to exit is irreversible. Each wait gets its own budget of
+        # this many seconds #
+        logWaitTimeout = UtilMgr.getEnvironNum(
+            "LOGWAITTIMEOUT", False, None, False, isInt=True
+        )
 
         # -------------------- COMMAND -------------------- #
 
@@ -45317,12 +45551,15 @@ class AndroidMgr(object):
         )
 
         if "NOPIC" not in SysMgr.environList:
-            SysMgr.launchGuider(
+            ret = SysMgr.launchGuider(
                 ["scrcap", "-o" + outPath + "screenshot.png"],
+                pipe=False,
                 stderr=True,
-                wait=dump,
+                wait=False,
                 setComm=True,
             )
+            if dump:
+                _waitPidDeadline(ret, logWaitTimeout, "screen capturing")
 
         if not dump and "NOVIDEO" not in SysMgr.environList:
             addRecOpt = []
@@ -45351,19 +45588,6 @@ class AndroidMgr(object):
         else:
             AndroidMgr.applySettingVars(default=False)
 
-        # cap how long bugrep/bugrec will wait for logd to produce log
-        # data; a hung logd used to make both commands wait forever here.
-        # opt-in only (no default) because a legitimate content filter
-        # (e.g. -q BUF:<buf> inherited into the log-collecting child via
-        # MERGEENVLIST) can just as easily produce a long, healthy silence
-        # that looks identical to a hung logd from this wait loop's view #
-        logWaitTimeout = UtilMgr.getEnvironNum(
-            "LOGWAITTIMEOUT", False, None, False, isInt=True
-        )
-        logWaitDeadline = (
-            time.time() + logWaitTimeout if logWaitTimeout else None
-        )
-
         if "NOLOG" in SysMgr.environList:
             logPath = None
         else:
@@ -45380,13 +45604,15 @@ class AndroidMgr(object):
                 SysMgr.printWarn("failed to get tag log level", True, True)
 
             logPath = outPath + "tag_log_level.txt"
-            SysMgr.launchGuider(
+            ret = SysMgr.launchGuider(
                 ["printand", "-o" + logPath, "-q SHOWTAGLEVEL"],
                 pipe=False,
                 stderr=True,
-                wait=dump,
+                wait=False,
                 setComm=True,
             )
+            if dump:
+                _waitPidDeadline(ret, logWaitTimeout, "log tag level")
 
             logPath = outPath + "log.txt"
             addOpt = ", TAILCUT" if dump else ""
@@ -45400,7 +45626,7 @@ class AndroidMgr(object):
             if dump:
                 # this used to be wait=True, blocking forever on
                 # os.waitpid() if logd hung; bound it instead #
-                _waitPidDeadline(ret, logWaitDeadline, "log collecting")
+                _waitPidDeadline(ret, logWaitTimeout, "log collecting")
             else:
                 _startProcMon(ret, "log collecting")
 
@@ -45411,7 +45637,7 @@ class AndroidMgr(object):
 
             perfOutPath = outPath + "perf.out"
             if not os.path.exists(perfOutPath):
-                SysMgr.launchGuider(
+                ret = SysMgr.launchGuider(
                     [
                         "top",
                         "-eTd" + ("b" if isRoot else ""),
@@ -45421,9 +45647,10 @@ class AndroidMgr(object):
                     ],
                     mute=True,
                     stderr=True,
-                    wait=True,
+                    wait=False,
                     setComm=True,
                 )
+                _waitPidDeadline(ret, logWaitTimeout, "total perf saving")
         else:
             perfBufLimit = None
             usePerfBuf = "USEPERFBUF" in SysMgr.environList
@@ -45534,7 +45761,9 @@ class AndroidMgr(object):
                         stdout=open(cmdPath + ".out", "wb"),
                     )
                     if wait and pobj:
+                        waitStart = time.time()
                         pobj.wait()
+                        _printElapsed(cmd, waitStart)
                 except SystemExit:
                     sys.exit(0)
                 except:
@@ -45556,16 +45785,27 @@ class AndroidMgr(object):
                 )
             )
 
+        logWaitStart = time.time()
+        logNextNotice = logWaitStart + progressInterval
         while 1:
             if not logPath or UtilMgr.getFileSize(logPath, False):
                 break
-            if logWaitDeadline and time.time() >= logWaitDeadline:
+
+            now = time.time()
+            if logWaitTimeout and now - logWaitStart >= logWaitTimeout:
                 _printWarn(
                     "log collecting exceeded timeout(%ss), "
                     "continuing without log data" % logWaitTimeout,
                     True,
                 )
                 break
+            elif now >= logNextNotice:
+                _printInfo(
+                    "still waiting for the first log data (%.0fs elapsed)"
+                    % (now - logWaitStart)
+                )
+                logNextNotice = now + progressInterval
+
             try:
                 time.sleep(0.1)
             except:
@@ -45618,19 +45858,40 @@ class AndroidMgr(object):
         if "PERFHISTORY" in SysMgr.environList:
             _savePerfHistory(outPath)
 
-        # bound each COLLECT andcmd the same way log.txt collection is
-        # already bounded (see LOGWAITTIMEOUT/_waitPidDeadline above) --
-        # a stuck dumpsys call (e.g. a deadlocked system_server, exactly
-        # the kind of condition a bugreport is often taken to diagnose)
-        # used to hang this wait=True launchGuider() call forever, which
-        # in turn skipped every remaining COLLECT item plus prop.txt/
-        # packageinfo.txt/the ANR-ANDROID scan/description/zip assembly
-        # that all run strictly after this loop; opt-in only, same
-        # false-positive rationale as LOGWAITTIMEOUT (a legitimately
-        # slow dumpsys must not be mistaken for a hung one by default) #
-        collectWaitDeadline = (
-            time.time() + logWaitTimeout if logWaitTimeout else None
+        # each COLLECT andcmd is bounded by LOGWAITTIMEOUT on its own
+        # (see _waitPidDeadline above) -- a stuck dumpsys call (e.g. a
+        # deadlocked system_server, exactly the kind of condition a
+        # bugreport is often taken to diagnose) used to hang this
+        # wait=True launchGuider() call forever, which in turn skipped
+        # every remaining COLLECT item plus prop.txt/packageinfo.txt/the
+        # ANR-ANDROID scan/description/zip assembly that all run
+        # strictly after this loop. The budget is per item, not shared
+        # across the loop, so one slow item cannot get every later
+        # healthy one killed; opt-in only, same false-positive rationale
+        # as LOGWAITTIMEOUT #
+
+        # how many COLLECT andcmd children may run at once; the default is
+        # the number of CPU cores (falling back to 1, i.e. one at a time,
+        # if that cannot be read). Several at once finish the report
+        # sooner (device-measured: 4 saved ~1s of ~5s on a 4-core device)
+        # at the cost of loading system_server with simultaneous dumpsys
+        # requests; "-q COLLECTPARALLEL:1" restores the one-at-a-time run #
+        defParallel = max(SysMgr.getNrCore(), 1)
+        collectParallel = (
+            UtilMgr.getEnvironNum(
+                "COLLECTPARALLEL", False, defParallel, True, isInt=True
+            )
+            if "COLLECTPARALLEL" in SysMgr.environList
+            else defParallel
         )
+        if collectParallel < 1:
+            _printWarn(
+                "ignored COLLECTPARALLEL %s, it should be 1 or more"
+                % collectParallel,
+                True,
+            )
+            collectParallel = defParallel
+        collectRunning = []
 
         for cond, cmd in (
             (
@@ -45768,15 +46029,52 @@ class AndroidMgr(object):
                     "-o" + outPath + "binderstats.txt",
                 ],
             ),
+            # raw "dumpsys window" (policy/animator/sessions/displays/
+            # tokens plus the LAST ANR section), distinct from the
+            # parsed windows-only view getwindowstat prints. getproclist
+            # is deliberately NOT collected here: its "-o" file output
+            # holds only the header (the process rows never reach the
+            # file, same as plain "ps -o" -- pre-existing, not specific
+            # to this block) #
+            (
+                "NOWININFO" not in SysMgr.environList,
+                ["andcmd", "getwindowinfo", "-o" + outPath + "windowinfo.txt"],
+            ),
         ):
             if not cond:
                 continue
+
+            # keep at most collectParallel children running: when the
+            # window is full, wait for the oldest one first (1 = strictly
+            # one at a time, the behavior before the core-count default) #
+            while len(collectRunning) >= collectParallel:
+                _waitPidDeadline(*collectRunning.pop(0))
+
+            launched = time.time()
             ret = SysMgr.launchGuider(
                 cmd, pipe=False, stderr=True, wait=False, setComm=True
             )
-            _waitPidDeadline(ret, collectWaitDeadline, " ".join(cmd))
+            # label with the command and its own options only; the "-o"
+            # output path is long and would push the elapsed time out of
+            # view on a narrow terminal #
+            collectRunning.append(
+                (
+                    ret,
+                    logWaitTimeout,
+                    " ".join([c for c in cmd if not c.startswith("-o")]),
+                    launched,
+                )
+            )
 
-        props = [] if "NOPROP" in SysMgr.environList else AndroidMgr.getProp()
+        for item in collectRunning:
+            _waitPidDeadline(*item)
+        collectRunning = []
+
+        props = (
+            []
+            if "NOPROP" in SysMgr.environList
+            else _timed("getprop", AndroidMgr.getProp)
+        )
         if props:
             SysMgr.writeFile(outPath + "prop.txt", props)
         else:
@@ -45785,7 +46083,7 @@ class AndroidMgr(object):
         pkgs = (
             []
             if "NOPKGINFO" in SysMgr.environList
-            else AndroidMgr.getPkgInfo()
+            else _timed("getpkginfo", AndroidMgr.getPkgInfo)
         )
         if pkgs:
             SysMgr.writeFile(outPath + "packageinfo.txt", "\n".join(pkgs))
@@ -45855,7 +46153,9 @@ class AndroidMgr(object):
             SysMgr.addEnvironVar(var)
             SysMgr.addEnvironVar("ADDCOMMSTACK")
             flameOutPath = outPath + kind + "_flamegraph.svg"
-            Debugger.drawFlame(
+            _timed(
+                "%s flamegraph" % kind,
+                Debugger.drawFlame,
                 newFileList,
                 outFile=flameOutPath,
                 forceOutFile=True,
@@ -45912,7 +46212,7 @@ class AndroidMgr(object):
             dump or "OPENFILE" in SysMgr.environList
         ):
             try:
-                SysMgr.launchGuider(
+                ret = SysMgr.launchGuider(
                     [
                         "ftop",
                         "-o" + outPath + "openfile.out",
@@ -45922,9 +46222,10 @@ class AndroidMgr(object):
                     ],
                     mute=True,
                     stderr=True,
-                    wait=True,
+                    wait=False,
                     setComm=True,
                 )
+                _waitPidDeadline(ret, logWaitTimeout, "open file listing")
             except SystemExit:
                 sys.exit(0)
             except:
@@ -45967,7 +46268,15 @@ class AndroidMgr(object):
             if desc:
                 SysMgr.writeFile(descPath, desc)
             else:
-                os.system('sh -c "echo %s; cat > %s"' % (lineStr, descPath))
+                # read the description from stdin without a shell -- the
+                # former 'sh -c "cat > <descPath>"' interpolated descPath
+                # (which embeds the user-supplied TITLE) into a shell
+                # command line, so shell metacharacters in TITLE such as
+                # $(...) or backticks ran arbitrary commands when the
+                # description was entered interactively #
+                sys.stdout.write(lineStr + "\n")
+                sys.stdout.flush()
+                SysMgr.writeFile(descPath, sys.stdin.read())
                 sys.stdout.write(lineStr + "\n")
         except SystemExit:
             pass
@@ -45999,7 +46308,12 @@ class AndroidMgr(object):
                 + ".zip"
             )
 
-            SysMgr.doCompress([outDir], "KEEPORIG" not in SysMgr.environList)
+            _timed(
+                "compression",
+                SysMgr.doCompress,
+                [outDir],
+                "KEEPORIG" not in SysMgr.environList,
+            )
         else:
             outPath += "*"
 
@@ -46160,7 +46474,6 @@ class AndroidMgr(object):
         uninstallPkgList = SysMgr.environList.get("UNINSTALLPKG", [])
         getPkgAttr = SysMgr.environList.get("GETPKGATTR", [])
         getActList = SysMgr.environList.get("GETACTLIST", [])
-        getAppStat = SysMgr.environList.get("GETACTSTAT", [])
         getPermList = SysMgr.environList.get("GETPERMLIST", [])
         getDumpList = SysMgr.environList.get("GETDUMPLIST", [])
         pkgList = (
@@ -46174,7 +46487,6 @@ class AndroidMgr(object):
                 or uninstallPkgList
                 or getPkgAttr
                 or getActList
-                or getAppStat
                 or getPermList
                 or getDumpList
             )
@@ -56974,6 +57286,12 @@ Commands:
         # network #
         elif SysMgr.checkMode("ntop"):
             SysMgr.networkEnable = True
+
+        # CAN bus #
+        elif SysMgr.checkMode("cantop"):
+            BpfMgr.doCantopCmd()
+            SysMgr.runProfCmd("AFTER")
+            sys.exit(0)
 
         elif SysMgr.checkMode("bgtop"):
             if not SysMgr.checkBgTopCond():
@@ -76424,7 +76742,7 @@ Options:
     -a                          set target to system
     -R  <TIME>                  set timer
     -m  <ROWS:COLS:SYSTEM>      set terminal size
-    -v                          verbose
+    -v                          verbose, print the elapsed time of each step
                     """
 
                     helpStr += """
@@ -76435,7 +76753,7 @@ Examples:
         # {0:1} {1:1} -o {3:1}
         # {0:1} {1:1} -o {3:1} -q FIXOUTFILE
 
-    - {2:1} with progress and debug info
+    - {2:1} with progress and debug info including the elapsed time of each step
         # {0:1} {1:1} -v
 
     - {2:1} with title and description
@@ -76467,6 +76785,11 @@ Examples:
         # {0:1} {1:1} -o {3:1} -q LIMITDIRINIT, LIMITDIR:{3:1}:100M
         # {0:1} {1:1} -o {3:1} -q LIMITDIREXIT, LIMITDIRCNT:{3:1}:20
 
+    - {2:1} and move or copy the final report to another directory
+        # {0:1} {1:1} -q MVREPDIR:/data/local/tmp/saved
+        # {0:1} {1:1} -q CPREPDIR:/data/local/tmp/saved
+        # {0:1} {1:1} -q MVREPDIR:/data/local/tmp/saved, MVREPDIRINCFILTER:"*.zip", MVREPDIREXFILTER:"*temp*"
+
     - {2:1} including specific directories or files
         # {0:1} {1:1} -q INCFILE:/data/log, INCFILE:/data/test.txt
 
@@ -76496,10 +76819,25 @@ Examples:
         # {0:1} {1:1} -q NOBATTERYINFO, NOANRINFO, NOCPUDUMPINFO, NODISPLAYINFO
         # {0:1} {1:1} -q NOFEATURELIST, NOLIBRARYLIST, NOUSERLIST, NOPOWERINFO
         # {0:1} {1:1} -q NOWAKELOCK, NOSELINUX, NOBINDERSTATS
+        # {0:1} {1:1} -q NOWININFO
 
-    - {2:1} with a log collection timeout in case logd hangs (disabled
-      unless set, since a content filter like BUF can legitimately
+    - {2:1} compressing faster or smaller (zlib level 0-9, default 6; needs python 3.7+)
+      A lower level is faster but makes a larger file, e.g. 3 takes about half the time and adds about 40% to the size
+        # {0:1} {1:1} -q COMPLEVEL:3
+
+    - {2:1} collecting several reports at once (default: the number of CPU cores, 1 = one at a time)
+      Faster, but it sends dumpsys requests to the system server at the same time
+      With -v, each elapsed time counts from that step's own start, so overlapping steps show overlapping times
+        # {0:1} {1:1} -q COLLECTPARALLEL:1
+        # {0:1} {1:1} -q COLLECTPARALLEL:8
+
+    - {2:1} with a per-step wait timeout in seconds in case a collecting task hangs
+      (disabled unless set, since how long a healthy step may take on a device
+      cannot be known in advance, e.g. a content filter like BUF can legitimately
       produce a long silence that looks the same as a hung logd)
+      Each step (log, screenshot, perf history, andcmd reports, ...) gets its own
+      budget; a step that exceeds it receives SIGINT, then SIGKILL after 3 seconds
+      Without it nothing is ever killed and a progress notice is printed every 10 seconds
         # {0:1} {1:1} -q LOGWAITTIMEOUT:60
 
     - {2:1} after modifying oom_score
@@ -76797,6 +77135,7 @@ Examples:
         Displays' "(offset X,Y)" suffix is shown when the override region is shifted within the physical panel instead of anchored at its origin.
 
         Per-window columns:
+            User                  Android user id the window belongs to (the header's own "u<N>"), distinct from mOwnerUid's package-ownership uid
             Vis                   O = visible with real content, I = input-only (e.g. a touch-spy overlay), blank = not visible
             TaskMode              this window's root task's Mode (fullscreen/multi-window), joined from "gettaskstat"
             Focus                 marks the window currently holding IME input focus
@@ -76828,6 +77167,7 @@ Examples:
             TaskId                root or child task identifier (#N in "dumpsys activity activities")
             PTID                  parent task's TaskId for a nested child task, blank for top-level tasks; omitted with "-q TREE"
             DP                    display ID the task is shown on
+            User                  AOSP's own multi-user id (the task header's "U=<N>"), distinct from any uid=package ownership
             PID                   topmost (Hist #0) activity's owning process ID, "-" if none
             Mode                  fullscreen or multi-window, from the Task header itself
             Type                  this task's AOSP ActivityType (standard/home/recents/assistant/dream/undefined); distinct from Mode
@@ -76879,7 +77219,7 @@ Examples:
         Per-layer columns ("-q TREE", the real SurfaceFlinger parent/child hierarchy instead of the flat composited view):
             LayerId               SurfaceFlinger's own numeric layer id (the "#N" suffix on every raw layer name)
             Disp                  layerStack this layer belongs to
-            Z                     this layer's z-order relative to its own parent (negative = composited below/before it); shown as MIN for AOSP's own INT32_MIN "always below every sibling" sentinel (-J keeps the raw -2147483648)
+            Z                     this layer's z-order relative to its own parent (negative = below it); MIN = AOSP's INT32_MIN sentinel, -J keeps raw int
             Uid                   owning uid; -1 or 1000 for layers SurfaceFlinger/system_server itself owns, not any one app
             Pid                   the actual process rendering this layer's buffer; blank when SurfaceFlinger never recorded one (most containers)
             Size                  this layer's actual rendered buffer size as [WxH]; blank for a layer with no buffer of its own (a pure container)
@@ -76933,6 +77273,7 @@ Examples:
             CPU(%)                owning process' total CPU usage, unitless (100 = 1 second of CPU time)
             RSS                   owning process' current resident memory
             Cmdline               owning process' /proc/<pid>/cmdline; blank when it matches Package
+            Permission            bind permission this service's manifest entry declares (permission=); blank when none required
 
         CPU/RSS/Cmdline are properties of the OWNING PROCESS, not the service.
         A process hosting multiple services (e.g. com.android.systemui) repeats the same CPU/RSS value on every one of its service rows.
@@ -77010,22 +77351,23 @@ Examples:
     - Print JobScheduler's scheduled jobs (dumpsys jobscheduler)
         # {0:1} {1:1} getjoblist
         # {0:1} {1:1} getjoblist:"com.example.app"
+        # {0:1} {1:1} getjoblist -q NOCUT
         # {0:1} {1:1} getjoblist -J
 
         Per-job columns:
             UID                   the job's app uid
             JobId                 the app-assigned job id (unique only within that uid, can be negative)
-            Package               the job's actual requester (dumpsys's Source: pkg=), not necessarily the declaring component's own package
-            Service               the JobService component that runs when this job fires
             Per                   O = a PERIODIC job (recurring on its own interval), blank = a one-shot job
             Pri                   the job's numeric priority (dumpsys's Priority:); higher runs before lower
             Bucket                the job's App Standby bucket (EXEMPTED/ACTIVE/WORKING_SET/FREQUENT/RARE/NEVER/RESTRICTED)
             Ready                 O = every constraint is currently satisfied (this job could run right now)
             Unsatisfied           comma-separated list of constraints still blocking this job; blank when Ready=O
+            Package/Service       the requester (dumpsys's Source: pkg=) / the JobService that runs when it fires; always LAST, no column clip
 
         Default sort puts Ready=O jobs first (then by Package/JobId for stability) -- the subset actually eligible to run right now.
         Package is matched against the job's Source: requester, which can differ from the JobService's own declaring package.
         That happens when a system service schedules work on an app's behalf.
+        "-q NOCUT" disables the terminal-width trim on each row -- useful since a long Package/Service can push a row past the default width.
 
     - Print battery info
         # {0:1} {1:1} getbatteryinfo
@@ -94798,9 +95140,6 @@ Key Value List:
         elif SysMgr.checkMode("bpfprogtop"):
             BpfMgr.doBpfprogtopCmd()
 
-        elif SysMgr.checkMode("cantop"):
-            BpfMgr.doCantopCmd()
-
         elif SysMgr.checkMode("cansnoop"):
             BpfMgr.doCansnoopCmd()
 
@@ -98145,16 +98484,25 @@ Key Value List:
 
             try:
                 while 1:
-                    ret = rdFd.readline().rstrip("\n")
-                    if not ret:
+                    raw = rdFd.readline()
+                    if not raw:
+                        # real EOF: end only once the child has exited #
                         if not SysMgr.isAlive(pid):
-                            # try to read more #
-                            ret = rdFd.readline().rstrip("\n")
-                            if not ret:
-                                break
-                        else:
-                            continue
-                    output.append(ret)
+                            break
+                        continue
+
+                    # a blank line is skipped, never stored (the returned
+                    # list keeps its shape), but it must not be taken for
+                    # EOF: after the child has exited, the old code read
+                    # one more line and stopped when that was blank too,
+                    # so two or more consecutive blank lines silently
+                    # dropped the rest of the output (device-measured:
+                    # "dumpsys activity activities" lost its tail, i.e.
+                    # Keyguard/LockTask/TaskOrganizer, in ~7% of runs and
+                    # far more often under load) #
+                    ret = raw.rstrip("\n")
+                    if ret:
+                        output.append(ret)
             finally:
                 rdFd.close()
 
@@ -113063,6 +113411,34 @@ Key Value List:
                 )
                 os.chmod(outfile, 0o666)
 
+                # optional DEFLATE level (0-9); unset keeps the library
+                # default (6). It must be passed to writestr() -- the
+                # ZipFile constructor's level is ignored when the entry is
+                # added through a ZipInfo with its own compress_type, which
+                # is how every file is added below (device-verified).
+                # writestr(compresslevel=) exists only on python 3.7+ #
+                # verb=True prints the error for a non-numeric value instead
+                # of silently falling back to the default level #
+                zipLevel = (
+                    UtilMgr.getEnvironNum(
+                        "COMPLEVEL", False, None, True, isInt=True
+                    )
+                    if "COMPLEVEL" in SysMgr.environList
+                    else None
+                )
+                if zipLevel is not None and not 0 <= zipLevel <= 9:
+                    SysMgr.printWarn(
+                        "ignored COMPLEVEL %s, it should be 0 to 9" % zipLevel,
+                        True,
+                    )
+                    zipLevel = None
+                elif zipLevel is not None and sys.version_info < (3, 7, 0):
+                    SysMgr.printWarn(
+                        "ignored COMPLEVEL, it needs python 3.7 or later",
+                        True,
+                    )
+                    zipLevel = None
+
                 def _add2Zip(outfd, abspath, relpath):
                     info = compressor.ZipInfo(relpath)
                     info.compress_type = compressor.ZIP_DEFLATED
@@ -113089,9 +113465,14 @@ Key Value List:
 
                     if os.path.isdir(abspath):
                         outfd.writestr(info, b"")
-                    else:
+                    elif zipLevel is None:
                         with open(abspath, "rb") as f:
                             outfd.writestr(info, f.read())
+                    else:
+                        with open(abspath, "rb") as f:
+                            outfd.writestr(
+                                info, f.read(), compresslevel=zipLevel
+                            )
 
                 for root, dirs, files in os.walk(infile):
                     for f in files:
