@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.9"
-__revision__ = "261019"
+__revision__ = "261020"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -40996,15 +40996,12 @@ class AndroidMgr(object):
             )
             return
 
-        # the table is wide enough (the merged WinType/AppOp column
-        # pushed it past the 156-col default ttyCols) that printPipe()'s
-        # terminal-width trim can clip long rows (e.g. a long package
-        # name + a long WinType/AppOp combination together) --
-        # "-q NOCUT" opts into the full untrimmed width via the same
-        # SysMgr.setStream() helper other andcmd table printers use,
-        # default behavior (trimmed) unchanged #
-        if "NOCUT" in SysMgr.environList:
-            SysMgr.setStream()
+        # Package/Activity are never clipped and the table can be wider
+        # than the 156-col default ttyCols, so printPipe()'s terminal-width
+        # trim is always switched off here (same SysMgr.setStream() helper
+        # "-q NOCUT" uses) -- otherwise the rightmost columns would be cut
+        # off on a long package/activity name #
+        SysMgr.setStream(cut=False)
 
         # display/global summary -- shown once above the per-window table
         # so analysis has physical screen size + rotation + current IME
@@ -41065,29 +41062,11 @@ class AndroidMgr(object):
         # ("APPLICATION_OVERLAY/SYSTEM_ALERT_WINDOW" = 33 chars) plus
         # headroom for the longest AOSP type name alone
         # (ACCESSIBILITY_MAGNIFICATION_OVERLAY = 35 chars) #
-        fmt = (
-            "{0:>3} {1:>2} {2:>4} {3:>6} {4:<28} {5:<30} {6:<13} {7:<22} "
-            "{8} {9:^5} {10:^4} {11} {12:<%d} {13}" % rootTaskWidth
-        )
-        header = fmt.format(
-            "No",
-            "DP",
-            "User",
-            "PID",
-            "Package",
-            "Activity",
-            "TaskMode",
-            "Size(WxH@X,Y)",
-            "{0:^{1}}".format("Vis", visWidth),
-            "Focus",
-            "Anim",
-            "{0:^{1}}".format("Alpha", alphaWidth),
-            "RootTask",
-            "WinType",
-        )
-        SysMgr.printPipe("=" * len(header))
-        SysMgr.printPipe(header)
-        SysMgr.printPipe("-" * len(header))
+        # Package/Activity are never clipped: their column widths are
+        # taken from the longest value actually present, so the rows are
+        # collected first and the header/rows are printed once those
+        # widths are known #
+        rowList = []
 
         nrVis = 0
         nrPrinted = 0
@@ -41225,14 +41204,14 @@ class AndroidMgr(object):
             uidRaw = info.get("uid")
             userCol = uidRaw.lstrip("u") if uidRaw else "-"
 
-            SysMgr.printPipe(
-                fmt.format(
+            rowList.append(
+                (
                     num,
                     info.get("displayId", "-"),
                     userCol,
                     info.get("pid", "-"),
-                    curPkg[:28],
-                    act[:30],
+                    curPkg,
+                    act,
                     taskMode,
                     size,
                     vis,
@@ -41243,6 +41222,35 @@ class AndroidMgr(object):
                     winTypeCol,
                 )
             )
+
+        pkgWidth = max([len("Package")] + [len(r[4]) for r in rowList])
+        actWidth = max([len("Activity")] + [len(r[5]) for r in rowList])
+        fmt = (
+            "{0:>3} {1:>2} {2:>4} {3:>6} {4:<%d} {5:<%d} {6:<13} {7:<22} "
+            "{8} {9:^5} {10:^4} {11} {12:<%d} {13}"
+            % (pkgWidth, actWidth, rootTaskWidth)
+        )
+        header = fmt.format(
+            "No",
+            "DP",
+            "User",
+            "PID",
+            "Package",
+            "Activity",
+            "TaskMode",
+            "Size(WxH@X,Y)",
+            "{0:^{1}}".format("Vis", visWidth),
+            "Focus",
+            "Anim",
+            "{0:^{1}}".format("Alpha", alphaWidth),
+            "RootTask",
+            "WinType",
+        )
+        SysMgr.printPipe("=" * len(header))
+        SysMgr.printPipe(header)
+        SysMgr.printPipe("-" * len(header))
+        for row in rowList:
+            SysMgr.printPipe(fmt.format(*row))
 
         SysMgr.printPipe("-" * len(header))
         SysMgr.printPipe("Total: %d windows, %d visible" % (nrPrinted, nrVis))
@@ -41625,12 +41633,9 @@ class AndroidMgr(object):
             )
             return
 
-        # same terminal-width trim concern as getwindowstat's table (a
-        # long package name + Activity + state can push a row past the
-        # default 156-col ttyCols) -- "-q NOCUT" opts out via the same
-        # SysMgr.setStream() helper, default (trimmed) behavior unchanged #
-        if "NOCUT" in SysMgr.environList:
-            SysMgr.setStream()
+        # same as getwindowstat: the full Package/Activity can push a row
+        # past the 156-col default ttyCols, so the trim is always off #
+        SysMgr.setStream(cut=False)
 
         # one-line system-level summary printed above the table (same
         # idea as getwindowstat's Displays/Rotation/AnimScale header
@@ -41679,70 +41684,11 @@ class AndroidMgr(object):
             return (1, int(taskId))
 
         visWidth = 4
+
         # TREE mode drops the PTID column entirely -- indentation
         # already conveys the parent-child relationship, so keeping a
         # numeric PTID column alongside it would show the same fact
         # twice and add visual noise (user feedback) #
-        if showTree:
-            fmt = (
-                "{0:>7} {1:>2} {2:>4} {3:>6} {4:<13} {5:<10} {6:<28} {7:<30} "
-                "{8:<8} {9:^5} {10:^4} {11} {12:>3} {13:>3} {14:<12} "
-                "{15:^3} {16:>3} {17:>6}"
-            )
-            header = fmt.format(
-                "TaskId",
-                "DP",
-                "User",
-                "PID",
-                "Mode",
-                "Type",
-                "Package",
-                "Activity",
-                "State",
-                "Drawn",
-                "AVis",
-                "{0:^{1}}".format("Vis", visWidth),
-                "Dep",
-                "Seq",
-                "Inactive",
-                "Org",
-                "Win",
-                "VisWin",
-            )
-        else:
-            fmt = (
-                "{0:>7} {1:>6} {2:>2} {3:>4} {4:>6} {5:<13} {6:<10} {7:<28} "
-                "{8:<30} {9:<8} {10:^5} {11:^4} {12} {13:>3} {14:>3} "
-                "{15:<12} {16:^3} {17:>3} {18:>6}"
-            )
-            header = fmt.format(
-                "TaskId",
-                "PTID",
-                "DP",
-                "User",
-                "PID",
-                "Mode",
-                "Type",
-                "Package",
-                "Activity",
-                "State",
-                "Drawn",
-                "AVis",
-                "{0:^{1}}".format("Vis", visWidth),
-                "Dep",
-                "Seq",
-                "Inactive",
-                "Org",
-                "Win",
-                "VisWin",
-            )
-        SysMgr.printPipe("=" * len(header))
-        if showTree:
-            SysMgr.printPipe("Task Tree:")
-            SysMgr.printPipe("=" * len(header))
-        SysMgr.printPipe(header)
-        SysMgr.printPipe("-" * len(header))
-
         def _buildRow(taskId, info, depth):
             hist = info.get("hist") or []
             top = hist[0] if hist else None
@@ -41785,9 +41731,9 @@ class AndroidMgr(object):
             # home/undefined are all common), so no value is hidden #
             typeCol = info.get("type") or "-"
 
-            pkgCol = curPkg[:28]
+            pkgCol = curPkg
             if showTree and depth > 0:
-                pkgCol = ("`- " + pkgCol)[:28]
+                pkgCol = "`- " + pkgCol
 
             # zero is the common case for Depth/Win/VisWin on placeholder
             # or child tasks (no back stack entries, no windows of their
@@ -41833,7 +41779,7 @@ class AndroidMgr(object):
             userCol = info.get("user", "-")
 
             if showTree:
-                row = fmt.format(
+                row = (
                     taskId,
                     info.get("displayId", "-"),
                     userCol,
@@ -41841,7 +41787,7 @@ class AndroidMgr(object):
                     info.get("mode", "-"),
                     typeCol,
                     pkgCol,
-                    act[:30],
+                    act,
                     state,
                     allDrawnCol,
                     nowVisibleCol,
@@ -41854,7 +41800,7 @@ class AndroidMgr(object):
                     visWinCol,
                 )
             else:
-                row = fmt.format(
+                row = (
                     taskId,
                     info.get("parentTaskId") or "",
                     info.get("displayId", "-"),
@@ -41863,7 +41809,7 @@ class AndroidMgr(object):
                     info.get("mode", "-"),
                     typeCol,
                     pkgCol,
-                    act[:30],
+                    act,
                     state,
                     allDrawnCol,
                     nowVisibleCol,
@@ -41877,6 +41823,9 @@ class AndroidMgr(object):
                 )
             return row, visible, curPkg
 
+        # Package/Activity are never clipped: rows are collected first so
+        # both column widths can follow the longest value present #
+        rowList = []
         nrVis = 0
         nrPrinted = 0
         if showTree:
@@ -41904,7 +41853,7 @@ class AndroidMgr(object):
                 # tree itself shows only the matching subset #
                 printed = not (pkg and pkg not in curPkg)
                 if printed:
-                    SysMgr.printPipe(row)
+                    rowList.append(row)
                     nrPrinted += 1
                     if visible:
                         nrVis += 1
@@ -41949,10 +41898,79 @@ class AndroidMgr(object):
                 row, visible, curPkg = _buildRow(taskId, info, 0)
                 if pkg and pkg not in curPkg:
                     continue
-                SysMgr.printPipe(row)
+                rowList.append(row)
                 nrPrinted += 1
                 if visible:
                     nrVis += 1
+
+        # the Package column is index 6 in a TREE row and 7 in a flat one #
+        pkgIdx = 6 if showTree else 7
+        pkgWidth = max([len("Package")] + [len(r[pkgIdx]) for r in rowList])
+        actWidth = max(
+            [len("Activity")] + [len(r[pkgIdx + 1]) for r in rowList]
+        )
+        if showTree:
+            fmt = (
+                "{0:>7} {1:>2} {2:>4} {3:>6} {4:<13} {5:<10} {6:<%d} {7:<%d} "
+                "{8:<8} {9:^5} {10:^4} {11} {12:>3} {13:>3} {14:<12} "
+                "{15:^3} {16:>3} {17:>6}" % (pkgWidth, actWidth)
+            )
+            header = fmt.format(
+                "TaskId",
+                "DP",
+                "User",
+                "PID",
+                "Mode",
+                "Type",
+                "Package",
+                "Activity",
+                "State",
+                "Drawn",
+                "AVis",
+                "{0:^{1}}".format("Vis", visWidth),
+                "Dep",
+                "Seq",
+                "Inactive",
+                "Org",
+                "Win",
+                "VisWin",
+            )
+        else:
+            fmt = (
+                "{0:>7} {1:>6} {2:>2} {3:>4} {4:>6} {5:<13} {6:<10} {7:<%d} "
+                "{8:<%d} {9:<8} {10:^5} {11:^4} {12} {13:>3} {14:>3} "
+                "{15:<12} {16:^3} {17:>3} {18:>6}" % (pkgWidth, actWidth)
+            )
+            header = fmt.format(
+                "TaskId",
+                "PTID",
+                "DP",
+                "User",
+                "PID",
+                "Mode",
+                "Type",
+                "Package",
+                "Activity",
+                "State",
+                "Drawn",
+                "AVis",
+                "{0:^{1}}".format("Vis", visWidth),
+                "Dep",
+                "Seq",
+                "Inactive",
+                "Org",
+                "Win",
+                "VisWin",
+            )
+        SysMgr.printPipe("=" * len(header))
+        if showTree:
+            SysMgr.printPipe("Task Tree:")
+            SysMgr.printPipe("=" * len(header))
+        SysMgr.printPipe(header)
+        SysMgr.printPipe("-" * len(header))
+
+        for row in rowList:
+            SysMgr.printPipe(fmt.format(*row))
 
         SysMgr.printPipe("-" * len(header))
         SysMgr.printPipe("Total: %d tasks, %d visible" % (nrPrinted, nrVis))
@@ -42130,11 +42148,10 @@ class AndroidMgr(object):
             SysMgr.printPipe(UtilMgr.convDict2Str({"services": services}))
             return
 
-        # same terminal-width trim concern as getwindowstat/gettaskstat's
-        # tables -- "-q NOCUT" opts out via the same SysMgr.setStream()
-        # helper, default (trimmed) behavior unchanged #
-        if "NOCUT" in SysMgr.environList:
-            SysMgr.setStream()
+        # same as getwindowstat/gettaskstat: the full Package/Service can
+        # push a row past the 156-col default ttyCols, so the trim is
+        # always off #
+        SysMgr.setStream(cut=False)
 
         # default sort groups foreground services first (then by
         # package/class for stability); "-q SORT:CREATED" or
@@ -42168,30 +42185,9 @@ class AndroidMgr(object):
         # differs from Package) tops out around 46 chars on both
         # devices, so 48 leaves headroom without needing NOCUT just to
         # see the common case #
-        fmt = (
-            "{0:>6} {1:>4} {2:^%d} {3:<16} {4:<16} {5:<28} {6:<30} "
-            "{7:>4} {8:^7} {9:>5} {10:>12} {11:>10} {12:<48} {13}" % fgWidth
-        )
-        header = fmt.format(
-            "PID",
-            "User",
-            "{0:^{1}}".format("FG", fgWidth),
-            "Created",
-            "LastActivity",
-            "Package",
-            "Service",
-            "Bind",
-            "Started",
-            "Crash",
-            "CPU(%)",
-            "RSS",
-            "Cmdline",
-            "Permission",
-        )
-        SysMgr.printPipe("=" * len(header))
-        SysMgr.printPipe(header)
-        SysMgr.printPipe("-" * len(header))
-
+        # Package/Service are never clipped: the rows are collected first
+        # so both column widths can follow the longest value present #
+        rowList = []
         nrFg = 0
         for svc in services:
             fg = svc["foreground"]
@@ -42252,15 +42248,15 @@ class AndroidMgr(object):
             # missing" field #
             permissionCol = svc.get("permission") or ""
 
-            SysMgr.printPipe(
-                fmt.format(
+            rowList.append(
+                (
                     svc["pid"] or "-",
                     svc["user"],
                     fgCol,
                     createdCol,
                     lastActivityCol,
-                    svc["package"][:28],
-                    svc["serviceClass"][:30],
+                    svc["package"],
+                    svc["serviceClass"],
                     bindCol,
                     startedCol,
                     crashCol,
@@ -42270,6 +42266,35 @@ class AndroidMgr(object):
                     permissionCol,
                 )
             )
+
+        pkgWidth = max([len("Package")] + [len(r[5]) for r in rowList])
+        svcWidth = max([len("Service")] + [len(r[6]) for r in rowList])
+        fmt = (
+            "{0:>6} {1:>4} {2:^%d} {3:<16} {4:<16} {5:<%d} {6:<%d} "
+            "{7:>4} {8:^7} {9:>5} {10:>12} {11:>10} {12:<48} {13}"
+            % (fgWidth, pkgWidth, svcWidth)
+        )
+        header = fmt.format(
+            "PID",
+            "User",
+            "{0:^{1}}".format("FG", fgWidth),
+            "Created",
+            "LastActivity",
+            "Package",
+            "Service",
+            "Bind",
+            "Started",
+            "Crash",
+            "CPU(%)",
+            "RSS",
+            "Cmdline",
+            "Permission",
+        )
+        SysMgr.printPipe("=" * len(header))
+        SysMgr.printPipe(header)
+        SysMgr.printPipe("-" * len(header))
+        for row in rowList:
+            SysMgr.printPipe(fmt.format(*row))
 
         SysMgr.printPipe("-" * len(header))
         SysMgr.printPipe(
@@ -42410,9 +42435,9 @@ class AndroidMgr(object):
             SysMgr.printPipe(UtilMgr.convDict2Str({"alarms": alarms}))
             return
 
-        # same terminal-width trim concern as the other andcmd tables #
-        if "NOCUT" in SysMgr.environList:
-            SysMgr.setStream()
+        # same as the other andcmd tables: the full Tag/Package can push a
+        # row past the 156-col default ttyCols, so the trim is always off #
+        SysMgr.setStream(cut=False)
 
         # default sort: soonest-to-fire first (ascending whenElapsedMs
         # -- a negative value means already overdue, so those sort
@@ -42427,20 +42452,9 @@ class AndroidMgr(object):
             ),
         )
 
-        fmt = "{0:>3} {1:<15} {2:<40} {3:<28} {4:<14} {5:<14} {6:^6}"
-        header = fmt.format(
-            "No",
-            "Type",
-            "Tag",
-            "Package",
-            "When",
-            "Repeat",
-            "Wakeup",
-        )
-        SysMgr.printPipe("=" * len(header))
-        SysMgr.printPipe(header)
-        SysMgr.printPipe("-" * len(header))
-
+        # Tag/Package are never clipped: the rows are collected first so
+        # both column widths can follow the longest value present #
+        rowList = []
         nrWakeup = 0
         for i, a in enumerate(alarms, 1):
             if a["wakeup"]:
@@ -42465,17 +42479,38 @@ class AndroidMgr(object):
             repeatMs = a["repeatIntervalMs"]
             repeatCol = UtilMgr.convTime(repeatMs // 1000) if repeatMs else ""
 
-            SysMgr.printPipe(
-                fmt.format(
+            rowList.append(
+                (
                     i,
                     a["type"],
-                    (a["tag"] or "-")[:40],
-                    a["package"][:28],
+                    a["tag"] or "-",
+                    a["package"],
                     whenCol,
                     repeatCol,
                     wakeupCol,
                 )
             )
+
+        tagWidth = max([len("Tag")] + [len(r[2]) for r in rowList])
+        pkgWidth = max([len("Package")] + [len(r[3]) for r in rowList])
+        fmt = "{0:>3} {1:<15} {2:<%d} {3:<%d} {4:<14} {5:<14} {6:^6}" % (
+            tagWidth,
+            pkgWidth,
+        )
+        header = fmt.format(
+            "No",
+            "Type",
+            "Tag",
+            "Package",
+            "When",
+            "Repeat",
+            "Wakeup",
+        )
+        SysMgr.printPipe("=" * len(header))
+        SysMgr.printPipe(header)
+        SysMgr.printPipe("-" * len(header))
+        for row in rowList:
+            SysMgr.printPipe(fmt.format(*row))
 
         SysMgr.printPipe("-" * len(header))
         SysMgr.printPipe(
@@ -42567,8 +42602,7 @@ class AndroidMgr(object):
             )
             return
 
-        if "NOCUT" in SysMgr.environList:
-            SysMgr.setStream()
+        SysMgr.setStream(cut=False)
 
         # one-line summary, same style as gettaskstat's own global
         # summary line (short single values, comma-separated) #
@@ -42613,7 +42647,10 @@ class AndroidMgr(object):
                     row["always"] = True
 
         if rows:
-            fmt = "{0:<50} {1:^12} {2:^8}"
+            # Package is never clipped: the width follows the longest name #
+            fmt = "{0:<%d} {1:^12} {2:^8}" % max(
+                [len("Package")] + [len(n) for n in rows]
+            )
             header = fmt.format("Package", "ExceptIdle", "Always")
             SysMgr.printPipe("")
             SysMgr.printPipe("=" * len(header))
@@ -42623,7 +42660,7 @@ class AndroidMgr(object):
                 row = rows[name]
                 SysMgr.printPipe(
                     fmt.format(
-                        name[:50],
+                        name,
                         "O" if row["exceptIdle"] else "",
                         "O" if row["always"] else "",
                     )
@@ -42756,8 +42793,7 @@ class AndroidMgr(object):
             SysMgr.printPipe(UtilMgr.convDict2Str({"procs": procs}))
             return
 
-        if "NOCUT" in SysMgr.environList:
-            SysMgr.setStream()
+        SysMgr.setStream(cut=False)
 
         # default sort: heaviest PSS-avg first (the dominant state's
         # own PSS avg, since that's the state the process actually
@@ -42786,7 +42822,33 @@ class AndroidMgr(object):
             sortKey = _pssAvgBytes
         procs = sorted(procs, key=sortKey, reverse=True)
 
-        fmt = "{0:>4} {1:<32} {2:>8} {3:<12} {4:>4} {5:>9} {6:>9} {7:>9}"
+        # Package is never clipped: the rows are collected first so the
+        # column width can follow the longest value present #
+        rowList = []
+        for i, p in enumerate(procs, 1):
+            dominant = p["dominant"]
+            st = p["states"].get(dominant, {}) if dominant else {}
+            # pssAvg/ussAvg/rssAvg are None (not absent) for a state
+            # with zero PSS samples -- "- or" would format() a bare
+            # None and crash, since the key IS present, just empty #
+            rowList.append(
+                (
+                    i,
+                    p["package"],
+                    p["uid"],
+                    (dominant or "-")[:12],
+                    ("%d%%" % p["dominantPct"]) if dominant else "-",
+                    st.get("pssAvg") or "-",
+                    st.get("ussAvg") or "-",
+                    st.get("rssAvg") or "-",
+                )
+            )
+
+        pkgWidth = max([len("Package")] + [len(r[1]) for r in rowList])
+        fmt = (
+            "{0:>4} {1:<%d} {2:>8} {3:<12} {4:>4} {5:>9} {6:>9} {7:>9}"
+            % pkgWidth
+        )
         header = fmt.format(
             "No",
             "Package",
@@ -42800,25 +42862,8 @@ class AndroidMgr(object):
         SysMgr.printPipe("=" * len(header))
         SysMgr.printPipe(header)
         SysMgr.printPipe("-" * len(header))
-
-        for i, p in enumerate(procs, 1):
-            dominant = p["dominant"]
-            st = p["states"].get(dominant, {}) if dominant else {}
-            # pssAvg/ussAvg/rssAvg are None (not absent) for a state
-            # with zero PSS samples -- "- or" would format() a bare
-            # None and crash, since the key IS present, just empty #
-            SysMgr.printPipe(
-                fmt.format(
-                    i,
-                    p["package"][:32],
-                    p["uid"],
-                    (dominant or "-")[:12],
-                    ("%d%%" % p["dominantPct"]) if dominant else "-",
-                    st.get("pssAvg") or "-",
-                    st.get("ussAvg") or "-",
-                    st.get("rssAvg") or "-",
-                )
-            )
+        for row in rowList:
+            SysMgr.printPipe(fmt.format(*row))
 
         SysMgr.printPipe("-" * len(header))
         SysMgr.printPipe("Total: %d processes" % len(procs))
@@ -43153,8 +43198,7 @@ class AndroidMgr(object):
             SysMgr.printPipe(UtilMgr.convDict2Str({"jobs": jobs}))
             return
 
-        if "NOCUT" in SysMgr.environList:
-            SysMgr.setStream()
+        SysMgr.setStream(cut=False)
 
         # default sort: ready-to-run jobs first (same "most actionable
         # first" idea as getservicestat's FG-first default), then by
@@ -43331,8 +43375,7 @@ class AndroidMgr(object):
             )
             return
 
-        if "NOCUT" in SysMgr.environList:
-            SysMgr.setStream()
+        SysMgr.setStream(cut=False)
 
         if showTree:
             AndroidMgr._printSurfaceTree(
@@ -77120,7 +77163,6 @@ Examples:
         # {0:1} {1:1} getwindowstat
         # {0:1} {1:1} getwindowstat:"com.example.app"
         # {0:1} {1:1} getwindowstat -q ONLYVISWIN
-        # {0:1} {1:1} getwindowstat -q NOCUT
         # {0:1} {1:1} getwindowstat -J
 
         Global stats printed above the per-window table:
@@ -77147,14 +77189,13 @@ Examples:
         WinType is blank when the type is a common app-window type (BASE_APPLICATION etc) and AppOp is NONE.
         A few AOSP window types newer than this device's string table (e.g. NOTIFICATION_SHADE) resolve from a fallback instead of a raw number.
 
-        "-q NOCUT" disables the terminal-width trim on each row -- useful when Package/Activity/WinType would otherwise be clipped.
+        Package/Activity are printed in full (the columns grow to the longest value) and rows are never trimmed to the terminal width.
 
     - Print task/activity-stack summary (taskId/mode/activity/state)
         # {0:1} {1:1} gettaskstat
         # {0:1} {1:1} gettaskstat:"com.example.app"
         # {0:1} {1:1} gettaskstat -J
         # {0:1} {1:1} gettaskstat -q TREE
-        # {0:1} {1:1} gettaskstat -q NOCUT
         # {0:1} {1:1} gettaskstat -q DUMPORDER
 
         Global summary printed above the table (one line, comma-separated, only present fields shown):
@@ -77189,7 +77230,7 @@ Examples:
         "-q TREE" prints the same columns (minus PTID) as a depth-first tree instead of a flat list.
         A "`- " prefix on the Package column marks nested child tasks under their parent.
 
-        "-q NOCUT" disables the terminal-width trim on each row -- useful when a long Package/Activity combination would otherwise be clipped.
+        Package/Activity are printed in full (the columns grow to the longest value) and rows are never trimmed to the terminal width.
 
         "-q DUMPORDER" lists tasks in "dumpsys activity activities"'s own "top to bottom" order instead of sorting by TaskId.
         This is the actual recency/focus order (AOSP walks the task history in reverse to produce it, so the first row holds top focus).
@@ -77202,7 +77243,6 @@ Examples:
         # {0:1} {1:1} getsurfacestat -q TREE
         # {0:1} {1:1} getsurfacestat -q TREE, ONLYVIS
         # {0:1} {1:1} getsurfacestat -q DISPLAY:0
-        # {0:1} {1:1} getsurfacestat -q NOCUT
 
         Per-layer columns (default, flat HWC-composited view):
             No                    row number (1-based)
@@ -77246,7 +77286,7 @@ Examples:
         "-q DISPLAY:N" filters to layers belonging to layerStack N only; omit it to see every display's layers together.
         Useful on a multi-display/AAOS build where a layer's own Display column may not be the one you expect.
 
-        "-q NOCUT" disables the terminal-width trim on each row.
+        Rows are never trimmed to the terminal width.
         Useful since a SurfaceFlinger layer dump is frequently larger than this tool's other GET* tables.
 
     - Print all AMS-managed services (bound/started Service components --
@@ -77256,7 +77296,6 @@ Examples:
         # {0:1} {1:1} getservicestat
         # {0:1} {1:1} getservicestat:"com.example.app"
         # {0:1} {1:1} getservicestat -J
-        # {0:1} {1:1} getservicestat -q NOCUT
         # {0:1} {1:1} getservicestat -q SORT:CREATED
         # {0:1} {1:1} getservicestat -q SORT:LASTACTIVITY
 
@@ -77284,14 +77323,13 @@ Examples:
         "-q SORT:CREATED"/"-q SORT:LASTACTIVITY" orders services by that column's elapsed time (ascending), ignoring the foreground grouping.
         Services whose time value couldn't be parsed sort last.
 
-        "-q NOCUT" disables the terminal-width trim on each row -- useful since Cmdline (when shown) can push a row past the default width.
+        Package/Service are printed in full (the columns grow to the longest value) and rows are never trimmed to the terminal width.
 
     - Print AlarmManager's pending alarms (dumpsys alarm)
         # {0:1} {1:1} getalarmlist
         # {0:1} {1:1} getalarmlist:"com.example.app"
         # {0:1} {1:1} getalarmlist -J
         # {0:1} {1:1} getalarmlist -q ONLYWAKEUP
-        # {0:1} {1:1} getalarmlist -q NOCUT
 
         Per-alarm columns:
             Type                  RTC/RTC_WAKEUP/ELAPSED/ELAPSED_WAKEUP, from the alarm's own type field
@@ -77307,7 +77345,7 @@ Examples:
         Package is read from the alarm's own PendingIntentRecord target when present (the actual broadcast receiver).
         A listener-based alarm with no separate target falls back to "android".
 
-        "-q NOCUT" disables the terminal-width trim on each row -- useful when a long Tag string would otherwise be clipped.
+        Tag/Package are printed in full (the columns grow to the longest value) and rows are never trimmed to the terminal width.
 
     - Print DeviceIdleController's current Doze state and whitelists (dumpsys deviceidle)
         # {0:1} {1:1} getdozeinfo
@@ -77351,7 +77389,6 @@ Examples:
     - Print JobScheduler's scheduled jobs (dumpsys jobscheduler)
         # {0:1} {1:1} getjoblist
         # {0:1} {1:1} getjoblist:"com.example.app"
-        # {0:1} {1:1} getjoblist -q NOCUT
         # {0:1} {1:1} getjoblist -J
 
         Per-job columns:
@@ -77362,12 +77399,12 @@ Examples:
             Bucket                the job's App Standby bucket (EXEMPTED/ACTIVE/WORKING_SET/FREQUENT/RARE/NEVER/RESTRICTED)
             Ready                 O = every constraint is currently satisfied (this job could run right now)
             Unsatisfied           comma-separated list of constraints still blocking this job; blank when Ready=O
-            Package/Service       the requester (dumpsys's Source: pkg=) / the JobService that runs when it fires; always LAST, no column clip
+            Package/Service       the requester (dumpsys's Source: pkg=) / the JobService that runs when it fires; always LAST and unclipped
 
         Default sort puts Ready=O jobs first (then by Package/JobId for stability) -- the subset actually eligible to run right now.
         Package is matched against the job's Source: requester, which can differ from the JobService's own declaring package.
         That happens when a system service schedules work on an app's behalf.
-        "-q NOCUT" disables the terminal-width trim on each row -- useful since a long Package/Service can push a row past the default width.
+        Package/Service are printed in full and rows are never trimmed to the terminal width.
 
     - Print battery info
         # {0:1} {1:1} getbatteryinfo
@@ -115155,6 +115192,13 @@ Key Value List:
         nrProc = 0
         isSent = False
         targetList = {}
+
+        # a set or tuple is an explicit pid list too; without this it would
+        # skip the pid branch and fall through to the comm-prefix broadcast,
+        # which signals every guider process (e.g. killChildren() alarm) #
+        if pidList and isinstance(pidList, (set, tuple)):
+            pidList = list(pidList)
+
         if pidList and isinstance(pidList, list):
             for pid in pidList:
                 try:
@@ -183471,6 +183515,20 @@ typedef struct {
         except Exception:
             return None
 
+    @staticmethod
+    def getPyThreadIdOff315(data):
+        # data = 3 words of _Py_DebugOffsets at +224:
+        #   last_profiled_frame, then the next two thread_state fields.
+        # 3.15.0b4+ inserts last_profiled_frame_seq right after
+        # last_profiled_frame (offset = last_profiled_frame + 8), which pushes
+        # thread_id one slot further than in 3.15.0b1-b3 #
+        if not data or len(data) < 24:
+            return 176
+        lpf, nextOff, afterNextOff = struct.unpack("QQQ", data[:24])
+        if nextOff == lpf + 8:
+            return afterNextOff
+        return nextOff
+
     def initPyEnv(self):
         if self.pyAddr:
             # Already initialized.  If inlined-call bp not yet written (injectBp
@@ -183562,9 +183620,9 @@ typedef struct {
                 #          gil_runtime_state_locked, gil_runtime_state_holder }
                 # → runtime_state.interpreters_head            at offset 40
                 # → interpreter_state.gil_runtime_state_holder at offset 152
-                # Python 3.15+: thread_state gains 6 more fields after status,
-                # but +208/+216 (current_frame/thread_id) remain unchanged since
-                # new fields are appended after existing ones.
+                # Python 3.15+: current_frame stays at +208, but thread_id moves
+                # because base_frame / last_profiled_frame (and, since 3.15.0b4,
+                # last_profiled_frame_seq) are inserted before it.
                 pyRtBase = self.pyAddr
                 ver_data = self.readMem(pyRtBase + 8)
                 if ver_data:
@@ -183594,10 +183652,24 @@ typedef struct {
                     struct.unpack("Q", cf_data)[0] if cf_data else 72
                 )
                 # thread_state.thread_id offset within _Py_DebugOffsets #
-                tid_data = self.readMem(pyRtBase + 216)
-                self.pyThreadIdOff = (
-                    struct.unpack("Q", tid_data)[0] if tid_data else 152
-                )
+                if sys.version_info >= (3, 15):
+                    # reject free-threaded builds, whose frame/object layouts
+                    # differ from what is decoded here #
+                    ft_data = self.readMem(pyRtBase + 16)
+                    if ft_data and struct.unpack("Q", ft_data)[0]:
+                        SysMgr.printErr(
+                            "free-threaded Python is not supported for %s"
+                            % procInfo
+                        )
+                        sys.exit(-1)
+
+                    tid_data = self.readMem(pyRtBase + 224, 24)
+                    self.pyThreadIdOff = Debugger.getPyThreadIdOff315(tid_data)
+                else:
+                    tid_data = self.readMem(pyRtBase + 216)
+                    self.pyThreadIdOff = (
+                        struct.unpack("Q", tid_data)[0] if tid_data else 152
+                    )
             elif sys.version_info >= (3, 13):
                 # _Py_DebugOffsets was introduced in Python 3.14; not present in 3.13.
                 # Use hardcoded offsets for Python 3.13.
@@ -183993,6 +184065,7 @@ typedef struct {
 
     def readPyState64(self, addr):
         frameList = {}
+        nextTstate311 = 0
 
         while 1:
             if sys.version_info >= (3, 14):
@@ -184143,10 +184216,17 @@ typedef struct {
                 framep = struct.unpack("Q", framep)[0]
 
             elif sys.version_info >= (3, 11):
-                tstate_current = self.readMem(addr + 16)
-                if not tstate_current:
-                    break
-                tstate_current = struct.unpack("Q", tstate_current)[0]
+                # addr is a PyInterpreterState ptr only on the first pass;
+                # on later passes it is the next PyThreadState ptr (nextp),
+                # so reading addr + 16 again would parse the interpreter
+                # struct as a thread state and corrupt cframe (2^64 read) #
+                if nextTstate311:
+                    tstate_current = nextTstate311
+                else:
+                    tstate_current = self.readMem(addr + 16)
+                    if not tstate_current:
+                        break
+                    tstate_current = struct.unpack("Q", tstate_current)[0]
 
                 # read frame data #
                 # Struct layout for Python 3.11 PyThreadState (_ts):
@@ -184197,6 +184277,9 @@ typedef struct {
 
                 framep = self.readMem(cframe + 8, 8)
                 framep = struct.unpack("Q", framep)[0]
+
+                # continue the walk from the next thread state #
+                nextTstate311 = nextp
 
             elif sys.version_info >= (3, 7):
                 tstate_head = self.readMem(addr + 8)

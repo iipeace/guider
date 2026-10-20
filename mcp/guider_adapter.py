@@ -33,8 +33,8 @@ from guider_catalog import BLOCKED_COMMANDS, BLOCKED_OPTS, CATALOG, get_catalog_
 MAX_OUTPUT_BYTES: int = 500 * 1024          # 500 KB — truncate beyond this
 MAX_CONCURRENT_CALLS: int = 3               # global concurrency limit
 MAX_DURATION_SEC: int = 300                 # matches openapi/guider-rest.py's Field(ge=1, le=300)
-MAX_EXTRA_OPTS_COUNT: int = 50              # round 67: fail fast on a runaway/hallucinated opts list
-MAX_EXTRA_OPT_LEN: int = 4096               # round 67: per-item length cap, same rationale
+MAX_EXTRA_OPTS_COUNT: int = 50              # fail fast on a runaway/hallucinated opts list
+MAX_EXTRA_OPT_LEN: int = 4096               # per-item length cap, same rationale
 _TRACEFS_SEM = threading.Semaphore(1)       # only 1 tracefs command at a time
 _CALL_SEM = threading.Semaphore(MAX_CONCURRENT_CALLS)
 
@@ -49,17 +49,17 @@ _SAFE_IFACE = re.compile(r'^[a-zA-Z0-9_.-]{1,16}$')
 _SENSITIVE_PATH_MARKERS = (
     "/etc/shadow", "/etc/gshadow", "/etc/sudoers",
     "/.ssh/", "/.gnupg/", "/.aws/", "/.kube/", "/.docker/config.json",
-    # round 65: container/cloud-native credential locations — /run/secrets/
-    # also catches Kubernetes service account tokens, since /var/run is a
-    # symlink to /run on virtually every distro and realpath() resolves it
+    # /var/run is a symlink to /run on virtually every distro and
+    # realpath() resolves it, so this also catches Kubernetes service
+    # account tokens under the mounted secrets path
     "/run/secrets/", "/.config/gcloud/", "/.azure/",
 )
 _SENSITIVE_PATH_SUFFIXES = (
     ".pem", "_rsa", "_dsa", "_ecdsa", "_ed25519",
-    # round 65: .netrc/.git-credentials (plaintext creds), .key (TLS
-    # private-key naming convention missed by the SSH-style suffixes above),
-    # .jks/.keystore (Java KeyStore, common on the JVM services guider
-    # commonly diagnoses — Kafka/Elasticsearch/Tomcat/etc.)
+    # .netrc/.git-credentials (plaintext creds), .key (TLS private-key
+    # naming convention missed by the SSH-style suffixes above), .jks/
+    # .keystore (Java KeyStore, common on the JVM services guider
+    # diagnoses — Kafka/Elasticsearch/Tomcat/etc.)
     ".netrc", ".git-credentials", ".key", ".jks", ".keystore",
 )
 
@@ -69,45 +69,27 @@ _SENSITIVE_PATH_SUFFIXES = (
 # since main_arg is appended to argv unchecked, so they get the same
 # _is_sensitive_path() denylist applied explicitly in run().
 _MAIN_ARG_PATH_COMMANDS = {
-    "comp", "decomp", "merge", "split", "mkcache", "dirdiff",  # round 61
+    "comp", "decomp", "merge", "split", "mkcache", "dirdiff",
     "retrace", "printdir", "printext", "elftree", "addr2sym", "sym2addr",
-    "topdiff", "topsum", "sync", "readahead", "flush",  # round 62
-    # round 66: android_only, but _build_cmd() only routes to the adb-shell
-    # path when device_id is actually supplied — omit it and this runs
+    "topdiff", "topsum", "sync", "readahead", "flush",
+    # android_only, but _build_cmd() only routes to the adb-shell path
+    # when device_id is actually supplied — omit it and this runs
     # LOCALLY, with main_arg (out_path) reaching AndroidMgr.doBugRecord()'s
-    # os.path.join(main_arg, filename) unvalidated.
-    "bugrep",
-    # round 68: bugrec shares the exact same doBugRecord() sink as bugrep
-    # (dump=False vs dump=True is the only difference) but was missed when
-    # bugrep was added above in round 66 — same gap, same fix.
-    "bugrec",
-    # round 76: these have NO main_arg_desc at all in the catalog, so
-    # validate_path_coverage()'s regex heuristic (which only scans existing
-    # description text) could never have flagged them — the exact blind
-    # spot round 68 documented but left for a manual sweep. print/less/
-    # strings check hasMainArg() BEFORE inputParam and echo the file's
-    # content verbatim - these are precisely the three commands
-    # _is_sensitive_path()'s own docstring cites as the reason the denylist
-    # exists, yet the denylist was only ever wired to input_file, never to
-    # their real, documented calling convention (main_arg). convert's
-    # documented calling convention is also a positional file path (not
-    # -I), reading the whole file and rendering it as an image (whose SVG
-    # output embeds the original text verbatim, re-extractable via print/
-    # less). readelf/readdex/readapk/convlog have the same missing-
-    # main_arg_desc gap with a narrower blast radius. printdlt/logdlt/
-    # dlttop take a comma-separated DLT file list the same shape as this
-    # set already handles; low real severity (DLT's magic-header framing
-    # means an arbitrary text/credential file just fails to parse) but the
-    # fix is free since the mechanism already supports comma lists.
+    # os.path.join(main_arg, filename) unvalidated. bugrec shares the
+    # exact same doBugRecord() sink (dump=False vs dump=True is the only
+    # difference).
+    "bugrep", "bugrec",
+    # These have no main_arg_desc in the catalog, so validate_path_coverage() cannot flag them. print/less/
+    # strings echo the file verbatim and convert renders it into an SVG embedding the text, yet the denylist was
+    # only wired to input_file, not to their real calling convention (main_arg). readelf/readdex/readapk/convlog
+    # have the same gap with a narrower blast radius; printdlt/logdlt/dlttop take comma-separated file lists.
     "print", "less", "strings", "convert", "readelf", "readdex", "readapk",
     "convlog", "printdlt", "logdlt", "dlttop",
-    # round 77: every draw-mode command shares SysMgr.setVisualAttr()
-    # (guider.py:51013, path = sys.argv[2] i.e. main_arg), which is passed
-    # unchecked to TaskAnalyzer.getInitTime() -> open(fname, "rb") -
-    # convert (this set's sibling in the same "visualize" mcp_tool group)
-    # was fixed in round 76 but the other 28 draw* commands were missed.
-    # The dedicated visualize() MCP tool forces a validated input_file for
-    # most of these, but the generic runCommand tool has no per-command
+    # every draw-mode command shares SysMgr.setVisualAttr() (path =
+    # sys.argv[2] i.e. main_arg), which is passed unchecked to
+    # TaskAnalyzer.getInitTime() -> open(fname, "rb"). The dedicated
+    # visualize() MCP tool forces a validated input_file for most of
+    # these, but the generic runCommand tool has no per-command
     # restriction and forwards main_arg verbatim for any of them.
     "draw", "drawavg", "drawbitmap", "drawconn", "drawcpu", "drawcpuavg",
     "drawdelay", "drawdiff", "drawdisk", "drawflame", "drawflamediff",
@@ -126,11 +108,11 @@ _MAIN_ARG_PATH_COMMANDS = {
 def _extract_iotest_path(arg):
     # guider.py's doIoTest() splits on ":" with no limit: len==1 means the
     # whole string is the path (op defaults to "read"); len==2 is
-    # "OP:PATH"; len==3 is "OP:PATH:SIZE" - path is index 1 in both of the
-    # latter cases, not "everything after the first colon" (round 75: the
-    # old lambda took arg.split(":",1)[1], which for the 3-field form left
-    # a trailing ":SIZE" glued onto the path, defeating _is_sensitive_path()'s
-    # suffix checks e.g. "...id_ed25519:1M" no longer ends in "_ed25519").
+    # "OP:PATH"; len==3 is "OP:PATH:SIZE" — path is index 1 in both of the
+    # latter cases, not "everything after the first colon" (a naive
+    # split(":",1)[1] would leave a trailing ":SIZE" glued onto the path
+    # for the 3-field form, defeating _is_sensitive_path()'s suffix checks
+    # e.g. "...id_ed25519:1M" no longer ends in "_ed25519").
     parts = arg.split(":")
     if len(parts) == 1:
         return parts[0]
@@ -143,130 +125,53 @@ _MAIN_ARG_COLON_PATH_EXTRACTORS = {
     "iotest": _extract_iotest_path,                                 # "OP:PATH" or "OP:PATH:SIZE"
     # guider.py's doFadviseCmd() splits on ":" up to 4 fields and always
     # takes index 0 as the path ("FILE:ADVICE{:POS:SIZE}"), never the last
-    # field (round 75: the old lambda used rsplit(":",1)[0], which only
-    # happened to work for the bare 2-field form - for "FILE:ADVICE:POS:SIZE"
-    # it left ":POS" glued onto the path, defeating the suffix check).
+    # field — rsplit(":",1)[0] would only work for the bare 2-field form;
+    # for "FILE:ADVICE:POS:SIZE" it leaves ":POS" glued onto the path,
+    # defeating the suffix check.
     "fadvise": lambda arg: arg.split(":", 1)[0],                     # "FILE:ADVICE{:POS:SIZE}"
     "watch": lambda arg: arg.split(":", 1)[0],                           # "PATH:EVENT:FILE:CMD"
     "fetop": lambda arg: arg.split(":", 1)[0],
 }
 
-# Commands whose target/target_pid (-g) is treated as a raw filesystem path
-# rather than a PID/COMM/symbol identifier — only when main_arg is absent
-# (doWatch falls back to -g as the watch target), but checking it
-# unconditionally is harmless since non-path values never match
+# Commands whose target/target_pid (-g) is a raw filesystem path rather than a PID/COMM when main_arg is
+# absent (doWatch, doSync, doFlush fall back to -g). Checked unconditionally: non-path values never match
 # _is_sensitive_path()'s markers.
-#
-# round 77: sync's doSync() has the identical "elif SysMgr.filterGroup:"
-# fallback shape (guider.py:103076-103078) — when main_arg is absent it
-# treats -g as the same plain path list, open()ing each with os.fsync().
-# sync was already in _MAIN_ARG_PATH_COMMANDS (round 62) but target_pid was
-# never checked for it.
-#
-# round 78: flush's doFlush() has the identical "elif SysMgr.filterGroup:"
-# plain-path fallback (guider.py:103142-103150), reaching SysMgr.doSync()/
-# SysMgr.fadvise() (both real open() calls) the same way sync's own bug
-# did. guider.py's own fallback code has an incidental list-vs-str type
-# mismatch here (assigns the raw filterGroup list where a string is later
-# expected), so today this only crashes the whole guider.py process
-# (TypeError) rather than actually reading file content - but it's the
-# same unvalidated target_pid-to-filesystem-path gap, and flush is
-# requires_root, so this closes it defensively before that incidental
-# guider.py bug is ever fixed and turns it into a live read primitive.
 _TARGET_PID_PATH_COMMANDS = {"watch", "fetop", "sync", "flush"}
 
-# round 77: iotest/fadvise's doIoTest()/doFadvise() have the identical
-# "elif SysMgr.filterGroup:" fallback (guider.py:103482-103484,
-# 103011-103013) as sync/watch above, but unlike sync's plain-path
-# fallback, theirs reuses the EXACT SAME colon-compound format as their
-# main_arg ("OP:PATH[:SIZE]" / "FILE:ADVICE{:POS:SIZE}") - round 76 fixed
-# main_arg's comma-split handling for these two extractors but never
-# checked target_pid at all, leaving -g as a complete bypass of both the
-# colon-extraction AND the sensitive-path check (iotest's write: op is a
-# real O_TRUNC overwrite primitive, making this the most severe of the
-# round-75/76/77 comma/fallback family). Reuses the same extractor
-# functions from _MAIN_ARG_COLON_PATH_EXTRACTORS rather than duplicating
-# the OP:PATH parsing logic.
+# iotest/fadvise's doIoTest()/doFadvise() have the identical
+# "elif SysMgr.filterGroup:" fallback as sync/watch above, but unlike
+# sync's plain-path fallback, theirs reuses the EXACT SAME colon-compound
+# format as their main_arg ("OP:PATH[:SIZE]" / "FILE:ADVICE{:POS:SIZE}"),
+# leaving -g as a complete bypass of both the colon-extraction AND the
+# sensitive-path check (iotest's write: op is a real O_TRUNC overwrite
+# primitive). Reuses the same extractor functions from
+# _MAIN_ARG_COLON_PATH_EXTRACTORS rather than duplicating the OP:PATH
+# parsing logic.
 _TARGET_PID_COLON_EXTRACTOR_COMMANDS = {"iotest", "fadvise"}
 
-# round 69/75: for these commands, main_arg's colleague input_file (-I)
-# is NOT a file to read — SysMgr.createWatchList() (invoked whenever
-# SysMgr.inputParam is set at all, unconditionally) splits it on commas and
-# execs each item verbatim via SysMgr.createProcess(). Every round 60-68
-# input_file check (_check_input_exists/_is_sensitive_path) was designed
-# around "does this path exist / is it a credential file" — the READ threat
-# model — which is the wrong question entirely when the value is spawned
-# instead of opened. No path denylist can make an arbitrary-exec target
-# safe, so input_file is rejected outright for all of these; none need it
-# for normal monitoring (their most common, unaffected use).
-#
-# round 75: the original round-69 set only covered top/ftop/trtop, but
-# TaskAnalyzer.runTaskTop() (the shared, mode-agnostic monitoring loop)
-# calls createWatchList() unconditionally whenever inputParam is set, with
-# no per-mode guard - and every one of ttop/atop/wtop/ctop/ntop/rtop/ptop/
-# mtop/disktop/stacktop/contop falls through execTopCmd() into that same
-# runTaskTop() without sys.exit()ing first, so they all share the exact
-# same exec-primitive. Several of these (ttop/atop/wtop/ctop/ntop/rtop/
-# ptop) don't even require_root, so they were immediately exploitable via
-# runCommand with no other precondition. bgtop shares the same guider.py
-# bug but isn't in the catalog today, so it's unreachable via MCP - add it
-# here too if it's ever cataloged.
+# For these, input_file (-I) is not read: SysMgr.createWatchList() (via the shared runTaskTop() loop) splits
+# it on commas and execs each item. A path denylist cannot make an exec target safe, so input_file is
+# rejected outright; normal monitoring does not use it. (bgtop shares the bug but is not cataloged.)
 _INPUT_FILE_SPAWNS_PROCESS_COMMANDS = {
     "top", "ttop", "atop", "wtop", "ctop", "ntop", "rtop", "ptop",
     "mtop", "disktop", "stacktop", "contop", "ftop", "trtop",
 }
 
-# round 87 [CRITICAL, highest severity in this series]: SysMgr.doTrace(mode)
-# (guider.py:99380-99817, shared by utop/pytop/utrace/btrace/strace/
-# pytrace/sigtrace/stat/mtrace/btop/systop/kstop) reads main_arg as
-# inputParam (99533-99534, via hasMainArg()/getMainArg()) and, for every
-# mode except "remote"/"hook"/"bind" (which explicitly reject it with
-# "executing a program is not supported", 99555-99561), unconditionally
-# builds execCmd = UtilMgr.parseCommand(inputParam) (99631-99633) and hands
-# it to Debugger(execCmd=execCmd) -> Debugger.execute() -> SysMgr.
-# executeProcess(cmd=execCmd) -> os.execvpe(cmd[0], cmd, env) (92086/92097)
-# in a forked child. This is guider.py's own documented feature for these
-# commands ("launch and trace a new command") — not a bug in guider.py —
-# but none of these 12 commands declare main_arg_name/main_arg_desc in the
-# catalog (the same "invisible main_arg" blind spot rounds 66/68 already
-# identified as undetectable by validate_path_coverage()'s description-text
-# heuristic), and runCommand forwards main_arg unfiltered for ANY
-# uncatalogued-as-path command. utop/pytop/utrace/btrace/strace/pytrace/
-# sigtrace/stat/mtrace are requires_root=False, android_only=False — zero
-# precondition beyond calling runCommand at all — making this the broadest,
-# most severe finding in the whole audit series: complete unauthenticated
-# remote command execution via
-# runCommand(command="utop", main_arg='/bin/sh -c "..."'). btop/systop/
-# kstop are requires_root=True (still reachable if the MCP/REST server
-# process itself runs as root, a common deployment given other BPF/root
-# commands already need it). Legitimate use of these commands to attach to
-# an EXISTING process is via target_pid (-g <PID|COMM>, guider.py:99546
-# documents this itself: "no input value for target, use -g <PID|COMM>"),
-# which is completely unaffected by this block.
+# SysMgr.doTrace() (these 12 commands) treats main_arg as a command to launch and trace
+# (parseCommand -> execvpe in a forked child) for every mode except remote/hook/bind. That is documented
+# guider behavior, but the catalog declares no main_arg_desc for them, so runCommand would forward an
+# arbitrary command line (no root needed for most). Attach to an existing process with target_pid (-g).
 _MAIN_ARG_SPAWNS_PROCESS_COMMANDS = {
     "utop", "pytop", "utrace", "btrace", "strace", "pytrace", "sigtrace",
     "stat", "mtrace", "btop", "systop", "kstop",
-    # round 88: DbusMgr.runDbusSnooper(mode=...) (guider.py:158299, shared
-    # by these 6 commands) is the exact same bug shape as doTrace() above,
-    # found by re-sweeping the whole codebase for the "main_arg becomes an
-    # executed command" pattern after round 87's finding. When target_pid
-    # (-g) is absent and mode isn't one of the read-only list modes
-    # (getpidlist/getunitlist/getunitstat), it does
-    # `cmd = SysMgr.getMainArg(); execCmd = UtilMgr.parseCommand(cmd);
-    # SysMgr.createProcess(execCmd, mute=True)` (guider.py:159104-159107)
-    # — main_arg executed verbatim. printdbus/printdbusintro/
-    # printdbusstat/printdbussub's mode is never one of the exempt values,
-    # so they're always exposed; printsdinfo/printsdunit's mode only
-    # becomes exempt when SysMgr.jsonEnable is True, so passing
-    # json_output=False (a normal runCommand parameter) reopens the same
-    # gap for those two. All 6 are requires_root=True (reachable if the
-    # MCP/REST server process itself runs as root, a common deployment
-    # given other BPF/root commands already need it).
+    # DbusMgr.runDbusSnooper() has the same shape: without target_pid and outside the read-only list modes
+    # (getpidlist/getunitlist/getunitstat) it executes main_arg verbatim. printsdinfo/printsdunit are only exempt
+    # when jsonEnable is set, so json_output=False reopens it for those two.
     "printdbus", "printdbusintro", "printdbusstat", "printdbussub",
     "printsdinfo", "printsdunit",
 }
 
-# round 69: req's main_arg format is "METHOD#..." with #-delimited
+# req's main_arg format is "METHOD#..." with #-delimited
 # sub-fields undocumented in the catalog's abbreviated main_arg_desc —
 # DATAFILE:/JSONFILE:/FILE:name:path open a local file and send its bytes
 # as the request body/attachment, and @@@FILE:<path>@@@ inlines a local
@@ -278,23 +183,21 @@ _REQ_DANGEROUS_MARKERS = ("FILE:", "@@@BIN:")
 
 # -q option keys whose value is a filesystem path but whose name contains
 # none of "FILE"/"PATH"/"DIR", so they'd otherwise evade _filter_opts()'s
-# substring heuristic entirely (the same bug class round 58 found for
-# LLMAUDITLOG, here in the readahead subsystem instead). RALIST in
-# particular is opened for writing (FileAnalyzer.makeReadaheadFile), not
-# just read.
+# substring heuristic entirely. RALIST in particular is opened for writing
+# (FileAnalyzer.makeReadaheadFile), not just read.
 _EXTRA_PATH_OPT_KEYS = {
     "RALIST", "RAADDLIST", "RAALLOWLIST", "RADENYLIST",
-    # round 70: TaskAnalyzer.drawFlame() uses these verbatim as a write
-    # destination (SysMgr.writeFile(samplePath, ...)) when given an
-    # explicit value (not the bare "SET" form) — same unvalidated-write
-    # pattern as RALIST above, reachable from drawflame/drawflamediff and
-    # any other command whose internal flamegraph path calls drawFlame().
+    # TaskAnalyzer.drawFlame() uses these verbatim as a write destination
+    # (SysMgr.writeFile(samplePath, ...)) when given an explicit value
+    # (not the bare "SET" form) — same unvalidated-write pattern as
+    # RALIST above, reachable from drawflame/drawflamediff and any other
+    # command whose internal flamegraph path calls drawFlame().
     "SAVESAMPLE", "SAVESAMPLEJSON",
-    # round 76: perfetto/hprof's doPerfetto() casts this verbatim as the
-    # directory to save a downloaded profiling binary into (same
-    # unvalidated-write-target pattern as RALIST/SAVESAMPLE above) — lower
-    # severity since the download URL itself is a hardcoded Google CDN
-    # link, but the destination directory is fully caller-controlled.
+    # perfetto/hprof's doPerfetto() casts this verbatim as the directory
+    # to save a downloaded profiling binary into (same unvalidated-write-
+    # target pattern as RALIST/SAVESAMPLE above) — lower severity since
+    # the download URL itself is a hardcoded Google CDN link, but the
+    # destination directory is fully caller-controlled.
     "AUTODOWNLOAD",
 }
 
@@ -319,27 +222,17 @@ _ANDCMD_ALLOWED_SUBCOMMANDS = {
     "GETPKGATTR",
 }
 
-# round 67: sperf is android_only, but like bugrep (round 66) omitting
-# device_id makes _build_cmd() run it LOCALLY instead of via adb-shell.
-# Unlike bugrep, main_arg here is not a path — AndroidMgr.doSimplePerf()
-# treats it as a COMMAND to execute (`simpleperf record ... <main_arg>`
-# via SysMgr.executeCmdSync()), so no path denylist can make this safe.
-# The only correct fix is refusing the local-execution fallback entirely.
+# sperf is android_only, but omitting device_id makes _build_cmd() run it
+# LOCALLY instead of via adb-shell. main_arg here is not a path —
+# AndroidMgr.doSimplePerf() treats it as a COMMAND to execute
+# (`simpleperf record ... <main_arg>` via SysMgr.executeCmdSync()), so no
+# path denylist can make this safe. The only correct fix is refusing the
+# local-execution fallback entirely.
 #
-# round 76: hprof/perfetto share doPerfetto(), which has the identical
+# hprof/perfetto share doPerfetto(), which has the identical
 # no-isAndroid-guard/main_arg-executed-via-createCmdProcess() shape as
-# sperf's doSimplePerf() — missed in round 67's original sweep since it
-# only checked sperf itself, not every android_only catalog entry.
-#
-# round 78: mdtop also dispatches to doPerfetto() (heapProf=True) and was
-# missed from the round-76 sweep. Worse, _build_adb_cmd() hardcodes
-# input_file=None, so sperf/hprof/perfetto themselves can no longer reach
-# doPerfetto()'s -I-triggered analysis branch (the one with
-# _runTraceProcessor()/TRACEPROCESSOR) via the adapter at all now that
-# device_id is required for them — leaving mdtop, until this fix, as the
-# only command that could still reach that branch (with local, non-adb
-# execution) via runCommand(command="mdtop", input_file=<existing file>,
-# extra_opts=["QUERY:..."]) without any device_id.
+# sperf's doSimplePerf(). mdtop also dispatches to doPerfetto()
+# (heapProf=True) and shares the same gap.
 _REQUIRES_DEVICE_ID_COMMANDS = {"sperf", "hprof", "perfetto", "mdtop"}
 
 logger = logging.getLogger(__name__)
@@ -461,23 +354,9 @@ class GuiderAdapter:
             envelope["error"] = f"unknown command '{command}'. Use guiderHelp to list."
             return envelope
 
-        # andcmd's sub-command is a positional arg, not a "-q" option, so
-        # it bypasses BLOCKED_OPTS entirely — enforce its own allowlist
-        # here (see _ANDCMD_ALLOWED_SUBCOMMANDS comment above). Normalize
-        # the same way guider.py's own AndroidMgr.checkAndCmd() does
-        # (split on ":" first, then upper()) so casing can't bypass this.
-        #
-        # round 75: guider.py's checkAndCmd() actually calls
-        # SysMgr.getMainArgs(union=False) first, which comma-splits
-        # main_arg and validates+executes EVERY resulting sub-command
-        # independently against ANDCMDLIST - checking only the text before
-        # the FIRST colon of the whole string (as this used to do) let any
-        # additional ANDCMDLIST entry (GRANTPERM/REVOKEPERM/INSTALLPKG/
-        # BROADCAST/CLEARDATA/SETSETTINGS/...) ride through unchecked once
-        # appended after a comma behind one allowlisted sub-command, e.g.
-        # "GETSELINUX:1,GRANTPERM:com.evil.app:...". Comma-split here too
-        # so every sub-command is checked the same way guider.py processes
-        # every one of them.
+        # andcmd's sub-command is a positional arg, so it bypasses BLOCKED_OPTS; enforce its allowlist here.
+        # Normalize like AndroidMgr.checkAndCmd() (split on ':', then upper()). checkAndCmd() comma-splits main_arg
+        # and runs every item, so check each one or "GETSELINUX:1,GRANTPERM:..." slips through.
         if command == "andcmd":
             if not (main_arg or "").strip():
                 envelope["error"] = "andcmd requires a sub-command in main_arg"
@@ -602,21 +481,9 @@ class GuiderAdapter:
                     envelope["error"] = f"main_arg path is blocked for security reasons: {part}"
                     return envelope
 
-        # validate main_arg for commands where the path is embedded alongside
-        # a non-path field via a colon (iotest/fadvise/watch/fetop) — extract
-        # just the path segment first, since realpath()-ing the raw "OP:PATH"
-        # string would resolve to a bogus relative filename instead.
-        #
-        # round 76: guider.py's real parsers for all four of these commands
-        # (SysMgr.doIoTest()/doFadvise()/doWatch()) call
-        # SysMgr.getMainArgs(False), which comma-splits main_arg and
-        # processes EVERY resulting item independently (opening/truncating/
-        # watching each one) — applying the extractor to the whole raw
-        # main_arg string only ever checked the first item; a second (or
-        # later) comma-separated item's path escaped validation entirely,
-        # the same structural mismatch class round 75 fixed for andcmd.
-        # Comma-split here too so every item is checked the way guider.py
-        # actually processes every one of them.
+        # For commands whose main_arg embeds a path next to a non-path field via a colon (iotest/fadvise/watch/
+        # fetop), extract only the path segment first; realpath() on the raw "OP:PATH" would resolve a bogus relative
+        # name. guider's parsers comma-split main_arg and process every item, so check each one.
         if main_arg and command in _MAIN_ARG_COLON_PATH_EXTRACTORS:
             extractor = _MAIN_ARG_COLON_PATH_EXTRACTORS[command]
             for _item in main_arg.split(","):
@@ -634,15 +501,10 @@ class GuiderAdapter:
         # path/event/file matches. There's no way to sanitize an arbitrary
         # command string, so the CMD field itself is rejected outright
         # rather than validated — plain path/glob main_args (no colons, or
-        # fewer than 4 fields) are untouched.
-        #
-        # round 76: checked per comma-separated item (matching the fix
-        # above) rather than the merged whole-string colon count — the
-        # merged check happened to still catch every constructible bypass
-        # (the aggregate colon count across items never drops below what a
-        # real CMD field requires), but that safety was coincidental rather
-        # than structural, so this is tightened to match guider.py's actual
-        # per-item processing on general principle.
+        # fewer than 4 fields) are untouched. Checked per comma-separated
+        # item (matching guider.py's own per-item processing) rather than
+        # a merged whole-string colon count, since the latter's safety
+        # against a bypass is coincidental rather than structural.
         if main_arg and command in ("watch", "fetop"):
             for _item in main_arg.split(","):
                 parts = _item.split(":", 3)
@@ -912,18 +774,16 @@ class GuiderAdapter:
             main_arg = input_file
             input_file = None
 
-        # round 79: only add -J when the command actually produces JSON
-        # output; text/file output_type commands silently drop output when
-        # -J is passed. This used to be computed only inside the
-        # android_only+device_id branch below (for the adb-shell path) -
-        # the LOCAL execution branch (taken whenever device_id is absent,
-        # including for android_only text/file commands like bugrep/
-        # scrcap/andcmd/logand/watchprop/getprop that aren't in
-        # _REQUIRES_DEVICE_ID_COMMANDS) forwarded the raw json_output
-        # unfiltered, so a caller relying on run()'s json_output=True
-        # default got -J silently appended to a command that can't honor
-        # it, and got back an empty response with no error. Computed once
-        # here so both branches apply it identically.
+        # only add -J when the command actually produces JSON output;
+        # text/file output_type commands silently drop output when -J is
+        # passed. The LOCAL execution branch (taken whenever device_id is
+        # absent, including for android_only text/file commands like
+        # bugrep/scrcap/andcmd/logand/watchprop/getprop that aren't in
+        # _REQUIRES_DEVICE_ID_COMMANDS) must apply the same filtering as
+        # the adb-shell branch, or a caller relying on run()'s
+        # json_output=True default gets -J silently appended to a command
+        # that can't honor it, and an empty response with no error back.
+        # Computed once here so both branches apply it identically.
         effective_json = json_output and meta.get("output_type") == "json"
 
         if meta.get("android_only") and device_id:
@@ -1076,34 +936,12 @@ class GuiderAdapter:
         if output_dir:
             args += ["-o", output_dir]
 
-        # round 94: force-disable ElfAnalyzer's on-disk pickle cache for every
-        # MCP/REST-driven invocation. ElfAnalyzer.loadObject() (guider.py:
-        # 184264-184289, the disk-cache lookup step of getObject() — the single
-        # entry point shared by readelf/elftree/addr2sym/sym2addr/mkcache/
-        # funcrec and PRELOAD/PRELOADLIST's indirect ELF parsing) does
-        # pickle.load() on a path derived deterministically from the analyzed
-        # file's own path ("<cacheDirPath>/<path-with-/-replaced-by-_>"), with
-        # no content validation beyond os.path.isfile(). SysMgr.cacheDirPath
-        # defaults to /var/log/guider but silently falls back to /tmp (world-
-        # writable) whenever that default can't be created/written — an
-        # unprivileged-guider deployment is not a corner case here: readelf/
-        # elftree/addr2sym/sym2addr/mkcache are all catalogued
-        # requires_root=False, i.e. non-root execution is the officially
-        # supported mode for these commands. Under that fallback, any local
-        # user can plant a malicious pickle payload at the exact predictable
-        # cache filename for a target file at any time beforehand (no race
-        # window needed), and pickle.load()'s well-known __reduce__-based
-        # deserialization RCE fires the next time that same file is analyzed
-        # through guider. ElfAnalyzer.loadObject() itself returns None before
-        # ever reaching pickle.load() when "-q NOELFCACHE" is set, so —
-        # unlike every other fix in this series — the mitigation here is to
-        # unconditionally FORCE a safe option on rather than block a
-        # dangerous one, since there is no attacker-added option to block:
-        # plain, correct use of these already-allowed commands is what
-        # reaches the vulnerable code path. This costs MCP-driven processes
-        # only cross-process disk-cache reuse (a fresh subprocess is spawned
-        # per call anyway, so the in-memory per-process ElfAnalyzer cache is
-        # untouched) — no functional loss for a single MCP/REST call.
+        # Force-disable ElfAnalyzer's on-disk pickle cache for every MCP/REST invocation. loadObject() pickle.load()s
+        # a path derived predictably from the analyzed file's path, and cacheDirPath falls back to world-writable /tmp
+        # when the default cannot be written (the supported unprivileged mode for readelf/elftree/addr2sym/sym2addr/
+        # mkcache), so a local user can pre-plant a payload. -q NOELFCACHE makes loadObject() return before the load.
+        # The mitigation forces a safe option on (plain use reaches the path, so there is nothing to block); the
+        # only cost is cross-process cache reuse, and each call is a fresh subprocess anyway.
         extra_opts = list(extra_opts) if extra_opts else []
         if not any(
             opt.split(":", 1)[0].strip().upper() == "NOELFCACHE"
@@ -1135,11 +973,11 @@ class GuiderAdapter:
         arbitrary host logs/procfs/dumps for diagnostics while blocking the
         highest-value credential paths.
         """
-        # round 72: os.path.realpath() preserves trailing whitespace verbatim
+        # os.path.realpath() preserves trailing whitespace verbatim
         # (unlike leading whitespace, which turns the path relative) — a
-        # trailing space defeated the suffix .endswith() check below without
-        # this. Doesn't affect the marker check (already a substring match,
-        # immune to trailing whitespace either way).
+        # trailing space would defeat the suffix .endswith() check below
+        # without this. Doesn't affect the marker check (already a
+        # substring match, immune to trailing whitespace either way).
         real = real.rstrip()
 
         # Directory markers (e.g. "/.ssh/") only match as substrings of a
@@ -1177,13 +1015,13 @@ class GuiderAdapter:
         """Remove blocked -q options and validate FILE/PATH values."""
         safe: list[str] = []
         for opt in opts:
-            # round 71: strip BEFORE key/value extraction — guider.py's own
-            # parser (UtilMgr.splitString()) strips each comma-split item,
-            # so " TCPDUMP:SET" becomes key "TCPDUMP" once it reaches
-            # guider.py, but without this strip() here key was " TCPDUMP"
-            # (leading space intact), which never matches BLOCKED_OPTS —
-            # a single leading space defeated every entry in that set at
-            # once, across every round that ever added to it.
+            # strip BEFORE key/value extraction — guider.py's own parser
+            # (UtilMgr.splitString()) strips each comma-split item, so
+            # " TCPDUMP:SET" becomes key "TCPDUMP" once it reaches
+            # guider.py; without this strip() here key would be
+            # " TCPDUMP" (leading space intact), which never matches
+            # BLOCKED_OPTS — a single leading space would defeat every
+            # entry in that set at once.
             opt = opt.strip()
             key = opt.split(":")[0].upper()
             if key in BLOCKED_OPTS:
@@ -1322,12 +1160,12 @@ def validate_path_coverage() -> list[str]:
     """Warn (non-blocking) about CATALOG commands whose main_arg_desc looks
     path-shaped but aren't covered by any main_arg/target_pid validation set.
 
-    Rounds 61-66 found this exact gap class by hand, one command at a time
-    (comp/merge/dirdiff/..., then iotest/fadvise/watch/fetop, then bugrep) —
-    this turns that manual sweep into a permanent, startup-time regression
-    check, same style/severity (warning, not a hard failure) as the existing
-    validate_catalog()/validate_openai_function_defs() checks it runs
-    alongside. A false positive here costs a log line, not a broken server.
+    A permanent, startup-time regression check for the gap class covered
+    by _MAIN_ARG_PATH_COMMANDS/_MAIN_ARG_COLON_PATH_EXTRACTORS/
+    _TARGET_PID_PATH_COMMANDS above — same style/severity (warning, not a
+    hard failure) as the existing validate_catalog()/
+    validate_openai_function_defs() checks it runs alongside. A false
+    positive here costs a log line, not a broken server.
     """
     covered = (
         _MAIN_ARG_PATH_COMMANDS
