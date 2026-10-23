@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.9"
-__revision__ = "261020"
+__revision__ = "261023"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -30877,6 +30877,7 @@ class LogMgr(object):
                     else:
                         endDateTime = cur
                     SysMgr.uptimeDiff = endDateTime - startDateTime
+                    SysMgr.realUptimeDiff = SysMgr.uptimeDiff
 
                 proc = "{0:>{commlen}}({1:>{pidlen}})".format(
                     pcomm, pid, commlen=commlen, pidlen=pidlen
@@ -41684,6 +41685,20 @@ class AndroidMgr(object):
             return (1, int(taskId))
 
         visWidth = 4
+        # ActivityRecord.State: INITIALIZING/STARTED/RESUMED/PAUSING/PAUSED/
+        # STOPPING/STOPPED/FINISHING/DESTROYING/DESTROYED/RESTARTING_PROCESS;
+        # the column width follows the longest state actually present #
+        transientStates = (
+            "INITIALIZING",
+            "STARTED",
+            "PAUSING",
+            "PAUSED",
+            "STOPPING",
+            "FINISHING",
+            "DESTROYING",
+            "DESTROYED",
+            "RESTARTING_PROCESS",
+        )
 
         # TREE mode drops the PTID column entirely -- indentation
         # already conveys the parent-child relationship, so keeping a
@@ -41704,6 +41719,14 @@ class AndroidMgr(object):
 
             state = (top.get("state") if top else None) or "-"
             pid = (top.get("pid") if top else None) or "-"
+
+            # the cell keeps its plain text here and is padded and colored
+            # when printed, because the escape bytes would otherwise count
+            # toward the width and shift every column after it.
+            # RESUMED is the foreground activity (green, same as Vis);
+            # states on the way in or out of the foreground/alive are
+            # yellow; a settled STOPPED or "-" keeps the default color #
+            stateCol = state
 
             # topmost Hist entry's own drawing/visibility state -- same
             # O/blank convention as the Task-level Vis column (not a
@@ -41788,7 +41811,7 @@ class AndroidMgr(object):
                     typeCol,
                     pkgCol,
                     act,
-                    state,
+                    stateCol,
                     allDrawnCol,
                     nowVisibleCol,
                     vis,
@@ -41810,7 +41833,7 @@ class AndroidMgr(object):
                     typeCol,
                     pkgCol,
                     act,
-                    state,
+                    stateCol,
                     allDrawnCol,
                     nowVisibleCol,
                     vis,
@@ -41909,10 +41932,13 @@ class AndroidMgr(object):
         actWidth = max(
             [len("Activity")] + [len(r[pkgIdx + 1]) for r in rowList]
         )
+        # State follows Activity in both layouts #
+        stateIdx = pkgIdx + 2
+        stateWidth = max([len("State")] + [len(r[stateIdx]) for r in rowList])
         if showTree:
             fmt = (
                 "{0:>7} {1:>2} {2:>4} {3:>6} {4:<13} {5:<10} {6:<%d} {7:<%d} "
-                "{8:<8} {9:^5} {10:^4} {11} {12:>3} {13:>3} {14:<12} "
+                "{8} {9:^5} {10:^4} {11} {12:>3} {13:>3} {14:<12} "
                 "{15:^3} {16:>3} {17:>6}" % (pkgWidth, actWidth)
             )
             header = fmt.format(
@@ -41924,7 +41950,7 @@ class AndroidMgr(object):
                 "Type",
                 "Package",
                 "Activity",
-                "State",
+                "{0:<{1}}".format("State", stateWidth),
                 "Drawn",
                 "AVis",
                 "{0:^{1}}".format("Vis", visWidth),
@@ -41937,8 +41963,8 @@ class AndroidMgr(object):
             )
         else:
             fmt = (
-                "{0:>7} {1:>6} {2:>2} {3:>4} {4:>6} {5:<13} {6:<10} {7:<%d} "
-                "{8:<%d} {9:<8} {10:^5} {11:^4} {12} {13:>3} {14:>3} "
+                "{0:>7} {1:>7} {2:>2} {3:>4} {4:>6} {5:<13} {6:<10} {7:<%d} "
+                "{8:<%d} {9} {10:^5} {11:^4} {12} {13:>3} {14:>3} "
                 "{15:<12} {16:^3} {17:>3} {18:>6}" % (pkgWidth, actWidth)
             )
             header = fmt.format(
@@ -41951,7 +41977,7 @@ class AndroidMgr(object):
                 "Type",
                 "Package",
                 "Activity",
-                "State",
+                "{0:<{1}}".format("State", stateWidth),
                 "Drawn",
                 "AVis",
                 "{0:^{1}}".format("Vis", visWidth),
@@ -41970,6 +41996,14 @@ class AndroidMgr(object):
         SysMgr.printPipe("-" * len(header))
 
         for row in rowList:
+            row = list(row)
+            state = row[stateIdx]
+            cell = "{0:<{1}}".format(state, stateWidth)
+            if state == "RESUMED":
+                cell = UtilMgr.convColor(cell, "GREEN")
+            elif state in transientStates:
+                cell = UtilMgr.convColor(cell, "YELLOW")
+            row[stateIdx] = cell
             SysMgr.printPipe(fmt.format(*row))
 
         SysMgr.printPipe("-" * len(header))
@@ -54115,6 +54149,7 @@ class SysMgr(object):
     dltTime = 0
     dateTime = ""
     uptimeDiff = 0
+    realUptimeDiff = 0
     diskStats = []
     prevDiskStats = []
     netstat = ""
@@ -67803,6 +67838,7 @@ Usage:
                      LIVETASKUSSGRAPH:<pid|comm> | LIVETASKIOGRAPH:<pid|comm> (read+write separately)
           [output]   NOBACKUP | REMOVEBACKUP | MKOUTDIR | NOINTSUMMARY
                      NOSUMMARY | NOHEADER | NOPIDSUFFIX | NOPROCRANK | STRPRINTBUF
+                     RAWDELTA
                      DUPOUTPATH:<path> | MEMO:<text> | NRKLOG:<n> | MAXERRLEN:<n>
                      NRPROCMEM:<n> | EXITCMD:<cmd> | PRINTCMD:<label#cmd>
                      OUTFILEPERM:<perm> | OUTFILEUSER:<user:group>
@@ -68170,6 +68206,11 @@ Examples:
 
     - {3:1} {2:1} used system resource totally
         # {0:1} {1:1} -e T
+
+    - {3:1} {2:1} with the raw change of each interval instead of the per-second average
+      CPU of tasks, the system and cgroups becomes the CPU time (in 1/100 s) used in the interval and is no longer capped at 100
+      The elapsed time of the interval, PSI and the busy rate of storage keep their usual values
+        # {0:1} {1:1} -q RAWDELTA
 
     - {3:1} {2:1} with cmdline
         # {0:1} {1:1} -q CMDLINE
@@ -96530,6 +96571,16 @@ Key Value List:
         if SysMgr.prevUptime == 0:
             SysMgr.prevUptime = SysMgr.uptime
         SysMgr.uptimeDiff = SysMgr.uptime - SysMgr.prevUptime
+
+        # the real elapsed time of the last interval, for the places that
+        # use it as a time rather than as a divisor #
+        SysMgr.realUptimeDiff = SysMgr.uptimeDiff
+
+        # every per-interval rate divides a (cur - prev) delta by this one
+        # value, so fixing it to 1 turns all of them into the plain delta
+        # of the last interval instead of a per-second average #
+        if "RAWDELTA" in SysMgr.environList:
+            SysMgr.uptimeDiff = 1
 
         if SysMgr.dltTimeEnable:
             SysMgr.dltTime = UtilMgr.getClockTime(dlt=True)
@@ -149549,9 +149600,17 @@ class BpfMgr(object):
                         "DstAddr:Port",
                         oneLine,
                     )
-                    SysMgr.addPrint(
-                        hdr + col, hdr.count("\n") + col.count("\n")
-                    )
+                    if rows:
+                        SysMgr.addPrint(
+                            hdr + col, hdr.count("\n") + col.count("\n")
+                        )
+                    else:
+                        # no retransmit in this interval: same empty-result
+                        # form as the other BPF top commands #
+                        SysMgr.addPrint(
+                            "%s%s\n" % (hdr, UtilMgr.NONE_STR),
+                            hdr.count("\n") + 1,
+                        )
 
                     for (
                         delta,
@@ -171494,6 +171553,7 @@ class DltAnalyzer(object):
                     SysMgr.uptimeDiff = (
                         DltAnalyzer.summaryEnd - DltAnalyzer.summaryStart
                     )
+                    SysMgr.realUptimeDiff = SysMgr.uptimeDiff
                 DltAnalyzer.printIntervalSummary(force=True)
 
             if buffered:
@@ -232372,7 +232432,7 @@ function isAutoNamedPlot(name) {{
         except:
             pass
 
-        diffStr = " (Interval: %.3f)" % SysMgr.uptimeDiff
+        diffStr = " (Interval: %.3f)" % SysMgr.realUptimeDiff
 
         if TaskAnalyzer.dbgObj:
             convColor = UtilMgr.convColor
@@ -236889,7 +236949,7 @@ function isAutoNamedPlot(name) {{
         if SysMgr.jsonEnable:
             SysMgr.jsonData = {
                 "uptime": SysMgr.uptime,
-                "uptimeDiff": SysMgr.uptimeDiff,
+                "uptimeDiff": SysMgr.realUptimeDiff,
                 "nrProcess": self.nrProcess,
                 "nrOpenFd": self.nrFd,
                 "nrCurFdHandle": curFd,
@@ -236912,7 +236972,7 @@ function isAutoNamedPlot(name) {{
                 "[Top File Info] [Time: %.3f] [Inter: %.3f] [Proc: %s] %s\n"
                 % (
                     SysMgr.uptime,
-                    SysMgr.uptimeDiff,
+                    SysMgr.realUptimeDiff,
                     convNum(self.nrProcess),
                     sysStatStr,
                 ),
@@ -240310,6 +240370,14 @@ function isAutoNamedPlot(name) {{
             if interval == 0:
                 return
 
+        # raw per-interval tick sums instead of a 100-normalized percentage #
+        rawDelta = "RAWDELTA" in SysMgr.environList
+
+        # the interval to report: the real elapsed time, not the divisor #
+        reportInterval = interval
+        if rawDelta and not SysMgr.totalEnable:
+            reportInterval = SysMgr.realUptimeDiff
+
         # get event count #
         nrVars = []
         for var in ("ctxt", "intr", "softriq"):
@@ -240404,7 +240472,7 @@ function isAutoNamedPlot(name) {{
                     pass
 
                 # -------------------- REVISED STAT -------------------- #
-                if SysMgr.totalEnable:
+                if SysMgr.totalEnable or rawDelta:
                     scale = 1
                 else:
                     # get scaled factor #
@@ -240458,7 +240526,7 @@ function isAutoNamedPlot(name) {{
         stealUsage = long(stealUsage / nrCore)
 
         # get total usage #
-        if SysMgr.totalEnable:
+        if SysMgr.totalEnable or rawDelta:
             totalUsage = userUsage + kerUsage + irqUsage
         elif idleUsage < maxUsage:
             totalUsage = maxUsage - idleUsage - ioUsage
@@ -240922,7 +240990,7 @@ function isAutoNamedPlot(name) {{
                     stealUsage = coreStats[idx]["steal"]
 
                     # get total usage #
-                    if SysMgr.totalEnable:
+                    if SysMgr.totalEnable or rawDelta:
                         totalCoreUsage = (
                             userCoreUsage + kerCoreUsage + irqCoreUsage
                         )
@@ -240932,7 +241000,7 @@ function isAutoNamedPlot(name) {{
                         totalCoreUsage = 0
 
                     # limit total core usage in each modes #
-                    if not SysMgr.totalEnable:
+                    if not SysMgr.totalEnable and not rawDelta:
                         if userCoreUsage > 100:
                             userCoreUsage = 100
                         if kerCoreUsage > 100:
@@ -241634,7 +241702,7 @@ function isAutoNamedPlot(name) {{
             SysMgr.maxNrTaskDie = max(SysMgr.maxNrTaskDie, self.nrDieTask)
 
             # INTERVAL #
-            SysMgr.maxInterval = max(SysMgr.maxInterval, SysMgr.uptimeDiff)
+            SysMgr.maxInterval = max(SysMgr.maxInterval, SysMgr.realUptimeDiff)
 
         # update peak list #
         if "PEAKTICKLIST" in SysMgr.environList:
@@ -241714,7 +241782,7 @@ function isAutoNamedPlot(name) {{
             {
                 "pid": SysMgr.pid,
                 "uptime": SysMgr.uptime,
-                "interval": interval,
+                "interval": reportInterval,
                 "nrIrq": nrIrq,
                 "nrSoftIrq": nrSoftIrq,
                 "os": osinfo,
@@ -242143,6 +242211,10 @@ function isAutoNamedPlot(name) {{
         if interval == 0:
             interval = 0.1
 
+        # a raw delta is not a percentage, so the "100 at most" limits
+        # for single-threaded tasks must not be applied to it #
+        rawDelta = "RAWDELTA" in SysMgr.environList
+
         # set memory size shift factor #
         if "KBUNIT" in SysMgr.environList:
             _memFactorPG = lambda x: x << 2
@@ -242221,7 +242293,8 @@ function isAutoNamedPlot(name) {{
                 utick = nowData[self.utimeIdx] - prevData[self.utimeIdx]
                 value["utime"] = long(utick / interval)
                 if (
-                    value["utime"] >= 100
+                    not rawDelta
+                    and value["utime"] >= 100
                     and value["stat"][self.nrthreadIdx] == "1"
                 ):
                     value["utime"] = 100
@@ -242229,7 +242302,8 @@ function isAutoNamedPlot(name) {{
                 stick = nowData[self.stimeIdx] - prevData[self.stimeIdx]
                 value["stime"] = long(stick / interval)
                 if (
-                    value["stime"] >= 100
+                    not rawDelta
+                    and value["stime"] >= 100
                     and value["stat"][self.nrthreadIdx] == "1"
                 ):
                     value["stime"] = 100
@@ -242240,7 +242314,8 @@ function isAutoNamedPlot(name) {{
                 else:
                     value["ttime"] = long(value["ttime"] / interval)
                 if (
-                    value["ttime"] >= 100
+                    not rawDelta
+                    and value["ttime"] >= 100
                     and value["stat"][self.nrthreadIdx] == "1"
                 ):
                     value["ttime"] = 100
@@ -242274,7 +242349,8 @@ function isAutoNamedPlot(name) {{
                     value["btime"] = long(btick / interval)
 
                 if (
-                    value["ttime"] + value["btime"] > 100
+                    not rawDelta
+                    and value["ttime"] + value["btime"] > 100
                     and value["stat"][self.nrthreadIdx] == "1"
                 ):
                     value["btime"] = 100 - value["ttime"]
@@ -242297,6 +242373,7 @@ function isAutoNamedPlot(name) {{
                 value["utime"] = long(nowData[self.utimeIdx] / interval)
                 if (
                     not SysMgr.totalEnable
+                    and not rawDelta
                     and value["utime"] >= 100
                     and value["stat"][self.nrthreadIdx] == "1"
                 ):
@@ -242309,6 +242386,7 @@ function isAutoNamedPlot(name) {{
                 value["stime"] = long(nowData[self.stimeIdx] / interval)
                 if (
                     not SysMgr.totalEnable
+                    and not rawDelta
                     and value["stime"] >= 100
                     and value["stat"][self.nrthreadIdx] == "1"
                 ):
@@ -242321,6 +242399,7 @@ function isAutoNamedPlot(name) {{
                 value["ttime"] = utick + stick
                 if (
                     not SysMgr.totalEnable
+                    and not rawDelta
                     and value["ttime"] >= 100
                     and value["stat"][self.nrthreadIdx] == "1"
                 ):
@@ -242342,6 +242421,7 @@ function isAutoNamedPlot(name) {{
                     value["btime"] = long(nowData[self.btimeIdx] / interval)
                 if (
                     not SysMgr.totalEnable
+                    and not rawDelta
                     and value["ttime"] + value["btime"] > 100
                     and value["stat"][self.nrthreadIdx] == "1"
                 ):
@@ -242353,7 +242433,11 @@ function isAutoNamedPlot(name) {{
                     value["rw"] = value["read"] + value["write"]
 
             # check delayacct_blkio_ticks error #
-            if not SysMgr.totalEnable and value["btime"] >= 100:
+            if (
+                not SysMgr.totalEnable
+                and not rawDelta
+                and value["btime"] >= 100
+            ):
                 value["btime"] = 0
 
     def getMemDetails(self, idx, maps, vss=0):
@@ -242873,7 +242957,7 @@ function isAutoNamedPlot(name) {{
                 % (
                     title,
                     SysMgr.uptime,
-                    SysMgr.uptimeDiff,
+                    SysMgr.realUptimeDiff,
                     dlttime if dlttime else datestr,
                     nrCtxt,
                     nrNewThreads,
@@ -242905,7 +242989,7 @@ function isAutoNamedPlot(name) {{
             jsonData["uptime"] = SysMgr.uptime
             jsonData["datetime"] = SysMgr.dateTime
             jsonData["startTime"] = SysMgr.startTime
-            jsonData["interval"] = SysMgr.uptimeDiff
+            jsonData["interval"] = SysMgr.realUptimeDiff
             jsonData["nrCtxt"] = nrCtxt
             jsonData["nrNewThreads"] = nrNewThreads
             jsonData["nrTermThreads"] = nrTermThreads
@@ -243591,7 +243675,7 @@ function isAutoNamedPlot(name) {{
                             - SysMgr.prevPsiData[res][attr]["total"]
                         )
                         / 10000.0
-                        / SysMgr.uptimeDiff,
+                        / SysMgr.realUptimeDiff,
                         100.0,
                     )
                     SysMgr.psiData[res][attr]["diff"] = diff
@@ -243997,7 +244081,7 @@ function isAutoNamedPlot(name) {{
                     iotime = (
                         value["iotime"] - prevStorageData[origDev]["iotime"]
                     )
-                    busyper = long(iotime / 10.0 / SysMgr.uptimeDiff)
+                    busyper = long(iotime / 10.0 / SysMgr.realUptimeDiff)
 
                 busyper = 100 if busyper > 100 else busyper
 
@@ -247223,7 +247307,7 @@ function isAutoNamedPlot(name) {{
                 sched = "?"
 
             try:
-                runtime = value["runtime"] + SysMgr.uptimeDiff
+                runtime = value["runtime"] + SysMgr.realUptimeDiff
                 lifeTime = UtilMgr.convTime(runtime)
                 if len(lifeTime.split(":")) > 3:
                     lifeTime = lifeTime[: lifeTime.rfind(":")]
@@ -251953,7 +252037,7 @@ function isAutoNamedPlot(name) {{
                 "value",
                 "INTERVALDIFF",
                 None,
-                target=SysMgr.uptimeDiff,
+                target=SysMgr.realUptimeDiff,
             )
         except SystemExit:
             sys.exit(0)
@@ -254992,7 +255076,7 @@ function isAutoNamedPlot(name) {{
                     pass
             if cond.get("UPTIMEDIFFCOND", -1.0) >= 0:
                 try:
-                    _ratio = SysMgr.uptimeDiff / max(
+                    _ratio = SysMgr.realUptimeDiff / max(
                         SysMgr.intervalEnable, 0.001
                     )
                     result = result and (_ratio >= cond["UPTIMEDIFFCOND"])
