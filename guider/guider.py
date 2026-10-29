@@ -189,6 +189,7 @@ class ConfigMgr(object):
         "GETANRINFO",
         "GETAPPSTAT",
         "GETBATTERYINFO",
+        "GETBROADCASTLIST",
         "GETCPUINFO",
         "GETDISPLAYINFO",
         "GETDOZEINFO",
@@ -40858,6 +40859,7 @@ class AndroidMgr(object):
     # file, e.g. "Registered N jobs:" is far below the top) #
     DUMP_SIGNS = (
         ("alarm", r"^Current Alarm Manager state:"),
+        ("activity broadcasts", r"^ACTIVITY MANAGER BROADCAST STATE "),
         ("procstats", r"^CURRENT STATS:"),
         ("activity services", r"^ACTIVITY MANAGER SERVICES "),
         ("activity activities", r"^ACTIVITY MANAGER ACTIVITIES "),
@@ -40877,6 +40879,7 @@ class AndroidMgr(object):
     DUMP_INPUT_CMDS = (
         "GETALARMLIST",
         "GETBATTERYINFO",
+        "GETBROADCASTLIST",
         "GETCPUINFO",
         "GETDISPLAYINFO",
         "GETDOZEINFO",
@@ -42555,6 +42558,291 @@ class AndroidMgr(object):
             "Total: %d services (%d foreground)" % (len(services), nrFg)
         )
 
+    # same independently-optional-unit shape as parseServiceDump()'s
+    # elapsedPat, extended to allow a leading "+" -- alarm's own
+    # elapsed fields are evenly split between past ("-19m8s5ms",
+    # already-fired/overdue) and future ("+19s426ms", scheduled
+    # ahead), device-verified roughly half-and-half on 5af877f6,
+    # whereas Service's createTime/lastActivity are always past #
+    elapsedPat = re.compile(
+        r"^[+-]?(?:(\d+)d)?(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?(?:(\d+)ms)?$"
+    )
+
+    @staticmethod
+    def _parseElapsedMs(s):
+        if not s:
+            return None
+        if s == "0":
+            return 0
+        m = AndroidMgr.elapsedPat.match(s)
+        if not m or not any(m.groups()):
+            return None
+        d, h, mnt, sec, ms = (int(g) if g else 0 for g in m.groups())
+        val = ((((d * 24 + h) * 60 + mnt) * 60 + sec) * 1000) + ms
+        return -val if s.startswith("-") else val
+
+    # actions that fire on a fixed timer and say nothing about what the
+    # device is doing; hidden by default (shown with "-q ALL"). Only what
+    # was measured as pure noise is listed: TIME_TICK every minute and the
+    # network-stats poll every 30 minutes #
+    BROADCAST_NOISE = (
+        "android.intent.action.TIME_TICK",
+        "com.android.server.action.NETWORK_STATS_POLL",
+    )
+
+    @staticmethod
+    def parseBroadcastDump(lines):
+        """
+        - desc: parse "dumpsys activity broadcasts" history
+        - return: list of records, newest first; a record from the detailed
+                  section has src "D" with its caller and receivers, one
+                  that only the summary section still holds has src "S"
+        """
+
+        # detailed section: one block per broadcast, receivers included #
+        detailHeadPat = re.compile(r"^\s+Historical Broadcast modern #(\d+):")
+        recordPat = re.compile(
+            r"^\s+BroadcastRecord\{\S+ (\S+?)/u(-?\d+)\} to user (-?\d+)"
+        )
+        intentPat = re.compile(r"^\s+Intent \{ (.*) \}\s*$")
+        callerPat = re.compile(
+            r"^\s+caller=(\S+) (\S+?) pid=(-?\d+) uid=(-?\d+)"
+        )
+        callerNamePat = re.compile(r"^\s+caller=(\S+) (\d+):(\S+?)/(\d+) pid=")
+        clockPat = re.compile(
+            r"^\s+enqueueClockTime=(\S+ \S+) dispatchClockTime=(\S+ \S+)"
+        )
+        timePat = re.compile(
+            r"^\s+dispatchTime=(\S+) \(\S+ since enq\) "
+            r"finishTime=(\S+) \(\+?(\S+?) since disp\)"
+        )
+        orderedPat = re.compile(r"\bordered=(true|false)")
+        receiverPat = re.compile(
+            r"^\s+(DELIVERED|SKIPPED|FAILURE|TIMEOUT|CANCELLED|PENDING)\b.*?"
+            r"#(\d+): (?:(BroadcastFilter)\{(.*)|(\(manifest\)))\s*$"
+        )
+        # a manifest-declared receiver is followed by its ActivityInfo,
+        # whose name/packageName identify it #
+        infoNamePat = re.compile(r"^\s+name=(\S+)\s*$")
+        infoPkgPat = re.compile(r"^\s+packageName=(\S+)\s*$")
+        # "ReceiverList{addr pid pkg/uid/uN remote:..}" names the process
+        # that registered the receiver #
+        listPat = re.compile(r"ReceiverList\{\S+ (\d+) (\S+?)/(\d+)/u(-?\d+)")
+        reasonPat = re.compile(r"^\s+reason: (.*)$")
+        actPat = re.compile(r"\bact=(\S+)")
+        pkgPat = re.compile(r"\bpkg=(\S+)")
+        cmpPat = re.compile(r"\bcmp=(\S+)")
+
+        # summary section: older history, no caller and no receivers #
+        sumHeadPat = re.compile(r"^\s+#(\d+): act=(\S+)(.*)$")
+        sumTimePat = re.compile(
+            r"^\s+enq=(\S+ \S+) disp=(\S+ \S+) fin=(\S+ \S+)"
+        )
+        sumLatPat = re.compile(r"^\s+(-?\d+) dispatch (\+?\S+) finish")
+        extrasPat = re.compile(r"^\s+extras: (.*)$")
+
+        detail = []
+        summary = []
+        section = None
+        cur = None
+        for raw in lines:
+            if "Historical broadcasts [modern]:" in raw:
+                section = "D"
+                cur = None
+                continue
+            elif "Historical broadcasts summary [modern]:" in raw:
+                section = "S"
+                cur = None
+                continue
+            elif raw.startswith("  Sticky broadcasts") or raw.startswith(
+                "  Queue modern"
+            ):
+                section = None
+                cur = None
+                continue
+
+            if section == "D":
+                m = detailHeadPat.match(raw)
+                if m:
+                    cur = {
+                        "src": "D",
+                        "no": int(m.group(1)),
+                        "action": "",
+                        "intent": "",
+                        "caller": "",
+                        "callerPid": None,
+                        "enq": "",
+                        "disp": "",
+                        "ordered": False,
+                        "elapsedMs": None,
+                        "receivers": [],
+                        "extras": False,
+                        "extrasText": "",
+                    }
+                    detail.append(cur)
+                    continue
+                elif cur is None:
+                    continue
+
+                m = recordPat.match(raw)
+                if m:
+                    cur["action"] = m.group(1)
+                    cur["user"] = int(m.group(3))
+                    continue
+                m = intentPat.match(raw)
+                if m:
+                    cur["intent"] = m.group(1)
+                    cur["extras"] = "(has extras)" in m.group(1)
+                    pm = pkgPat.search(m.group(1))
+                    cm = cmpPat.search(m.group(1))
+                    cur["target"] = (
+                        cm.group(1) if cm else (pm.group(1) if pm else "")
+                    )
+                    if not cur["action"]:
+                        am = actPat.search(m.group(1))
+                        cur["action"] = am.group(1) if am else ""
+                    continue
+                m = extrasPat.match(raw)
+                if m:
+                    cur["extrasText"] = m.group(1).strip()
+                    continue
+                m = callerNamePat.match(raw)
+                if m:
+                    # "caller=<pkg> <pid>:<proc>/<uid> pid=<pid> uid=<uid>" #
+                    cur["caller"] = m.group(1)
+                    cur["callerPid"] = int(m.group(2))
+                    um = re.search(r"\buid=(-?\d+)", raw)
+                    cur["callerUid"] = int(um.group(1)) if um else None
+                    continue
+                m = callerPat.match(raw)
+                if m:
+                    # "caller=<pkg> null pid=-1 uid=<uid>": sent by a
+                    # PendingIntent or by the system, no live process #
+                    cur["caller"] = m.group(1)
+                    pid = int(m.group(3))
+                    cur["callerPid"] = pid if pid > 0 else None
+                    cur["callerUid"] = int(m.group(4))
+                    continue
+                m = clockPat.match(raw)
+                if m:
+                    cur["enq"] = m.group(1)
+                    cur["disp"] = m.group(2)
+                    cur["dispatched"] = not m.group(2).startswith("1970-01-01")
+                    continue
+                m = timePat.match(raw)
+                if m:
+                    # a broadcast that was never dispatched (nobody to
+                    # deliver to) has dispatchClockTime=1970-01-01, and the
+                    # "since disp" counted from that epoch is not a duration #
+                    if cur.get("dispatched", True):
+                        cur["elapsedMs"] = AndroidMgr._parseElapsedMs(
+                            m.group(3)
+                        )
+                    continue
+                m = orderedPat.search(raw)
+                if m and "resultAbort=" in raw:
+                    cur["ordered"] = m.group(1) == "true"
+                    continue
+                m = receiverPat.match(raw)
+                if m:
+                    isManifest = bool(m.group(5))
+                    lm = None if isManifest else listPat.search(m.group(4))
+                    cur["receivers"].append(
+                        {
+                            "state": m.group(1),
+                            "kind": "manifest" if isManifest else "registered",
+                            "pid": int(lm.group(1)) if lm else None,
+                            "package": lm.group(2) if lm else "",
+                            "uid": int(lm.group(3)) if lm else None,
+                            "user": int(lm.group(4)) if lm else None,
+                            "class": "",
+                            "reason": "",
+                        }
+                    )
+                    continue
+                m = reasonPat.match(raw)
+                if m and cur["receivers"]:
+                    cur["receivers"][-1]["reason"] = m.group(1).strip()
+                    continue
+                # ActivityInfo of a manifest receiver: first name=/packageName=
+                # after its line belongs to it (a registered receiver has none) #
+                if (
+                    cur["receivers"]
+                    and cur["receivers"][-1]["kind"] == "manifest"
+                ):
+                    last = cur["receivers"][-1]
+                    m = infoPkgPat.match(raw)
+                    if m and not last["package"]:
+                        last["package"] = m.group(1)
+                        continue
+                    m = infoNamePat.match(raw)
+                    if m and not last["class"]:
+                        last["class"] = m.group(1)
+                        continue
+
+            elif section == "S":
+                m = sumHeadPat.match(raw)
+                if m:
+                    rest = m.group(3)
+                    pm = pkgPat.search(rest)
+                    cm = cmpPat.search(rest)
+                    cur = {
+                        "src": "S",
+                        "no": int(m.group(1)),
+                        "action": m.group(2),
+                        "intent": "act=%s%s" % (m.group(2), rest),
+                        "caller": "",
+                        "callerPid": None,
+                        "enq": "",
+                        "disp": "",
+                        "ordered": False,
+                        "elapsedMs": None,
+                        "receivers": [],
+                        "extras": "(has extras)" in rest,
+                        "extrasText": "",
+                        "target": (
+                            cm.group(1) if cm else (pm.group(1) if pm else "")
+                        ),
+                    }
+                    summary.append(cur)
+                    continue
+                elif cur is None:
+                    continue
+
+                m = sumTimePat.match(raw)
+                if m:
+                    cur["enq"] = m.group(1)
+                    cur["disp"] = m.group(2)
+                    continue
+                m = sumLatPat.match(raw)
+                if m:
+                    cur["elapsedMs"] = AndroidMgr._parseElapsedMs(m.group(2))
+                    continue
+                m = extrasPat.match(raw)
+                if m:
+                    cur["extrasText"] = m.group(1).strip()
+                    continue
+
+        # a record without a time cannot be placed in the history #
+        detail = [r for r in detail if r["enq"] and r["action"]]
+        summary = [r for r in summary if r["enq"] and r["action"]]
+
+        # the summary also lists the broadcasts the detailed section holds
+        # (same enqueue time and action); the detailed record wins #
+        seen = set((r["enq"], r["action"]) for r in detail)
+        records = detail + [
+            r for r in summary if (r["enq"], r["action"]) not in seen
+        ]
+        records.sort(key=lambda r: r["enq"], reverse=True)
+
+        if not records:
+            SysMgr.printWarn(
+                "failed to parse any broadcast from dumpsys output",
+                always=True,
+            )
+
+        return records
+
     @staticmethod
     def parseAlarmDump(lines):
         # each pending alarm is a flat block starting with
@@ -42591,27 +42879,7 @@ class AndroidMgr(object):
         opPkgPat = re.compile(
             r"operation=PendingIntent\{\S+: PendingIntentRecord\{\S+ (\S+) "
         )
-        # same independently-optional-unit shape as parseServiceDump()'s
-        # elapsedPat, extended to allow a leading "+" -- alarm's own
-        # elapsed fields are evenly split between past ("-19m8s5ms",
-        # already-fired/overdue) and future ("+19s426ms", scheduled
-        # ahead), device-verified roughly half-and-half on 5af877f6,
-        # whereas Service's createTime/lastActivity are always past #
-        elapsedPat = re.compile(
-            r"^[+-]?(?:(\d+)d)?(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?(?:(\d+)ms)?$"
-        )
-
-        def _parseElapsedMs(s):
-            if not s:
-                return None
-            if s == "0":
-                return 0
-            m = elapsedPat.match(s)
-            if not m or not any(m.groups()):
-                return None
-            d, h, mnt, sec, ms = (int(g) if g else 0 for g in m.groups())
-            val = ((((d * 24 + h) * 60 + mnt) * 60 + sec) * 1000) + ms
-            return -val if s.startswith("-") else val
+        _parseElapsedMs = AndroidMgr._parseElapsedMs
 
         alarms = []
         blocks = re.split(
@@ -43433,6 +43701,259 @@ class AndroidMgr(object):
                 pendingName = None
 
         return displays
+
+    @staticmethod
+    def getBroadcastList(pkg=""):
+        if pkg == "SET":
+            pkg = ""
+
+        # the dump only has wall clock times, so the uptime of a broadcast
+        # is its clock time minus the boot time of the device; a saved dump
+        # ("-I") cannot tell when its device booted #
+        bootEpoch = 0
+        if not AndroidMgr.hasDumpInput():
+            uptime = SysMgr.getUptime()
+            if uptime > 0:
+                bootEpoch = time.time() - uptime
+
+        lines = AndroidMgr._readDump(["activity", "broadcasts"])
+        if not lines:
+            SysMgr.printErr("failed to get broadcast info")
+            return
+        if AndroidMgr._checkDumpsysDenied(lines, "activity broadcasts"):
+            return
+
+        records = AndroidMgr.parseBroadcastDump(lines)
+        if not records:
+            return
+
+        detailTimes = [r["enq"] for r in records if r["src"] == "D"]
+        detailSince = min(detailTimes) if detailTimes else ""
+        hasSummaryOnly = any(r["src"] == "S" for r in records)
+        if not hasSummaryOnly:
+            # nothing is older than the detailed history, nothing to explain #
+            detailSince = ""
+
+        showAll = "ALL" in SysMgr.environList
+        showDetail = "DETAIL" in SysMgr.environList
+
+        # the time window uses the same SINCE/UNTIL options as the log
+        # commands: a plain number below zero is "seconds before now",
+        # anything else is a clock time; the records are timed by the
+        # device's own wall clock, so "now" is the newest record #
+        since, until = SysMgr.getTimeValues(["SINCE", "UNTIL"], 0)
+
+        def _epoch(t):
+            return (
+                UtilMgr.convStr2Time(t, "%Y-%m-%d %H:%M:%S.%f", True, False)
+                or 0
+            )
+
+        # None when unknown: a saved dump, or a clock time from before the
+        # boot (the clock was set after the broadcast) #
+        for r in records:
+            t = _epoch(r["enq"])
+            r["uptime"] = (
+                round(t - bootEpoch, 3)
+                if bootEpoch and t and t >= bootEpoch
+                else None
+            )
+
+        newest = _epoch(records[0]["enq"]) if records else 0
+        if since < 0:
+            since += newest
+        if until < 0:
+            until += newest
+        if since or until:
+            kept = []
+            for r in records:
+                t = _epoch(r["enq"])
+                if since and t < since:
+                    continue
+                if until and t > until:
+                    continue
+                kept.append(r)
+            records = kept
+
+        # the package filter matches the sender, the intent's own target,
+        # or any receiver's package (a summary-only record has just the
+        # target, since the dump does not print its sender or receivers) #
+        if pkg:
+            records = [
+                r
+                for r in records
+                if pkg in r["caller"]
+                or pkg in r.get("target", "")
+                or any(pkg in x["package"] for x in r["receivers"])
+            ]
+
+        hidden = {}
+        if not showAll:
+            shown = []
+            for r in records:
+                if r["action"] in AndroidMgr.BROADCAST_NOISE:
+                    hidden[r["action"]] = hidden.get(r["action"], 0) + 1
+                else:
+                    shown.append(r)
+            records = shown
+
+        # the parser returns the newest first (the order of the dump);
+        # the oldest comes first by default, like the log commands, so
+        # the newest sits right above the footer; both the table and -J
+        # follow this order #
+        if "DESC" not in SysMgr.environList:
+            records.reverse()
+
+        if SysMgr.jsonEnable:
+            SysMgr.printPipe(
+                UtilMgr.convDict2Str(
+                    {
+                        "broadcasts": records,
+                        "hidden": hidden,
+                        "detailSince": detailSince,
+                    }
+                )
+            )
+            return
+
+        SysMgr.setStream(cut=False)
+
+        # the system replaces the value of every extra it will not show with
+        # "STRIPPED=1"; that carries nothing, so it is not printed #
+        def _extrasStr(r, limit):
+            text = r.get("extrasText", "")
+            m = re.match(r"^Bundle\[\{(.*)\}\]$", text)
+            body = m.group(1) if m else text
+            if not body or body == "STRIPPED=1":
+                return ""
+            # "android.intent.extra.UID=1" -> "UID=1": the part before the
+            # last dot of a key is only its namespace #
+            body = re.sub(
+                r"(?:(?<=^)|(?<=, ))(?:[A-Za-z0-9_]+\.)+(?=[A-Za-z0-9_]+=)",
+                "",
+                body,
+            )
+            if limit and len(body) > limit:
+                body = body[: limit - 3] + "..."
+            return "[%s]" % body
+
+        def _rcvStr(r):
+            if r["src"] != "D":
+                # the summary history does not record the receivers #
+                return "-", "-"
+            skipped = sum(1 for x in r["receivers"] if x["state"] == "SKIPPED")
+            done = len(r["receivers"]) - skipped
+            return "%d/%d" % (done, len(r["receivers"])), skipped or ""
+
+        def _callerStr(r):
+            if r["src"] != "D":
+                # nor the sender #
+                return "-"
+            name = r["caller"] if r["caller"] != "null" else ""
+            if not name and r.get("callerUid") is not None:
+                # no package name was recorded: show the uid instead, so
+                # the sender can still be told apart (1000 = system) #
+                name = "uid:%s" % r["callerUid"]
+            elif not name:
+                name = "-"
+            if r["callerPid"]:
+                name = "%s(%s)" % (name, r["callerPid"])
+            return name
+
+        rows = []
+        for idx, r in enumerate(records, 1):
+            rcv, skip = _rcvStr(r)
+            # the action is the key name of a row, so it is the only part
+            # coloured; the Action column is the last one, hence the escape
+            # codes cannot shift any other column #
+            action = UtilMgr.convColor(r["action"], "CYAN")
+            if r.get("target"):
+                action += " -> %s" % r["target"]
+            if r["extras"]:
+                shown = _extrasStr(r, 0 if showDetail else 80)
+                action += " " + shown if shown else " (extras)"
+            rows.append(
+                (
+                    idx,
+                    r["enq"][5:],
+                    "-" if r["uptime"] is None else "%.3f" % r["uptime"],
+                    r["src"],
+                    "O" if r["ordered"] else "",
+                    _callerStr(r),
+                    rcv,
+                    skip,
+                    "" if r["elapsedMs"] is None else r["elapsedMs"],
+                    action,
+                )
+            )
+
+        callerWidth = max([len("Caller")] + [len(r[5]) for r in rows])
+        upWidth = max([len("Uptime")] + [len(r[2]) for r in rows])
+        fmt = (
+            "{0:>5} {1:<18} {2:>%d} {3:^3} {4:^3} {5:<%d} {6:>7} {7:>4} "
+            "{8:>8} {9}" % (upWidth, callerWidth)
+        )
+        header = fmt.format(
+            "No",
+            "Time",
+            "Uptime",
+            "Src",
+            "Ord",
+            "Caller",
+            "Rcv",
+            "Skip",
+            "Elapsed",
+            "Action",
+        )
+        SysMgr.printPipe("=" * len(header))
+        SysMgr.printPipe(header)
+        SysMgr.printPipe("-" * len(header))
+        for row, r in zip(rows, records):
+            SysMgr.printPipe(fmt.format(*row))
+            if showDetail and r.get("extrasText"):
+                SysMgr.printPipe("      extras    %s" % r["extrasText"])
+            if showDetail and r["receivers"]:
+                for x in r["receivers"]:
+                    who = x["package"] or "-"
+                    if x["class"]:
+                        who += "/" + x["class"]
+                    tail = x["state"]
+                    if x["reason"]:
+                        tail += " (%s)" % x["reason"]
+                    SysMgr.printPipe(
+                        "      %-9s %s%s %s"
+                        % (
+                            x["kind"],
+                            who,
+                            "" if x["uid"] is None else " uid=%s" % x["uid"],
+                            tail,
+                        )
+                    )
+
+        SysMgr.printPipe("-" * len(header))
+        hiddenStr = ""
+        if hidden:
+            hiddenStr = ", %d hidden (%s)" % (
+                sum(hidden.values()),
+                ", ".join(
+                    "%s x%d" % (k.split(".")[-1], v)
+                    for k, v in sorted(hidden.items())
+                ),
+            )
+        nrDetail = sum(1 for r in records if r["src"] == "D")
+        SysMgr.printPipe(
+            "Total: %d broadcasts shown (%d with sender/receivers)%s"
+            % (len(records), nrDetail, hiddenStr)
+        )
+
+        # the detailed history is only the last N broadcasts of the whole
+        # dump (not of what is shown), so its start is taken from there;
+        # anything older than that is a summary-only row #
+        if detailSince:
+            SysMgr.printPipe(
+                "Sender and receivers are known from %s on, older rows "
+                "are summary only (-)" % detailSince
+            )
 
     @staticmethod
     def getJobList(pkg=""):
@@ -46276,6 +46797,14 @@ class AndroidMgr(object):
                 "NOJOBLIST" not in SysMgr.environList,
                 ["andcmd", "getjoblist", "-o" + outPath + "joblist.txt"],
             ),
+            (
+                "NOBROADCASTLIST" not in SysMgr.environList,
+                [
+                    "andcmd",
+                    "getbroadcastlist",
+                    "-o" + outPath + "broadcastlist.txt",
+                ],
+            ),
             # the following GET* andcmd commands existed in ANDCMDLIST and
             # andcmd --help but were never wired into this COLLECT block,
             # so bugrep/bugrec silently produced a report missing battery/
@@ -47000,6 +47529,11 @@ class AndroidMgr(object):
             ("GETDOZEINFO", "dozeinfo", AndroidMgr.getDozeInfo),
             ("GETPROCSTATS", "procstats", AndroidMgr.getProcStats),
             ("GETJOBLIST", "joblist", AndroidMgr.getJobList),
+            (
+                "GETBROADCASTLIST",
+                "broadcastlist",
+                AndroidMgr.getBroadcastList,
+            ),
             ("SETORIENTATION", "orientation", AndroidMgr.setOrientation),
             ("TOGGLEWIFI", "togglewifi", AndroidMgr.toggleWifi),
             ("TOGGLEBT", "togglebt", AndroidMgr.toggleBt),
@@ -77169,6 +77703,7 @@ Examples:
         # {0:1} {1:1} -q NOOPENFILE, NOERR, NOPROP, NOSCR, NOPKGINFO, NOPKGLIST
         # {0:1} {1:1} -q NOWINSTAT, NOTASKSTAT, NOSURFACESTAT, NOSERVICESTAT
         # {0:1} {1:1} -q NOALARMLIST, NODOZEINFO, NOPROCSTATS, NOJOBLIST
+        # {0:1} {1:1} -q NOBROADCASTLIST
         # {0:1} {1:1} -q NOBATTERYINFO, NOANRINFO, NOCPUDUMPINFO, NODISPLAYINFO
         # {0:1} {1:1} -q NOFEATURELIST, NOLIBRARYLIST, NOUSERLIST, NOPOWERINFO
         # {0:1} {1:1} -q NOWAKELOCK, NOSELINUX, NOBINDERSTATS
@@ -77378,7 +77913,7 @@ Options:
 Examples:
     - Print the result of the saved dumpsys output instead of running dumpsys, even on a host without the device
       Each file is recognized by its contents, so the order does not matter and gzip or xz files are accepted
-      Usable with getalarmlist/getdozeinfo/getjoblist/getprocstats/getservicestat/getsurfacestat/getwindowstat/gettaskstat
+      Usable with getalarmlist/getbroadcastlist/getdozeinfo/getjoblist/getprocstats/getservicestat/getsurfacestat/getwindowstat/gettaskstat
       and with getwindowinfo/getbatteryinfo/getcpuinfo/getdisplayinfo/getpowerinfo/screeninfo that print the file as it is
       A command that joins several dumps shows the extra columns only for the dumps it was given
       The CPU/RSS/Cmdline of getservicestat and the package filter of getsurfacestat need the device and are skipped
@@ -77711,6 +78246,38 @@ Examples:
         Useful for spotting a process spent nearly its whole window in one state (e.g. 95%+ Cached, barely used yet still holding memory).
         A process can have more than one non-TOTAL state (e.g. split between Top and Fgs); only the dominant one is shown in the table.
         "-J" JSON mode exposes every state with its own min/avg/max instead.
+
+    - Print the history of received broadcasts (dumpsys activity broadcasts)
+        # {0:1} {1:1} getbroadcastlist
+        # {0:1} {1:1} getbroadcastlist:"com.android.systemui"
+        # {0:1} {1:1} getbroadcastlist -q DETAIL
+        # {0:1} {1:1} getbroadcastlist -q ALL
+        # {0:1} {1:1} getbroadcastlist -q DESC
+        # {0:1} {1:1} getbroadcastlist -q SINCE:-600
+        # {0:1} {1:1} getbroadcastlist -J
+
+        Per-broadcast columns:
+            No                    row number, in the order shown (oldest broadcast first, newest first with "-q DESC")
+            Time                  when the broadcast was enqueued (MM-DD HH:MM:SS.mmm, the device's clock); -J keeps the full date
+            Uptime                seconds since the device booted when it was enqueued (as in dmesg/logcat -b kernel); "-" for a saved dump (-I)
+            Src                   D = from the detailed history (sender and receivers known), S = only in the older summary history (not recorded)
+            Ord                   O = an ordered broadcast (delivered to one receiver after another), blank otherwise
+            Caller                sender package and pid; "uid:N" when no package name was recorded; "-" for an S row (not recorded)
+            Rcv                   receivers that got it / receivers it was sent to; "-" for an S row (not recorded)
+            Skip                  receivers the system skipped (e.g. the process was gone); blank when none, "-" for an S row
+            Elapsed               milliseconds from dispatch to finish
+            Action                intent action, "-> target" when it names a package or component, then the extras as [key=value, ...]
+
+        The history is a ring buffer of the system, so its depth depends on the device and on how busy it is.
+        The detailed history holds the last 256 broadcasts and the summary history a few hundred more (a device kept 1.7 days of it, another 1.3 hours).
+        Periodic broadcasts (TIME_TICK, NETWORK_STATS_POLL) are hidden; the footer says how many, and "-q ALL" shows them.
+        The footer also tells from when on the sender and receivers are known (-J: detailSince); older rows are summary only.
+        Extras are shortened (key namespace removed, cut at 80 characters); "(extras)" means they exist but the system hides their values.
+        The oldest broadcast comes first so the newest one is next to the footer; "-q DESC" prints the newest first.
+        "-q DETAIL" prints the full extras and every receiver under its broadcast: registered or manifest, package, uid, DELIVERED/SKIPPED and the reason.
+        Package matches the sender, the target, or any receiver's package; an S row can only match by its target.
+        "-q SINCE:<sec|time>" and "-q UNTIL:<sec|time>" keep a time window; a negative number counts back from the newest record.
+        "-J" JSON mode exposes every field, the receivers of each D row and the hidden counts.
 
     - Print JobScheduler's scheduled jobs (dumpsys jobscheduler)
         # {0:1} {1:1} getjoblist
