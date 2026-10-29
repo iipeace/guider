@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.9"
-__revision__ = "261023"
+__revision__ = "261029"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -40571,10 +40571,10 @@ class AndroidMgr(object):
     def getWindowInfo(pkg=""):
         if pkg == "SET":
             pkg = ""
-        cmd = ["dumpsys", "window"]
+        cmd = ["window"]
         if pkg:
             cmd += [pkg]
-        ret = SysMgr.executeCmdSync(cmd)
+        ret = AndroidMgr._readDump(cmd, whole=True)
         SysMgr.printPipe("\n".join(ret))
 
     @staticmethod
@@ -40699,6 +40699,12 @@ class AndroidMgr(object):
             "immediateTaskId": re.compile(
                 r"\bmActivityRecord=ActivityRecord\{\S+ \S+ \S+ t(\d+)\}"
             ),
+            # FLAG_DIM_BEHIND: the window asks WM to darken everything
+            # behind it (the dim amount itself is not printed here, it
+            # shows up as the alpha of SurfaceFlinger's "Dim Layer").
+            # Only the window's own "fl=" word list is read -- "pfl=" is
+            # the private-flags list, a different set of names #
+            "dim": re.compile(r"(?:^|\s)fl=[^\n]*?\bDIM_BEHIND\b", re.M),
         }
 
         def _flush():
@@ -40730,6 +40736,8 @@ class AndroidMgr(object):
                     info[key] = m.group(1) == "true"
                 elif key == "alpha":
                     info[key] = float(m.group(1))
+                elif key == "dim":
+                    info[key] = True
                 else:
                     info[key] = m.group(1)
 
@@ -40766,8 +40774,15 @@ class AndroidMgr(object):
             # a real window, risking data corruption on the last entry.
             # Rather than discard this trailing section, switch to
             # collecting it as global/display info instead #
-            if raw.startswith("  mGlobalConfiguration") or raw.startswith(
-                "AccessibilityController"
+            # "  Hiding System Alert Windows:" is a section of its own that
+            # follows the last window block and lists some windows AGAIN
+            # (as "#0 Window{...}", with their attributes); left inside
+            # the last block it makes that window look as if it had the
+            # flags of a different one (found with FLAG_DIM_BEHIND) #
+            if (
+                raw.startswith("  mGlobalConfiguration")
+                or raw.startswith("AccessibilityController")
+                or raw.startswith("  Hiding System Alert Windows")
             ):
                 _flush()
                 curNum = None
@@ -40824,9 +40839,11 @@ class AndroidMgr(object):
             globalInfo["displays"] = displays
 
         if not windowData:
-            SysMgr.printWarn(
-                "failed to parse any window from dumpsys output", always=True
-            )
+            if lines:
+                SysMgr.printWarn(
+                    "failed to parse any window from dumpsys output",
+                    always=True,
+                )
             return windowData, globalInfo
 
         if focusAddrs:
@@ -40834,6 +40851,159 @@ class AndroidMgr(object):
                 info["focused"] = info.get("addr") in focusAddrs
 
         return windowData, globalInfo
+
+    # identifying lines of the dumpsys outputs that "-I <file>[,<file>]" can
+    # supply. deviceidle and jobscheduler both start with "Settings:", so
+    # each is recognized by a line that only it has (found anywhere in the
+    # file, e.g. "Registered N jobs:" is far below the top) #
+    DUMP_SIGNS = (
+        ("alarm", r"^Current Alarm Manager state:"),
+        ("procstats", r"^CURRENT STATS:"),
+        ("activity services", r"^ACTIVITY MANAGER SERVICES "),
+        ("activity activities", r"^ACTIVITY MANAGER ACTIVITIES "),
+        ("activity recents", r"^ACTIVITY MANAGER RECENT TASKS "),
+        ("display", r"^DISPLAY MANAGER "),
+        ("power", r"^POWER MANAGER "),
+        ("battery", r"^Current Battery Service state:"),
+        ("cpuinfo", r"^Load: "),
+        ("SurfaceFlinger", r"^Build configuration: \[sf "),
+        ("window", r"^WINDOW MANAGER "),
+        ("jobscheduler", r"^Registered \d+ jobs:"),
+        ("deviceidle", r"^  mState=\w+ mLightState="),
+    )
+    dumpInputs = None
+    # the only andcmd commands that read "-I"; every other andcmd command
+    # ignores it exactly as before #
+    DUMP_INPUT_CMDS = (
+        "GETALARMLIST",
+        "GETBATTERYINFO",
+        "GETCPUINFO",
+        "GETDISPLAYINFO",
+        "GETDOZEINFO",
+        "GETJOBLIST",
+        "GETPOWERINFO",
+        "GETPROCSTATS",
+        "GETSERVICESTAT",
+        "GETSURFACESTAT",
+        "GETTASKSTAT",
+        "GETWINDOWINFO",
+        "GETWINDOWSTAT",
+        "SCREENINFO",
+    )
+
+    @staticmethod
+    def hasDumpInput():
+        """
+        - desc: True only when "-I" was given AND every andcmd command that
+                was asked for reads it
+        """
+
+        if not SysMgr.inputParam:
+            return False
+
+        asked = [c for c in ConfigMgr.ANDCMDLIST if SysMgr.environList.get(c)]
+        return bool(asked) and all(
+            c in AndroidMgr.DUMP_INPUT_CMDS for c in asked
+        )
+
+    @staticmethod
+    def _loadDumpInputs():
+        """
+        - desc: read the "-I" files once and sort them by dumpsys service
+        - return: {service: [lines]}, or None if "-I" was not given
+        """
+
+        if not AndroidMgr.hasDumpInput():
+            return None
+        elif AndroidMgr.dumpInputs is not None:
+            return AndroidMgr.dumpInputs
+
+        found = {}
+        for path in UtilMgr.cleanItem(SysMgr.inputParam.split(",")):
+            fd = SysMgr.getCompFd(path, perm="rb", raw=True)
+            if not fd:
+                SysMgr.printErr("failed to open the dumpsys file '%s'" % path)
+                sys.exit(-1)
+
+            try:
+                data = fd.read()
+            finally:
+                fd.close()
+
+            try:
+                text = data.decode("utf-8", errors="replace")
+            except Exception:
+                text = str(data)
+            lines = text.split("\n")
+
+            kind = None
+            for service, sign in AndroidMgr.DUMP_SIGNS:
+                pat = re.compile(sign)
+                if any(pat.match(l) for l in lines):
+                    kind = service
+                    break
+
+            if kind is None:
+                SysMgr.printErr(
+                    "failed to recognize which dumpsys '%s' is" % path
+                )
+                sys.exit(-1)
+
+            found[kind] = lines
+
+        AndroidMgr.dumpInputs = found
+        return found
+
+    @staticmethod
+    def _cutWindowSection(lines, name):
+        """
+        - desc: cut one "WINDOW MANAGER <NAME> (dumpsys window <name>)"
+                section out of a whole "dumpsys window" output
+        """
+
+        pat = re.compile(r"^WINDOW MANAGER [A-Z ]+ \(dumpsys window (\w+)\)")
+        start = None
+        for i, l in enumerate(lines):
+            m = pat.match(l)
+            if not m:
+                continue
+            elif start is not None:
+                return lines[start:i]
+            elif m.group(1) == name:
+                start = i
+        return lines[start:] if start is not None else []
+
+    @staticmethod
+    def _readDump(args, optional=False, whole=False):
+        """
+        - desc: get the text of "dumpsys <args>" from the "-I" files if they
+                were given, otherwise run the command as usual
+        - arg: args is the list after "dumpsys", e.g. ["window", "windows"]
+        - arg: optional is True for a dump that only adds columns
+        - arg: whole is True to hand a whole "dumpsys window" file back as it
+               is instead of cutting one section out of it
+        """
+
+        inputs = AndroidMgr._loadDumpInputs()
+        if inputs is None:
+            return SysMgr.executeCmdSync(["dumpsys"] + list(args))
+
+        service = " ".join(args)
+        if service in inputs:
+            return list(inputs[service])
+
+        # one section of a whole "dumpsys window" file #
+        if args and args[0] == "window" and "window" in inputs:
+            if whole or len(args) == 1:
+                return list(inputs["window"])
+            return AndroidMgr._cutWindowSection(inputs["window"], args[1])
+
+        if not optional:
+            SysMgr.printErr(
+                "no 'dumpsys %s' in the -I files (%s)"
+                % (service, ", ".join(sorted(inputs.keys())) or "none")
+            )
+        return []
 
     @staticmethod
     def _checkDumpsysDenied(lines, service):
@@ -40930,11 +41100,19 @@ class AndroidMgr(object):
             )
         )
 
-        cmd = ["dumpsys", "window", "windows"]
-        lines = SysMgr.executeCmdSync(cmd)
+        lines = AndroidMgr._readDump(["window", "windows"])
         if not lines:
             SysMgr.printErr("failed to get window info")
             return
+        # a whole "dumpsys window" prints its windows without the "Frames:"
+        # line that the Size column is built from; tell why Size is empty #
+        if AndroidMgr.hasDumpInput() and not any(
+            "Frames: parent=" in l for l in lines
+        ):
+            SysMgr.printInfo(
+                "no 'Frames:' line in the window dump, Size stays empty "
+                "(save it with 'dumpsys window windows')"
+            )
         if AndroidMgr._checkDumpsysDenied(lines, "window windows"):
             return
 
@@ -40942,7 +41120,11 @@ class AndroidMgr(object):
         # (only present when an a11y observer is registered) and never
         # reflects "wm size" overrides -- dumpsys display's
         # mOverrideDisplayInfo is always present and does #
-        displayLines = SysMgr.executeCmdSync(["dumpsys", "display"])
+        displayLines = AndroidMgr._readDump(["display"], optional=True)
+        if AndroidMgr.hasDumpInput() and not displayLines:
+            SysMgr.printInfo(
+                "no 'dumpsys display' in the -I files, the Displays line is skipped"
+            )
 
         windowData, globalInfo = AndroidMgr.parseWindowDump(
             lines, displayLines
@@ -40954,7 +41136,14 @@ class AndroidMgr(object):
         # a window's own rootTaskId says WHICH task it belongs to, but
         # not whether that task is currently fullscreen or split-screen,
         # which only "dumpsys activity activities" exposes #
-        actLines = SysMgr.executeCmdSync(["dumpsys", "activity", "activities"])
+        actLines = AndroidMgr._readDump(
+            ["activity", "activities"], optional=True
+        )
+        if AndroidMgr.hasDumpInput() and not actLines:
+            SysMgr.printInfo(
+                "no 'dumpsys activity activities' in the -I files, "
+                "TaskMode and RootTask stay empty"
+            )
         taskData, _ = AndroidMgr.parseActivityDump(actLines)
 
         if SysMgr.jsonEnable:
@@ -40989,6 +41178,7 @@ class AndroidMgr(object):
                     else None
                 )
                 entry["winTypeName"] = _resolveWinType(info.get("winType"))
+                entry["dim"] = bool(info.get("dim"))
                 jsonWindows[num] = entry
             SysMgr.printPipe(
                 UtilMgr.convDict2Str(
@@ -41133,6 +41323,12 @@ class AndroidMgr(object):
                 vis = UtilMgr.convColor(vis, "GREEN")
             focus = "*" if info.get("focused") else ""
             anim = "*" if info.get("enterAnimPending") else ""
+            # FLAG_DIM_BEHIND: this window darkens what is behind it #
+            dimCol = "O" if info.get("dim") else ""
+            if dimCol:
+                dimCol = UtilMgr.convColor("{0:^3}".format(dimCol), "YELLOW")
+            else:
+                dimCol = "{0:^3}".format("")
 
             alphaVal = info.get("alpha")
             alpha = "%.2f" % alphaVal if alphaVal is not None else ""
@@ -41218,6 +41414,7 @@ class AndroidMgr(object):
                     vis,
                     focus,
                     anim,
+                    dimCol,
                     alpha,
                     rootTask,
                     winTypeCol,
@@ -41228,7 +41425,7 @@ class AndroidMgr(object):
         actWidth = max([len("Activity")] + [len(r[5]) for r in rowList])
         fmt = (
             "{0:>3} {1:>2} {2:>4} {3:>6} {4:<%d} {5:<%d} {6:<13} {7:<22} "
-            "{8} {9:^5} {10:^4} {11} {12:<%d} {13}"
+            "{8} {9:^5} {10:^4} {11} {12} {13:<%d} {14}"
             % (pkgWidth, actWidth, rootTaskWidth)
         )
         header = fmt.format(
@@ -41243,6 +41440,7 @@ class AndroidMgr(object):
             "{0:^{1}}".format("Vis", visWidth),
             "Focus",
             "Anim",
+            "{0:^3}".format("Dim"),
             "{0:^{1}}".format("Alpha", alphaWidth),
             "RootTask",
             "WinType",
@@ -41481,7 +41679,7 @@ class AndroidMgr(object):
                 curBlock.append(raw)
         _flush()
 
-        if not taskData:
+        if not taskData and lines:
             SysMgr.printWarn(
                 "failed to parse any task from dumpsys output", always=True
             )
@@ -41547,8 +41745,7 @@ class AndroidMgr(object):
         if pkg == "SET":
             pkg = ""
 
-        cmd = ["dumpsys", "activity", "activities"]
-        lines = SysMgr.executeCmdSync(cmd)
+        lines = AndroidMgr._readDump(["activity", "activities"])
         if not lines:
             SysMgr.printErr("failed to get activity info")
             return
@@ -41572,21 +41769,28 @@ class AndroidMgr(object):
         # attributes every window to whichever task IS that topmost
         # ancestor, and correctly leaves nested child tasks at 0 since
         # their own windows (if any) are attributed to the root instead #
-        winLines = SysMgr.executeCmdSync(["dumpsys", "window", "windows"])
+        winLines = AndroidMgr._readDump(["window", "windows"], optional=True)
+        if AndroidMgr.hasDumpInput() and not winLines:
+            SysMgr.printInfo(
+                "no 'dumpsys window' in the -I files, Win and VisWin stay empty"
+            )
         windowData, _ = AndroidMgr.parseWindowDump(winLines)
         winCounts = {}
         for info in windowData.values():
             rtid = info.get("rootTaskId")
             if not rtid:
                 continue
-            c = winCounts.setdefault(rtid, {"win": 0, "vis": 0})
+            c = winCounts.setdefault(rtid, {"win": 0, "vis": 0, "dim": 0})
             c["win"] += 1
             if info.get("visible"):
                 c["vis"] += 1
+            if info.get("dim"):
+                c["dim"] += 1
         for taskId, info in taskData.items():
-            c = winCounts.get(taskId, {"win": 0, "vis": 0})
+            c = winCounts.get(taskId, {"win": 0, "vis": 0, "dim": 0})
             info["winCount"] = c["win"]
             info["visWinCount"] = c["vis"]
+            info["dimWinCount"] = c["dim"]
 
         # join against dumpsys activity recents' own most-recently-used
         # ordering -- a different axis than this task's taskId or
@@ -41598,7 +41802,14 @@ class AndroidMgr(object):
         # missing entry here is expected and left as None rather than
         # treated as an error -- recents being denied/empty must not
         # break gettaskstat's primary Task listing #
-        recentLines = SysMgr.executeCmdSync(["dumpsys", "activity", "recents"])
+        recentLines = AndroidMgr._readDump(
+            ["activity", "recents"], optional=True
+        )
+        if AndroidMgr.hasDumpInput() and not recentLines:
+            SysMgr.printInfo(
+                "no 'dumpsys activity recents' in the -I files, "
+                "Seq and Inactive stay empty"
+            )
         recentOrder = AndroidMgr._parseRecentOrder(recentLines)
         recentActiveTime = AndroidMgr._parseRecentActiveTime(recentLines)
         for taskId, info in taskData.items():
@@ -41765,6 +41976,8 @@ class AndroidMgr(object):
             depthCol = info.get("sz") or ""
             winCol = info.get("winCount") or ""
             visWinCol = info.get("visWinCount") or ""
+            # O = at least one window of this task has FLAG_DIM_BEHIND #
+            dimCol = "O" if info.get("dimWinCount") else ""
 
             # "dumpsys activity recents"'s own most-recently-used index
             # (0 = top of stack) -- a different ordering axis than
@@ -41821,6 +42034,7 @@ class AndroidMgr(object):
                     org,
                     winCol,
                     visWinCol,
+                    dimCol,
                 )
             else:
                 row = (
@@ -41843,6 +42057,7 @@ class AndroidMgr(object):
                     org,
                     winCol,
                     visWinCol,
+                    dimCol,
                 )
             return row, visible, curPkg
 
@@ -41939,7 +42154,7 @@ class AndroidMgr(object):
             fmt = (
                 "{0:>7} {1:>2} {2:>4} {3:>6} {4:<13} {5:<10} {6:<%d} {7:<%d} "
                 "{8} {9:^5} {10:^4} {11} {12:>3} {13:>3} {14:<12} "
-                "{15:^3} {16:>3} {17:>6}" % (pkgWidth, actWidth)
+                "{15:^3} {16:>3} {17:>6} {18:^3}" % (pkgWidth, actWidth)
             )
             header = fmt.format(
                 "TaskId",
@@ -41960,12 +42175,14 @@ class AndroidMgr(object):
                 "Org",
                 "Win",
                 "VisWin",
+                "Dim",
             )
         else:
             fmt = (
                 "{0:>7} {1:>7} {2:>2} {3:>4} {4:>6} {5:<13} {6:<10} {7:<%d} "
                 "{8:<%d} {9} {10:^5} {11:^4} {12} {13:>3} {14:>3} "
-                "{15:<12} {16:^3} {17:>3} {18:>6}" % (pkgWidth, actWidth)
+                "{15:<12} {16:^3} {17:>3} {18:>6} {19:^3}"
+                % (pkgWidth, actWidth)
             )
             header = fmt.format(
                 "TaskId",
@@ -41987,6 +42204,7 @@ class AndroidMgr(object):
                 "Org",
                 "Win",
                 "VisWin",
+                "Dim",
             )
         SysMgr.printPipe("=" * len(header))
         if showTree:
@@ -42122,8 +42340,7 @@ class AndroidMgr(object):
         if pkg == "SET":
             pkg = ""
 
-        cmd = ["dumpsys", "activity", "services"]
-        lines = SysMgr.executeCmdSync(cmd)
+        lines = AndroidMgr._readDump(["activity", "services"])
         if not lines:
             SysMgr.printErr("failed to get service info")
             return
@@ -42147,9 +42364,12 @@ class AndroidMgr(object):
         stimeIdx = ConfigMgr.PROCSTAT_ATTR_DICT["STIME"]
         rssIdx = ConfigMgr.PROCSTAT_ATTR_DICT["RSS"]
         commIdx = ConfigMgr.PROCSTAT_ATTR_DICT["COMM"]
+        # with "-I" the dump comes from a file, so the pid of a service
+        # is not a process of THIS machine -- reading /proc/<pid> would
+        # show an unrelated process instead; CPU/RSS/Cmdline stay empty #
         for svc in services:
             pid = svc.get("pid")
-            if not pid or pid in pidCache:
+            if AndroidMgr.hasDumpInput() or not pid or pid in pidCache:
                 continue
             entry = {"cpuTicks": None, "rss": None, "cmdline": None}
             try:
@@ -42443,8 +42663,7 @@ class AndroidMgr(object):
         if pkg == "SET":
             pkg = ""
 
-        cmd = ["dumpsys", "alarm"]
-        lines = SysMgr.executeCmdSync(cmd)
+        lines = AndroidMgr._readDump(["alarm"])
         if not lines:
             SysMgr.printErr("failed to get alarm info")
             return
@@ -42616,8 +42835,7 @@ class AndroidMgr(object):
         if pkg == "SET":
             pkg = ""
 
-        cmd = ["dumpsys", "deviceidle"]
-        lines = SysMgr.executeCmdSync(cmd)
+        lines = AndroidMgr._readDump(["deviceidle"])
         if not lines:
             SysMgr.printErr("failed to get device-idle info")
             return
@@ -42808,8 +43026,7 @@ class AndroidMgr(object):
         if pkg == "SET":
             pkg = ""
 
-        cmd = ["dumpsys", "procstats"]
-        lines = SysMgr.executeCmdSync(cmd)
+        lines = AndroidMgr._readDump(["procstats"])
         if not lines:
             SysMgr.printErr("failed to get process stats info")
             return
@@ -43085,6 +43302,15 @@ class AndroidMgr(object):
                     "stride": int(abm.group(3)),
                     "format": abm.group(4),
                 }
+            # WindowManager's dimmer (FLAG_DIM_BEHIND windows, dialogs) is
+            # a solid-color layer literally named "Dim Layer for - <what
+            # it dims>"; the 4th value of its color is how dark it is
+            # (0 = clear, 1 = black). The unrelated "dimming enabled=" /
+            # "dimmingRatio" fields in the same dump are about display
+            # brightness and must not be read as this. Only a dimmer has
+            # the key, so a plain layer stays exactly as before #
+            if info["name"].startswith("Dim Layer for") and info.get("color"):
+                info["dim"] = round(info["color"][3], 2)
             layers[lid] = info
 
         if not layers:
@@ -43213,8 +43439,7 @@ class AndroidMgr(object):
         if pkg == "SET":
             pkg = ""
 
-        cmd = ["dumpsys", "jobscheduler"]
-        lines = SysMgr.executeCmdSync(cmd)
+        lines = AndroidMgr._readDump(["jobscheduler"])
         if not lines:
             SysMgr.printErr("failed to get job scheduler info")
             return
@@ -43300,8 +43525,7 @@ class AndroidMgr(object):
         if pkg == "SET":
             pkg = ""
 
-        cmd = ["dumpsys", "SurfaceFlinger"]
-        lines = SysMgr.executeCmdSync(cmd)
+        lines = AndroidMgr._readDump(["SurfaceFlinger"])
         if not lines:
             SysMgr.printErr("failed to get SurfaceFlinger info")
             return
@@ -43330,7 +43554,13 @@ class AndroidMgr(object):
         # substring-match way every other GET* command's pkg filter
         # works, instead of inventing a uid-only filter syntax #
         uidToPkg = {}
-        if pkg:
+        if pkg and AndroidMgr.hasDumpInput():
+            SysMgr.printWarn(
+                "the package filter needs the packages of the device, "
+                "which a dumpsys file does not have -- use the layer name",
+                True,
+            )
+        elif pkg:
             for appname, info in AndroidMgr.getPkgList().items():
                 try:
                     uidToPkg.setdefault(int(info["uid"]), []).append(appname)
@@ -43450,7 +43680,7 @@ class AndroidMgr(object):
         # long a real package/activity-qualified name gets #
         fmt = (
             "{0:>6} {1:>7} {2:>6} {3:<20} {4:>8} {5:<9} "
-            "{6:>24} {7:>24} {8:>9} {9:^5} {10}"
+            "{6:>24} {7:>24} {8:>9} {9:^5} {10:>4} {11}"
         )
         header = fmt.format(
             "No",
@@ -43463,6 +43693,7 @@ class AndroidMgr(object):
             "SrcCrop",
             "FrameRate",
             "Focus",
+            "Dim",
             "Name",
         )
         SysMgr.printPipe("=" * len(header))
@@ -43493,6 +43724,13 @@ class AndroidMgr(object):
             if l["focused"]:
                 nrFocused += 1
             focusCol = "O" if l["focused"] else ""
+            # a dimmer row: how dark it is, from the layer it maps to #
+            dimLid = nameToLid.get(l["name"])
+            dimCol = (
+                ("%.2f" % layers[dimLid]["dim"])
+                if dimLid is not None and "dim" in layers[dimLid]
+                else ""
+            )
             SysMgr.printPipe(
                 fmt.format(
                     nrPrinted,
@@ -43505,6 +43743,7 @@ class AndroidMgr(object):
                     "[%.1f,%.1f,%.1f,%.1f]" % tuple(l["srcCrop"]),
                     l["frameRate"] or "",
                     focusCol,
+                    dimCol,
                     l["name"],
                 )
             )
@@ -43523,7 +43762,10 @@ class AndroidMgr(object):
         # Name sits LAST and unpadded (not clipped to a fixed width) so
         # the "`- " nesting prefix plus a long package/activity-
         # qualified name never gets truncated regardless of depth #
-        fmt = "{0:>9} {1:>5} {2:>5} {3:>8} {4:>7} {5:<13} " "{6:^4} {7:^3} {8}"
+        fmt = (
+            "{0:>9} {1:>5} {2:>5} {3:>8} {4:>7} {5:<13} "
+            "{6:^4} {7:^3} {8:>4} {9}"
+        )
         header = fmt.format(
             "LayerId",
             "Disp",
@@ -43533,6 +43775,7 @@ class AndroidMgr(object):
             "Size",
             "Vis",
             "Op",
+            "Dim",
             "Name",
         )
         SysMgr.printPipe("=" * len(header))
@@ -43586,6 +43829,7 @@ class AndroidMgr(object):
                 sizeCol,
                 "V" if info.get("visible") else "",
                 "O" if info.get("isOpaque") else "",
+                ("%.2f" % info["dim"]) if "dim" in info else "",
                 name,
             )
 
@@ -43645,8 +43889,7 @@ class AndroidMgr(object):
 
     @staticmethod
     def getBatteryInfo():
-        cmd = ["dumpsys", "battery"]
-        ret = SysMgr.executeCmdSync(cmd)
+        ret = AndroidMgr._readDump(["battery"])
         SysMgr.printPipe("\n".join(ret))
 
     @staticmethod
@@ -43684,8 +43927,7 @@ class AndroidMgr(object):
 
     @staticmethod
     def getCpuInfo():
-        cmd = ["dumpsys", "cpuinfo"]
-        ret = SysMgr.executeCmdSync(cmd)
+        ret = AndroidMgr._readDump(["cpuinfo"])
         SysMgr.printPipe("\n".join(ret))
 
     @staticmethod
@@ -43745,14 +43987,12 @@ class AndroidMgr(object):
 
     @staticmethod
     def getDisplayInfo():
-        cmd = ["dumpsys", "display"]
-        ret = SysMgr.executeCmdSync(cmd)
+        ret = AndroidMgr._readDump(["display"])
         SysMgr.printPipe("\n".join(ret))
 
     @staticmethod
     def getPowerInfo():
-        cmd = ["dumpsys", "power"]
-        ret = SysMgr.executeCmdSync(cmd)
+        ret = AndroidMgr._readDump(["power"])
         SysMgr.printPipe("\n".join(ret))
 
     @staticmethod
@@ -44441,8 +44681,7 @@ class AndroidMgr(object):
 
     @staticmethod
     def printScreenInfo():
-        cmd = ["dumpsys", "activity", "activities"]
-        ret = SysMgr.executeCmdSync(cmd)
+        ret = AndroidMgr._readDump(["activity", "activities"])
 
         # AOSP's real dump chain (ActivityTaskSupervisor.dump() ->
         # RootWindowContainer.dump() -> DisplayContent.dump(), confirmed
@@ -56105,9 +56344,19 @@ Commands:
                 if pid in runList or SysMgr.isAlive(pid):
                     continue
 
-                SysMgr.eventCommandList[event].remove(pid)
+                # this function can be re-entered from the request handler #
+                # while this loop is running, so the event or the pid may #
+                # have been removed from the live list already #
+                curList = SysMgr.eventCommandList.get(event)
+                if curList is None:
+                    break
 
-                if not SysMgr.eventCommandList[event]:
+                try:
+                    curList.remove(pid)
+                except ValueError:
+                    pass
+
+                if not curList:
                     SysMgr.eventCommandList.pop(event, None)
 
         for event in UtilMgr.deepcopy(SysMgr.eventLockList):
@@ -67095,6 +67344,8 @@ Commands:
         def _checkMode():
             if len(sys.argv) == 1:
                 return True
+            elif _isDumpInputRun():
+                return True
 
             cmd = sys.argv[1]
 
@@ -67174,6 +67425,23 @@ Commands:
             return False
 
         SysMgr.platform = sys.platform
+
+        def _isDumpInputRun():
+            # "andcmd <command> -I <dumpsys file>" only reads saved dumpsys
+            # output, so it can run anywhere -- but only for the commands
+            # that actually read "-I" (AndroidMgr.DUMP_INPUT_CMDS); any
+            # other andcmd command keeps being refused on a host. The
+            # platform checks run before the options are parsed, hence the
+            # look at the raw arguments: the command is always the first
+            # one after "andcmd" and "-I" is the option itself #
+            if len(sys.argv) < 4 or sys.argv[1] != "andcmd":
+                return False
+
+            names = sys.argv[2].split(":", 1)[0].upper().split(",")
+            return all(n in AndroidMgr.DUMP_INPUT_CMDS for n in names) and any(
+                a == "-I" or (a.startswith("-I") and len(a) > 2)
+                for a in sys.argv[3:]
+            )
 
         def _checkOS():
             if len(sys.argv) == 1:
@@ -67257,6 +67525,7 @@ Commands:
                     "watchprop",
                 )
                 and (not SysMgr.findOption("f") and not SysMgr.isHelpMode())
+                and not _isDumpInputRun()
             ):
                 SysMgr.printErr(
                     "'%s' command is not supported on '%s' platform"
@@ -77080,6 +77349,7 @@ Examples:
                         """
 Options:
     -g  <COMM|PID|TID|APP>      set task filter
+    -I  <FILE{,FILE}>           set saved dumpsys output as the input
     -o  <DIR|FILE>              set output path
     -a                          set target to system
     -R  <TIME>                  set timer
@@ -77106,6 +77376,17 @@ Options:
                     helpStr += (
                         r"""
 Examples:
+    - Print the result of the saved dumpsys output instead of running dumpsys, even on a host without the device
+      Each file is recognized by its contents, so the order does not matter and gzip or xz files are accepted
+      Usable with getalarmlist/getdozeinfo/getjoblist/getprocstats/getservicestat/getsurfacestat/getwindowstat/gettaskstat
+      and with getwindowinfo/getbatteryinfo/getcpuinfo/getdisplayinfo/getpowerinfo/screeninfo that print the file as it is
+      A command that joins several dumps shows the extra columns only for the dumps it was given
+      The CPU/RSS/Cmdline of getservicestat and the package filter of getsurfacestat need the device and are skipped
+        # {0:1} {1:1} getalarmlist -I dumpsys_alarm.txt
+        # {0:1} {1:1} getwindowstat -I dumpsys_window.txt,dumpsys_activity.txt
+        # {0:1} {1:1} gettaskstat -I dumpsys_activity.txt,dumpsys_window.txt
+        # {0:1} {1:1} getjoblist -I dumpsys_jobscheduler.txt.gz
+
     - Print package list
         # {0:1} {1:1} getpkglist -q INCVER, INCPROC, ONLYPROC, ONLYENABLE, SHOWALL
         # {0:1} {1:1} getpkglist -q CONVUSER, TREE, PKGSORT:debuggable, PKGSORTREVERSE
@@ -77223,6 +77504,7 @@ Examples:
             TaskMode              this window's root task's Mode (fullscreen/multi-window), joined from "gettaskstat"
             Focus                 marks the window currently holding IME input focus
             Anim                  marks a window whose enter animation hasn't finished yet
+            Dim                   O = the window has FLAG_DIM_BEHIND (it darkens what is behind it); how dark is in getsurfacestat's Dim
             Alpha                 current Surface alpha (opacity); highlighted when below 1.0 (fading in/out)
             RootTask              the window's immediate task ID; "*" marks a window nested under a different root task
             WinType               this window's AOSP/AAOS window type (ty=), with a "/AppOp" suffix when AppOp isn't NONE
@@ -77263,6 +77545,7 @@ Examples:
             Inactive              elapsed time since last active (dumpsys's "inactive for Ns", as d:HH:MM:SS); blank if no recents entry
             Org                   "*" when this task is registered with a TaskOrganizer (System UI/Shell split-screen or PiP)
             Win/VisWin            number of WindowManager windows (and how many visible) whose rootTaskId points to this task
+            Dim                   O = at least one of this task's windows has FLAG_DIM_BEHIND (JSON: dimWinCount); blank when it has no window
 
         Drawn/AVis are per-activity signals distinct from the Task-level State/Vis columns, and both read blank when the task has no Hist entry at all.
         Seq is also the table's default sort key (recents-having tasks first by this value, then the rest by TaskId) unless "-q DUMPORDER" is set.
@@ -77295,6 +77578,7 @@ Examples:
             DispFrame/SrcCrop     destination and source rectangles, both as [L,T,R,B]
             FrameRate             this layer's own explicit frame-rate vote, if any; blank when none is set (the common case)
             Focus                 O = this display's currently focused layer, blank otherwise
+            Dim                   how dark a WindowManager dimmer layer ("Dim Layer for - ...") makes what is behind it, 0 = clear, 1 = black
             Name                  the composited layer's own name, same "#N" id suffix as "-q TREE"'s Name column; always LAST and unclipped
 
         Per-layer columns ("-q TREE", the real SurfaceFlinger parent/child hierarchy instead of the flat composited view):
@@ -77306,6 +77590,7 @@ Examples:
             Size                  this layer's actual rendered buffer size as [WxH]; blank for a layer with no buffer of its own (a pure container)
             Vis                   V = this layer's VisibleRegion is non-empty, blank = currently not contributing any visible pixels
             Op                    O = isOpaque is set on this layer, blank otherwise
+            Dim                   same as the flat view: the darkness of a "Dim Layer for - ..." layer (JSON: dim), blank for any other layer
             Name                  layer name, with a "`- " prefix on nested children (same convention as "gettaskstat -q TREE"); always LAST and unclipped
 
         A WindowManager window ("getwindowstat") commonly maps to MORE than one SurfaceFlinger layer here (shadow/blur/crop child layers).
