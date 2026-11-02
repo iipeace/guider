@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.9"
-__revision__ = "261029"
+__revision__ = "261101"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -425,13 +425,21 @@ class ConfigMgr(object):
         0x1000: "RTLD_NODELETE",
     }
 
+    # socket() type is an enum in the low 4 bits ORed with flag bits #
+    SOCK_TYPE_MASK = 0xF
+
     SOCKET_TYPE = {
         0x1: "SOCK_STREAM",
         0x2: "SOCK_DGRAM",
         0x3: "SOCK_RAW",
         0x4: "SOCK_RDM",
         0x5: "SOCK_SEQPACKET",
-        0x10: "SOCK_PACKET",
+        0x6: "SOCK_DCCP",
+        0xA: "SOCK_PACKET",
+    }
+
+    # flags valid for x86, arm and arm64 (O_NONBLOCK / O_CLOEXEC) #
+    SOCKET_FLAG = {
         0x800: "SOCK_NONBLOCK",
         0x80000: "SOCK_CLOEXEC",
     }
@@ -464,14 +472,12 @@ class ConfigMgr(object):
         0x2000: "MSG_ERRQUEUE",
         0x4000: "MSG_NOSIGNAL",
         0x8000: "MSG_MORE",
-        0x10000: "MSG_FASTOPEN",
-        0x20000: "MSG_CMSG_COMPAT",
+        0x10000: "MSG_WAITFORONE",
         0x40000: "MSG_BATCH",
-        0x80000: "MSG_ZEROCOPY",
-        0x100000: "MSG_NOSENDMSGMORE",
-        0x200000: "MSG_WAITFORONE",
+        0x2000000: "MSG_SOCK_DEVMEM",
+        0x4000000: "MSG_ZEROCOPY",
+        0x20000000: "MSG_FASTOPEN",
         0x40000000: "MSG_CMSG_CLOEXEC",
-        0x80000000: "MSG_CMSG_COMPAT",
     }
 
     CMSG_TYPE = {
@@ -518,6 +524,7 @@ class ConfigMgr(object):
         0x0000: "MAP_FILE",
         0x0001: "MAP_SHARED",
         0x0002: "MAP_PRIVATE",
+        0x0008: "MAP_DROPPABLE",
         0x0010: "MAP_FIXED",
         0x0020: "MAP_ANONYMOUS",
         0x0100: "MAP_GROWSDOWN",
@@ -532,7 +539,7 @@ class ConfigMgr(object):
         0x40000: "MAP_HUGETLB",
         0x80000: "MAP_SYNC",
         0x100000: "MAP_FIXED_NOREPLACE",
-        0x200000: "MAP_UNINITIALIZED",
+        0x4000000: "MAP_UNINITIALIZED",
     }
 
     FAT_TYPE = {
@@ -551,9 +558,11 @@ class ConfigMgr(object):
         0x1: "PROT_READ",  # Page can be read
         0x2: "PROT_WRITE",  # Page can be written
         0x4: "PROT_EXEC",  # Page can be executed
-        0x8: "PROT_GROWSDOWN",
-        0x10: "PROT_GROWSUP",
-        0x20: "PROT_MTE",
+        0x8: "PROT_SEM",
+        0x10: "PROT_BTI",  # arm64 only
+        0x20: "PROT_MTE",  # arm64 only
+        0x01000000: "PROT_GROWSDOWN",
+        0x02000000: "PROT_GROWSUP",
     }
 
     PERM_TYPE = {
@@ -579,7 +588,6 @@ class ConfigMgr(object):
     MLOCK_TYPE_REVERSE = {}
 
     PRCTL_TYPE = {
-        0: "PR_SET_VMA_ANON_NAME",
         1: "PR_SET_PDEATHSIG",
         2: "PR_GET_PDEATHSIG",
         3: "PR_GET_DUMPABLE",
@@ -629,7 +637,34 @@ class ConfigMgr(object):
         51: "PR_SVE_GET_VL",
         52: "PR_GET_SPECULATION_CTRL",
         53: "PR_SET_SPECULATION_CTRL",
+        54: "PR_PAC_RESET_KEYS",
+        55: "PR_SET_TAGGED_ADDR_CTRL",
+        56: "PR_GET_TAGGED_ADDR_CTRL",
+        57: "PR_SET_IO_FLUSHER",
+        58: "PR_GET_IO_FLUSHER",
+        59: "PR_SET_SYSCALL_USER_DISPATCH",
+        60: "PR_PAC_SET_ENABLED_KEYS",
+        61: "PR_PAC_GET_ENABLED_KEYS",
+        62: "PR_SCHED_CORE",
+        63: "PR_SME_SET_VL",
+        64: "PR_SME_GET_VL",
+        65: "PR_SET_MDWE",
+        66: "PR_GET_MDWE",
+        67: "PR_SET_MEMORY_MERGE",
+        68: "PR_GET_MEMORY_MERGE",
+        69: "PR_RISCV_V_SET_CONTROL",
+        70: "PR_RISCV_V_GET_CONTROL",
+        71: "PR_RISCV_SET_ICACHE_FLUSH_CTX",
+        72: "PR_PPC_GET_DEXCR",
+        73: "PR_PPC_SET_DEXCR",
+        74: "PR_GET_SHADOW_STACK_STATUS",
+        75: "PR_SET_SHADOW_STACK_STATUS",
+        76: "PR_LOCK_SHADOW_STACK_STATUS",
+        77: "PR_TIMER_CREATE_RESTORE_IDS",
+        78: "PR_FUTEX_HASH",
+        0x41555856: "PR_GET_AUXV",
         0x53564D41: "PR_SET_VMA",
+        0x59616D61: "PR_SET_PTRACER",
     }
 
     MOUNT_TYPE = {
@@ -658,7 +693,8 @@ class ConfigMgr(object):
         "MS_I_VERSION": (1 << 23),  # Update inode I_version field
         "MS_STRICTATIME": (1 << 24),  # Always perform atime updates
         "MS_LAZYTIME": (1 << 25),  # Update the on-disk [acm]times lazily
-        "MS_DISCARD": (1 << 26),
+        "MS_SUBMOUNT": (1 << 26),
+        "MS_NOREMOTELOCK": (1 << 27),
         "MS_NOSEC": (1 << 28),
         "MS_BORN": (1 << 29),
         "MS_ACTIVE": (1 << 30),
@@ -681,7 +717,7 @@ class ConfigMgr(object):
         0x00000200: "CLONE_FS",
         0x00000400: "CLONE_FILES",
         0x00000800: "CLONE_SIGHAND",
-        0x00001000: "CLONE_CLEAR_SIGHAND",
+        0x00001000: "CLONE_PIDFD",
         0x00002000: "CLONE_PTRACE",
         0x00004000: "CLONE_VFORK",
         0x00008000: "CLONE_PARENT",
@@ -714,7 +750,7 @@ class ConfigMgr(object):
         0o1000: "O_TRUNC",
         0o2000: "O_APPEND",
         0o4000: "O_NONBLOCK",
-        0o10000: "O_SYNC",
+        0o10000: "O_DSYNC",
         0o20000: "O_ASYNC",
         0o40000: "O_DIRECT",
         0o100000: "O_LARGEFILE",
@@ -722,9 +758,33 @@ class ConfigMgr(object):
         0o400000: "O_NOFOLLOW",
         0o1000000: "O_NOATIME",
         0o2000000: "O_CLOEXEC",
-        0o4000000: "O_RSYNC",
+        0o4000000: "__O_SYNC",
         0o10000000: "O_PATH",
-        0o20000000: "O_TMPFILE",
+        0o20000000: "__O_TMPFILE",
+    }
+
+    # arm / arm64 use a different layout for these four flags #
+    OPEN_TYPE_ARM = {
+        0o0: "O_RDONLY",
+        0o1: "O_WRONLY",
+        0o2: "O_RDWR",
+        0o100: "O_CREAT",
+        0o200: "O_EXCL",
+        0o400: "O_NOCTTY",
+        0o1000: "O_TRUNC",
+        0o2000: "O_APPEND",
+        0o4000: "O_NONBLOCK",
+        0o10000: "O_DSYNC",
+        0o20000: "O_ASYNC",
+        0o40000: "O_DIRECTORY",
+        0o100000: "O_NOFOLLOW",
+        0o200000: "O_DIRECT",
+        0o400000: "O_LARGEFILE",
+        0o1000000: "O_NOATIME",
+        0o2000000: "O_CLOEXEC",
+        0o4000000: "__O_SYNC",
+        0o10000000: "O_PATH",
+        0o20000000: "__O_TMPFILE",
     }
 
     EPOLL_CMD_TYPE = [
@@ -781,7 +841,6 @@ class ConfigMgr(object):
         2: "MADV_SEQUENTIAL",  # Expect sequential page references
         3: "MADV_WILLNEED",  # Will need these pages
         4: "MADV_DONTNEED",  # Don't need these pages
-        7: "MADV_SPACEAVAIL",
         8: "MADV_FREE",  # Free pages only if memory pressure
         9: "MADV_REMOVE",  # Remove these pages and resources
         10: "MADV_DONTFORK",  # Do not inherit across fork
@@ -798,7 +857,12 @@ class ConfigMgr(object):
         21: "MADV_PAGEOUT",  # Reclaim these pages
         22: "MADV_POPULATE_READ",
         23: "MADV_POPULATE_WRITE",
+        24: "MADV_DONTNEED_LOCKED",  # Like DONTNEED, but drop locked pages
+        25: "MADV_COLLAPSE",  # Synchronous hugepage collapse
         100: "MADV_HWPOISON",  # Poison a page for testing
+        101: "MADV_SOFT_OFFLINE",  # Soft offline page for testing
+        102: "MADV_GUARD_INSTALL",  # Fatal signal on access to range
+        103: "MADV_GUARD_REMOVE",  # Unguard range
     }
     MADV_TYPE_REVERSE = {}
 
@@ -816,14 +880,13 @@ class ConfigMgr(object):
         0x00000400: "FAN_DELETE_SELF",  # Self was deleted #
         0x00000800: "FAN_MOVE_SELF",  # Self was moved #
         0x00001000: "FAN_OPEN_EXEC",  # File was opened for exec #
-        0x00002000: "FAN_FS_ERROR",
         0x00004000: "FAN_Q_OVERFLOW",  # Event queued overflowed #
-        0x00008000: "FAN_CREATE_PERM",
+        0x00008000: "FAN_FS_ERROR",  # Filesystem error #
         0x00010000: "FAN_OPEN_PERM",  # File open in perm check #
         0x00020000: "FAN_ACCESS_PERM",  # File accessed in perm check #
         0x00040000: "FAN_OPEN_EXEC_PERM",  # File open/exec in perm check #
-        0x40000000: "FAN_ONDIR",  # event occurred against dir #
         0x08000000: "FAN_EVENT_ON_CHILD",  # interested in child events #
+        0x40000000: "FAN_ONDIR",  # event occurred against dir #
     }
     FAN_EVENT_TYPE_REVERSE = {}
 
@@ -836,13 +899,14 @@ class ConfigMgr(object):
         0x00000010: "FAN_UNLIMITED_QUEUE",
         0x00000020: "FAN_UNLIMITED_MARKS",
         0x00000040: "FAN_ENABLE_AUDIT",
+        0x00000080: "FAN_REPORT_PIDFD",
         0x00000100: "FAN_REPORT_TID",
         0x00000200: "FAN_REPORT_FID",
         0x00000400: "FAN_REPORT_DIR_FID",
         0x00000800: "FAN_REPORT_NAME",
         0x00001000: "FAN_REPORT_TARGET_FID",
-        0x00002000: "FAN_REPORT_DFID_NAME",
-        0x00004000: "FAN_REPORT_DIR_FID_NAME",
+        0x00002000: "FAN_REPORT_FD_ERROR",
+        0x00004000: "FAN_REPORT_MNT",
     }
     FAN_INIT_TYPE_REVERSE = {}
     """
@@ -924,8 +988,8 @@ class ConfigMgr(object):
         "IN_ISDIR": 0x40000000,  # event occurred against dir
         "IN_ONESHOT": 0x80000000,  # only send event once
         "IN_ALL_EVENTS": 0x00000FFF,
-        "IN_CLOEXEC": 0x00080000,
-        "IN_NONBLOCK": 0x00008000,
+        # IN_CLOEXEC and IN_NONBLOCK are inotify_init1() flags, not event
+        # bits: IN_NONBLOCK (O_NONBLOCK) collided with IN_IGNORED here #
     }
 
     ATRACE_TAG = {
@@ -1098,7 +1162,7 @@ class ConfigMgr(object):
         "probe_read_kernel_str": 115,
     }
 
-    PERF_EVENT_IOC_SET_BPF = 0x40044408  # _IOW('$', 8, __u32)
+    PERF_EVENT_IOC_SET_BPF = 0x40042408  # _IOW('$', 8, __u32)
     PERF_EVENT_IOC_ENABLE = 0x00002400  # _IO ('$', 0)
 
     BPF_F_USER_STACK = (
@@ -1218,11 +1282,16 @@ class ConfigMgr(object):
         "BPF_MODIFY_RETURN",
         "BPF_LSM_MAC",
         "BPF_TRACE_ITER",
+        "BPF_CGROUP_INET4_GETPEERNAME",
+        "BPF_CGROUP_INET6_GETPEERNAME",
+        "BPF_CGROUP_INET4_GETSOCKNAME",
+        "BPF_CGROUP_INET6_GETSOCKNAME",
         "BPF_XDP_DEVMAP",
-        "BPF_XDP_CPUMAP",
-        "BPF_XDP",
-        "BPF_SK_LOOKUP",
         "BPF_CGROUP_INET_SOCK_RELEASE",
+        "BPF_XDP_CPUMAP",
+        "BPF_SK_LOOKUP",
+        "BPF_XDP",
+        "BPF_SK_SKB_VERDICT",
         "BPF_SK_REUSEPORT_SELECT",
         "BPF_SK_REUSEPORT_SELECT_OR_MIGRATE",
         "BPF_PERF_EVENT",
@@ -1241,7 +1310,11 @@ class ConfigMgr(object):
         "BPF_NETKIT_PRIMARY",
         "BPF_NETKIT_PEER",
         "BPF_TRACE_KPROBE_SESSION",
-        "BPF_SK_SKB_VERDICT",
+        "BPF_TRACE_UPROBE_SESSION",
+        "BPF_TRACE_FSESSION",
+        "BPF_TRACE_FENTRY_MULTI",
+        "BPF_TRACE_FEXIT_MULTI",
+        "BPF_TRACE_FSESSION_MULTI",
     ]
 
     RESSET = (
@@ -1710,18 +1783,21 @@ class ConfigMgr(object):
         "file_getattr": (
             "long",
             (
-                ("int", "fd"),
-                ("struct file_stat *", "stat"),
-                ("unsigned int", "stat_size"),
-                ("unsigned int", "flags"),
+                ("int", "dfd"),
+                ("const char *", "filename"),
+                ("struct file_attr *", "attr"),
+                ("size_t", "usize"),
+                ("unsigned int", "at_flags"),
             ),
         ),
         "file_setattr": (
             "long",
             (
-                ("int", "fd"),
-                ("struct file_attr *", "uattr"),
+                ("int", "dfd"),
+                ("const char *", "filename"),
+                ("struct file_attr *", "attr"),
                 ("size_t", "usize"),
+                ("unsigned int", "at_flags"),
             ),
         ),
         "finit_module": (
@@ -3679,7 +3755,7 @@ class ConfigMgr(object):
                 ("const char *", "path"),
                 ("unsigned int", "at_flags"),
                 ("const char *", "name"),
-                ("void *", "value"),
+                ("struct xattr_args *", "args"),
                 ("size_t", "size"),
             ),
         ),
@@ -3833,11 +3909,23 @@ class ConfigMgr(object):
                 ("const char *", "path"),
                 ("unsigned int", "at_flags"),
                 ("const char *", "name"),
-                ("const void *", "value"),
+                ("const struct xattr_args *", "args"),
                 ("size_t", "size"),
-                ("int", "flags"),
             ),
         ),
+        "fchroot": ("long", (("int", "fd"), ("unsigned int", "flags"))),
+        "listns": (
+            "long",
+            (
+                ("const struct ns_id_req *", "req"),
+                ("u64 *", "ns_ids"),
+                ("size_t", "nr_ns_ids"),
+                ("unsigned int", "flags"),
+            ),
+        ),
+        "rseq_slice_yield": ("long", ()),
+        "uretprobe": ("long", ()),
+        "uprobe": ("long", ()),
         "statmount": (
             "long",
             (
@@ -4648,6 +4736,9 @@ class ConfigMgr(object):
         + SYSCALL_COMMON
     )
 
+    # memfd_secret is not implemented on 32-bit ARM #
+    SYSCALL_ARM[447] = "sys_null"
+
     SYSCALL_AARCH64 = SYSCALL_64
 
     SYSCALL_X86 = (
@@ -5396,7 +5487,8 @@ class ConfigMgr(object):
             "sys_rseq",
             "sys_uretprobe",
         ]
-        + ["sys_null" for idx in xrange(336, 424, 1)]
+        + ["sys_uprobe"]
+        + ["sys_null" for idx in xrange(337, 424, 1)]
         + SYSCALL_COMMON
     )
 
@@ -5695,12 +5787,13 @@ class ConfigMgr(object):
         "SEGV_MAPERR",  # /* address not mapped to object */
         "SEGV_ACCERR",  # /* invalid permissions for mapped object */
         "SEGV_BNDERR",  # /* failed address bound checks */
-        "SEGV_PSTKOVF",  # /* paragraph stack overflow */
+        "SEGV_PKUERR",  # /* failed protection key checks */
         "SEGV_ACCADI",  # /* ADI not enabled for mapped object */
         "SEGV_ADIDERR",  # /* Disrupting MCD error */
         "SEGV_ADIPERR",  # /* Precise MCD exception */
         "SEGV_MTEAERR",  # /* Asynchronous ARM MTE error */
         "SEGV_MTESERR",  # /* Synchronous ARM MTE exception */
+        "SEGV_CPERR",  # /* Control protection fault */
     ]
 
     SIGILL_CODE = [
@@ -5725,6 +5818,7 @@ class ConfigMgr(object):
         "TRAP_BRANCH",  # /* process taken branch trap */
         "TRAP_HWBKPT",  # /* hardware breakpoint/watchpoint */
         "TRAP_UNK",  # /* undiagnosed trap */
+        "TRAP_PERF",  # /* perf event with sigtrap=1 */
     ]
 
     SIGFPE_CODE = [
@@ -6092,6 +6186,10 @@ class ConfigMgr(object):
         "FUTEX_LOCK_PI2",
     ]
 
+    # option bits ORed into the futex() op #
+    FUTEX_PRIVATE_FLAG = 128
+    FUTEX_CLOCK_REALTIME = 256
+
     FCNTL_TYPE = {
         0: "F_DUPFD",
         1: "F_GETFD",
@@ -6108,12 +6206,14 @@ class ConfigMgr(object):
         12: "F_GETLK64",
         13: "F_SETLK64",
         14: "F_SETLKW64",
-        15: "F_SETOWNEX",
-        16: "F_GETOWNEX",
-        17: "F_GETOWNERUIDS",
+        15: "F_SETOWN_EX",
+        16: "F_GETOWN_EX",
+        17: "F_GETOWNER_UIDS",
         1024: "F_SETLEASE",
         1025: "F_GETLEASE",
         1026: "F_NOTIFY",
+        1027: "F_DUPFD_QUERY",
+        1028: "F_CREATED_QUERY",
         1029: "F_CANCELLK",
         1030: "F_DUPFD_CLOEXEC",
         1031: "F_SETPIPE_SZ",
@@ -6147,6 +6247,9 @@ class ConfigMgr(object):
         4: "IORING_ENTER_SQ_WAIT",
         8: "IORING_ENTER_EXT_ARG",
         16: "IORING_ENTER_REGISTERED_RING",
+        32: "IORING_ENTER_ABS_TIMER",
+        64: "IORING_ENTER_EXT_ARG_REG",
+        128: "IORING_ENTER_NO_IOWAIT",
     }
 
     IORING_REGISTER_OPCODE = [
@@ -6176,7 +6279,22 @@ class ConfigMgr(object):
         "IORING_UNREGISTER_PBUF_RING",
         "IORING_REGISTER_SYNC_CANCEL",
         "IORING_REGISTER_FILE_ALLOC_RANGE",
+        "IORING_REGISTER_PBUF_STATUS",
+        "IORING_REGISTER_NAPI",
+        "IORING_UNREGISTER_NAPI",
+        "IORING_REGISTER_CLOCK",
+        "IORING_REGISTER_CLONE_BUFFERS",
+        "IORING_REGISTER_SEND_MSG_RING",
+        "IORING_REGISTER_ZCRX_IFQ",
+        "IORING_REGISTER_RESIZE_RINGS",
+        "IORING_REGISTER_MEM_REGION",
+        "IORING_REGISTER_QUERY",
+        "IORING_REGISTER_ZCRX_CTRL",
+        "IORING_REGISTER_BPF_FILTER",
     ]
+
+    # flag ORed into the io_uring_register() opcode #
+    IORING_REGISTER_USE_REGISTERED_RING = 1 << 31
 
     IORING_PARAM_FEATURES = {
         0x1: "IORING_FEAT_SINGLE_MMAP",
@@ -6192,6 +6310,11 @@ class ConfigMgr(object):
         0x400: "IORING_FEAT_RSRC_TAGS",
         0x800: "IORING_FEAT_CQE_SKIP",
         0x1000: "IORING_FEAT_LINKED_FILE",
+        0x2000: "IORING_FEAT_REG_REG_RING",
+        0x4000: "IORING_FEAT_RECVSEND_BUNDLE",
+        0x8000: "IORING_FEAT_MIN_TIMEOUT",
+        0x10000: "IORING_FEAT_RW_ATTR",
+        0x20000: "IORING_FEAT_NO_IOWAIT",
     }
 
     IOCTL_TYPE = {
@@ -8722,6 +8845,30 @@ class UtilMgr(object):
             return string[:-1]
         else:
             return value
+
+    @staticmethod
+    def getOpenType():
+        if SysMgr.getArch() in ("arm", "aarch64"):
+            return ConfigMgr.OPEN_TYPE_ARM
+        return ConfigMgr.OPEN_TYPE
+
+    @staticmethod
+    def getOpenFlagString(value):
+        flags = UtilMgr.getFlagString(value, UtilMgr.getOpenType(), num="oct")
+        if not isinstance(flags, str):
+            return flags
+
+        # merge the bit pairs that make up composite flags #
+        flagList = flags.split("|")
+        for pair, name in (
+            (("O_DSYNC", "__O_SYNC"), "O_SYNC"),
+            (("O_DIRECTORY", "__O_TMPFILE"), "O_TMPFILE"),
+        ):
+            if pair[0] in flagList and pair[1] in flagList:
+                flagList[flagList.index(pair[0])] = name
+                flagList.remove(pair[1])
+
+        return "|".join(flagList)
 
     @staticmethod
     def encodeBase64(value):
@@ -40706,6 +40853,13 @@ class AndroidMgr(object):
             # Only the window's own "fl=" word list is read -- "pfl=" is
             # the private-flags list, a different set of names #
             "dim": re.compile(r"(?:^|\s)fl=[^\n]*?\bDIM_BEHIND\b", re.M),
+            # pixel format of the window's own attributes: mAttrs prints
+            # "fmt=" only when it is not OPAQUE (device-verified: 12 of
+            # 14 windows have it, the other 2 are plain opaque app
+            # windows), so a missing value is OPAQUE. TRANSLUCENT and
+            # TRANSPARENT mean the window has an alpha channel and can
+            # show what is behind it #
+            "format": re.compile(r"\bmAttrs=\{[^\n]*? fmt=([A-Z_]+)"),
         }
 
         def _flush():
@@ -41333,6 +41487,20 @@ class AndroidMgr(object):
             else:
                 dimCol = "{0:^3}".format("")
 
+            # pixel format: the OPAQUE default is not printed in the dump
+            # and stays blank here; L = TRANSLUCENT, T = TRANSPARENT
+            # (the full name is in -J "format") #
+            pixFmt = info.get("format")
+            fmtCol = {"TRANSLUCENT": "L", "TRANSPARENT": "T"}.get(
+                pixFmt, "?" if pixFmt else ""
+            )
+            # T (TRANSPARENT) has its own color so the two formats differ
+            # at a glance; an unknown name ("?") stays uncolored #
+            fmtColor = {"L": "YELLOW", "T": "PINK"}.get(fmtCol)
+            fmtCol = "{0:^3}".format(fmtCol)
+            if fmtColor:
+                fmtCol = UtilMgr.convColor(fmtCol, fmtColor)
+
             alphaVal = info.get("alpha")
             alpha = "%.2f" % alphaVal if alphaVal is not None else ""
             alpha = "{0:^{1}}".format(alpha, alphaWidth)
@@ -41418,6 +41586,7 @@ class AndroidMgr(object):
                     focus,
                     anim,
                     dimCol,
+                    fmtCol,
                     alpha,
                     rootTask,
                     winTypeCol,
@@ -41428,7 +41597,7 @@ class AndroidMgr(object):
         actWidth = max([len("Activity")] + [len(r[5]) for r in rowList])
         fmt = (
             "{0:>3} {1:>2} {2:>4} {3:>6} {4:<%d} {5:<%d} {6:<13} {7:<22} "
-            "{8} {9:^5} {10:^4} {11} {12} {13:<%d} {14}"
+            "{8} {9:^5} {10:^4} {11} {12} {13} {14:<%d} {15}"
             % (pkgWidth, actWidth, rootTaskWidth)
         )
         header = fmt.format(
@@ -41444,6 +41613,7 @@ class AndroidMgr(object):
             "Focus",
             "Anim",
             "{0:^3}".format("Dim"),
+            "{0:^3}".format("Fmt"),
             "{0:^{1}}".format("Alpha", alphaWidth),
             "RootTask",
             "WinType",
@@ -41485,7 +41655,8 @@ class AndroidMgr(object):
             r"^(?P<indent>\s*)\* Task\{(?P<addr>\S+) #(?P<taskId>\d+) "
             r"type=(?P<type>\S+)(?: A=(?P<uid>\d+):(?P<pkg>\S+))? "
             r"U=(?P<user>\d+)(?: rootTaskId=\d+)? visible=(?P<visible>true|false) "
-            r"visibleRequested=\S+ mode=(?P<mode>\S+) translucent=\S+ "
+            r"visibleRequested=\S+ mode=(?P<mode>\S+) "
+            r"translucent=(?P<translucent>true|false) "
             r"sz=(?P<sz>\d+)\}"
         )
         rootTaskIdPat = re.compile(r"\brootTaskId=(\d+)")
@@ -41512,6 +41683,11 @@ class AndroidMgr(object):
         # which can differ from the Task's own visible= (a visible Task
         # can still have a not-yet-visible topmost activity) #
         nowVisiblePat = re.compile(r"\bnowVisible=(true|false)")
+        # the activity's own "occludesParent=" (the "mOccludesParent=" line
+        # below it repeats it); false means the activity is translucent
+        # and what is below it shows through -- the Task's translucent=
+        # in its header is derived from it #
+        occludesPat = re.compile(r"(?<![A-Za-z])occludesParent=(true|false)")
         orgTaskPat = re.compile(
             r"\((fullscreen|multi-window)\) Task\{\S+ #(\d+)"
         )
@@ -41568,6 +41744,7 @@ class AndroidMgr(object):
                 pm = pidPat.search(hb)
                 adm = allDrawnPat.search(hb)
                 nvm = nowVisiblePat.search(hb)
+                ocm = occludesPat.search(hb)
                 hist.append(
                     {
                         "histIdx": int(hm.group(1)),
@@ -41579,6 +41756,9 @@ class AndroidMgr(object):
                         "allDrawn": (adm.group(1) == "true") if adm else None,
                         "nowVisible": (
                             (nvm.group(1) == "true") if nvm else None
+                        ),
+                        "occludesParent": (
+                            (ocm.group(1) == "true") if ocm else None
                         ),
                     }
                 )
@@ -41643,6 +41823,7 @@ class AndroidMgr(object):
                         "user": tm.group("user"),
                         "visible": tm.group("visible") == "true",
                         "mode": tm.group("mode"),
+                        "translucent": tm.group("translucent") == "true",
                         "sz": int(tm.group("sz")),
                         "displayId": curDisplayId,
                         "parentTaskId": immediateParent,
@@ -41664,6 +41845,7 @@ class AndroidMgr(object):
                         "user": tm.group("user"),
                         "visible": tm.group("visible") == "true",
                         "mode": tm.group("mode"),
+                        "translucent": tm.group("translucent") == "true",
                         "sz": int(tm.group("sz")),
                         "displayId": curDisplayId,
                         # parentTaskId is the IMMEDIATE parent (from the
@@ -41981,6 +42163,9 @@ class AndroidMgr(object):
             visWinCol = info.get("visWinCount") or ""
             # O = at least one window of this task has FLAG_DIM_BEHIND #
             dimCol = "O" if info.get("dimWinCount") else ""
+            # the task lets what is below it show through (translucent=true
+            # in its header); the common false value stays blank #
+            translCol = "O" if info.get("translucent") else ""
 
             # "dumpsys activity recents"'s own most-recently-used index
             # (0 = top of stack) -- a different ordering axis than
@@ -42038,6 +42223,7 @@ class AndroidMgr(object):
                     winCol,
                     visWinCol,
                     dimCol,
+                    translCol,
                 )
             else:
                 row = (
@@ -42061,6 +42247,7 @@ class AndroidMgr(object):
                     winCol,
                     visWinCol,
                     dimCol,
+                    translCol,
                 )
             return row, visible, curPkg
 
@@ -42157,7 +42344,8 @@ class AndroidMgr(object):
             fmt = (
                 "{0:>7} {1:>2} {2:>4} {3:>6} {4:<13} {5:<10} {6:<%d} {7:<%d} "
                 "{8} {9:^5} {10:^4} {11} {12:>3} {13:>3} {14:<12} "
-                "{15:^3} {16:>3} {17:>6} {18:^3}" % (pkgWidth, actWidth)
+                "{15:^3} {16:>3} {17:>6} {18:^3} {19:^3}"
+                % (pkgWidth, actWidth)
             )
             header = fmt.format(
                 "TaskId",
@@ -42179,12 +42367,13 @@ class AndroidMgr(object):
                 "Win",
                 "VisWin",
                 "Dim",
+                "Tr",
             )
         else:
             fmt = (
                 "{0:>7} {1:>7} {2:>2} {3:>4} {4:>6} {5:<13} {6:<10} {7:<%d} "
                 "{8:<%d} {9} {10:^5} {11:^4} {12} {13:>3} {14:>3} "
-                "{15:<12} {16:^3} {17:>3} {18:>6} {19:^3}"
+                "{15:<12} {16:^3} {17:>3} {18:>6} {19:^3} {20:^3}"
                 % (pkgWidth, actWidth)
             )
             header = fmt.format(
@@ -42208,6 +42397,7 @@ class AndroidMgr(object):
                 "Win",
                 "VisWin",
                 "Dim",
+                "Tr",
             )
         SysMgr.printPipe("=" * len(header))
         if showTree:
@@ -42225,6 +42415,12 @@ class AndroidMgr(object):
             elif state in transientStates:
                 cell = UtilMgr.convColor(cell, "YELLOW")
             row[stateIdx] = cell
+            # Dim is the second column from the end (before Tr) in both
+            # layouts; it gets the same color getwindowstat's Dim has,
+            # padded to its width first so the escape codes do not shift
+            # the column after it #
+            if row[-2]:
+                row[-2] = UtilMgr.convColor("{0:^3}".format(row[-2]), "YELLOW")
             SysMgr.printPipe(fmt.format(*row))
 
         SysMgr.printPipe("-" * len(header))
@@ -43223,14 +43419,32 @@ class AndroidMgr(object):
             re.M,
         )
 
-        procs = []
-        blocks = re.split(
-            r"(?=^\s*\* \S+ / \S+ / v\d+:)", "\n".join(lines), flags=re.M
+        # a plain dump holds the same processes once per section
+        # ("CURRENT STATS:", then "AGGREGATED OVER LAST 24 HOURS:" and
+        # "AGGREGATED OVER LAST 3 HOURS:" -- device-verified on both
+        # 5af877f6/66aed018), each with its own numbers, so every block
+        # keeps the section it was printed under. Everything the dump
+        # prints before the first section title belongs to no section #
+        sectionPat = re.compile(
+            r"^(CURRENT STATS|AGGREGATED OVER LAST [^:\n]+):\s*$", re.M
         )
+        procs = []
+        text = "\n".join(lines)
+        blocks = re.split(r"(?=^\s*\* \S+ / \S+ / v\d+:)", text, flags=re.M)
+        # position of every section title, to find the one a block follows #
+        titles = [(m.start(), m.group(1)) for m in sectionPat.finditer(text)]
+        pos = 0
         for block in blocks:
+            blockPos = pos
+            pos += len(block)
             hm = headerPat.match(block)
             if not hm:
                 continue
+            section = ""
+            for start, title in titles:
+                if start > blockPos:
+                    break
+                section = title
             pkg, uid, ver = hm.groups()
             states = {}
             for sm in statePat.finditer(block):
@@ -43273,6 +43487,7 @@ class AndroidMgr(object):
                     "package": pkg,
                     "uid": uid,
                     "ver": ver,
+                    "section": section,
                     "states": states,
                     "dominant": dominant,
                     "dominantPct": (
@@ -43308,9 +43523,47 @@ class AndroidMgr(object):
         if pkg:
             procs = [p for p in procs if pkg in p["package"]]
 
+        # the table shows one section, "CURRENT STATS" unless
+        # "-q SECTION:<24H|3H|ALL>" asks for another: a process is in
+        # every section with different numbers, so a mix of them would
+        # list it several times. "-J" always keeps every section, each
+        # record tells its own in "section" #
+        sectionOpt = SysMgr.environList.get("SECTION", [""])[0].upper()
+        if sectionOpt in ("24H", "24"):
+            wanted = "AGGREGATED OVER LAST 24 HOURS"
+        elif sectionOpt in ("3H", "3"):
+            wanted = "AGGREGATED OVER LAST 3 HOURS"
+        elif sectionOpt == "ALL":
+            wanted = None
+        else:
+            if sectionOpt:
+                SysMgr.printWarn(
+                    "unknown SECTION '%s', using CURRENT" % sectionOpt,
+                    always=True,
+                )
+            wanted = "CURRENT STATS"
+
         if SysMgr.jsonEnable:
             SysMgr.printPipe(UtilMgr.convDict2Str({"procs": procs}))
             return
+
+        # a dump with no section title at all (older or trimmed output)
+        # has nothing to choose from and is shown as it is. A block that
+        # comes before the first title belongs to no section; it is kept
+        # with the default one, so a process is never dropped just
+        # because its block is not under a title #
+        if wanted and any(p["section"] for p in procs):
+            procs = [
+                p
+                for p in procs
+                if p["section"] == wanted
+                or (not p["section"] and wanted == "CURRENT STATS")
+            ]
+            if not procs:
+                SysMgr.printWarn(
+                    "no process in the '%s' section" % wanted, always=True
+                )
+                return
 
         SysMgr.setStream(cut=False)
 
@@ -43845,6 +44098,15 @@ class AndroidMgr(object):
             done = len(r["receivers"]) - skipped
             return "%d/%d" % (done, len(r["receivers"])), skipped or ""
 
+        # a broadcast with skipped receivers is the one worth a look, so
+        # both Rcv (done < total) and Skip are highlighted; the cell is
+        # padded to its column width first, because the escape codes
+        # would otherwise count toward the width and shift the columns
+        # after it #
+        def _warn(cell, width, on):
+            cell = "{0:>{1}}".format(cell, width)
+            return UtilMgr.convColor(cell, "YELLOW") if on else cell
+
         def _callerStr(r):
             if r["src"] != "D":
                 # nor the sender #
@@ -43863,6 +44125,9 @@ class AndroidMgr(object):
         rows = []
         for idx, r in enumerate(records, 1):
             rcv, skip = _rcvStr(r)
+            hasSkip = bool(skip) and skip != "-"
+            rcv = _warn(rcv, 7, hasSkip)
+            skip = _warn(skip, 4, hasSkip)
             # the action is the key name of a row, so it is the only part
             # coloured; the Action column is the last one, hence the escape
             # codes cannot shift any other column #
@@ -43890,7 +44155,7 @@ class AndroidMgr(object):
         callerWidth = max([len("Caller")] + [len(r[5]) for r in rows])
         upWidth = max([len("Uptime")] + [len(r[2]) for r in rows])
         fmt = (
-            "{0:>5} {1:<18} {2:>%d} {3:^3} {4:^3} {5:<%d} {6:>7} {7:>4} "
+            "{0:>5} {1:<18} {2:>%d} {3:^3} {4:^3} {5:<%d} {6} {7} "
             "{8:>8} {9}" % (upWidth, callerWidth)
         )
         header = fmt.format(
@@ -43900,8 +44165,8 @@ class AndroidMgr(object):
             "Src",
             "Ord",
             "Caller",
-            "Rcv",
-            "Skip",
+            "{0:>7}".format("Rcv"),
+            "{0:>4}".format("Skip"),
             "Elapsed",
             "Action",
         )
@@ -44201,7 +44466,7 @@ class AndroidMgr(object):
         # long a real package/activity-qualified name gets #
         fmt = (
             "{0:>6} {1:>7} {2:>6} {3:<20} {4:>8} {5:<9} "
-            "{6:>24} {7:>24} {8:>9} {9:^5} {10:>4} {11}"
+            "{6:>24} {7:>24} {8:>9} {9} {10} {11}"
         )
         header = fmt.format(
             "No",
@@ -44213,8 +44478,8 @@ class AndroidMgr(object):
             "DispFrame",
             "SrcCrop",
             "FrameRate",
-            "Focus",
-            "Dim",
+            "{0:^5}".format("Focus"),
+            "{0:>4}".format("Dim"),
             "Name",
         )
         SysMgr.printPipe("=" * len(header))
@@ -44244,7 +44509,12 @@ class AndroidMgr(object):
             nrPrinted += 1
             if l["focused"]:
                 nrFocused += 1
-            focusCol = "O" if l["focused"] else ""
+            # Focus and Dim are padded before they are colored, so the
+            # escape codes do not shift the columns after them; the colors
+            # are the ones getwindowstat uses for its own Dim #
+            focusCol = "{0:^5}".format("O" if l["focused"] else "")
+            if l["focused"]:
+                focusCol = UtilMgr.convColor(focusCol, "YELLOW")
             # a dimmer row: how dark it is, from the layer it maps to #
             dimLid = nameToLid.get(l["name"])
             dimCol = (
@@ -44252,6 +44522,9 @@ class AndroidMgr(object):
                 if dimLid is not None and "dim" in layers[dimLid]
                 else ""
             )
+            dimCol = "{0:>4}".format(dimCol)
+            if dimCol.strip():
+                dimCol = UtilMgr.convColor(dimCol, "YELLOW")
             SysMgr.printPipe(
                 fmt.format(
                     nrPrinted,
@@ -44285,7 +44558,7 @@ class AndroidMgr(object):
         # qualified name never gets truncated regardless of depth #
         fmt = (
             "{0:>9} {1:>5} {2:>5} {3:>8} {4:>7} {5:<13} "
-            "{6:^4} {7:^3} {8:>4} {9}"
+            "{6:^4} {7:^3} {8} {9}"
         )
         header = fmt.format(
             "LayerId",
@@ -44296,7 +44569,7 @@ class AndroidMgr(object):
             "Size",
             "Vis",
             "Op",
-            "Dim",
+            "{0:>4}".format("Dim"),
             "Name",
         )
         SysMgr.printPipe("=" * len(header))
@@ -44350,7 +44623,13 @@ class AndroidMgr(object):
                 sizeCol,
                 "V" if info.get("visible") else "",
                 "O" if info.get("isOpaque") else "",
-                ("%.2f" % info["dim"]) if "dim" in info else "",
+                (
+                    UtilMgr.convColor(
+                        "{0:>4}".format("%.2f" % info["dim"]), "YELLOW"
+                    )
+                    if "dim" in info
+                    else "{0:>4}".format("")
+                ),
                 name,
             )
 
@@ -78040,6 +78319,7 @@ Examples:
             Focus                 marks the window currently holding IME input focus
             Anim                  marks a window whose enter animation hasn't finished yet
             Dim                   O = the window has FLAG_DIM_BEHIND (it darkens what is behind it); how dark is in getsurfacestat's Dim
+            Fmt                   pixel format: L = TRANSLUCENT, T = TRANSPARENT (can show what is behind it), blank = OPAQUE (JSON: format)
             Alpha                 current Surface alpha (opacity); highlighted when below 1.0 (fading in/out)
             RootTask              the window's immediate task ID; "*" marks a window nested under a different root task
             WinType               this window's AOSP/AAOS window type (ty=), with a "/AppOp" suffix when AppOp isn't NONE
@@ -78081,6 +78361,7 @@ Examples:
             Org                   "*" when this task is registered with a TaskOrganizer (System UI/Shell split-screen or PiP)
             Win/VisWin            number of WindowManager windows (and how many visible) whose rootTaskId points to this task
             Dim                   O = at least one of this task's windows has FLAG_DIM_BEHIND (JSON: dimWinCount); blank when it has no window
+            Tr                    O = the task is translucent, so what is below it shows through (JSON: translucent; each hist entry has occludesParent)
 
         Drawn/AVis are per-activity signals distinct from the Task-level State/Vis columns, and both read blank when the task has no Hist entry at all.
         Seq is also the table's default sort key (recents-having tasks first by this value, then the rest by TaskId) unless "-q DUMPORDER" is set.
@@ -78233,6 +78514,7 @@ Examples:
         # {0:1} {1:1} getprocstats:"com.example.app"
         # {0:1} {1:1} getprocstats -J
         # {0:1} {1:1} getprocstats -q SORT:PCT
+        # {0:1} {1:1} getprocstats -q SECTION:24H
 
         Per-process columns:
             Package               package name; the same package can repeat across uids on a multi-user device
@@ -78246,6 +78528,9 @@ Examples:
         Useful for spotting a process spent nearly its whole window in one state (e.g. 95%+ Cached, barely used yet still holding memory).
         A process can have more than one non-TOTAL state (e.g. split between Top and Fgs); only the dominant one is shown in the table.
         "-J" JSON mode exposes every state with its own min/avg/max instead.
+        The system reports every process once per section, each with its own numbers; the table shows "CURRENT STATS" so a process is listed once.
+        "-q SECTION:24H" or "-q SECTION:3H" shows the matching "AGGREGATED OVER LAST N HOURS" section, "-q SECTION:ALL" shows every section.
+        "-J" JSON mode keeps every section, the "section" field of each record tells which one it belongs to.
 
     - Print the history of received broadcasts (dumpsys activity broadcasts)
         # {0:1} {1:1} getbroadcastlist
@@ -84601,7 +84886,14 @@ Key Value List:
                 oflags = ["O_RDONLY", "O_CLOEXEC"]
                 if "LARGEFILE" in SysMgr.environList:
                     oflags += ["O_LARGEFILE"]
-            oflagList = {v: k for k, v in ConfigMgr.OPEN_TYPE.items()}
+            oflagList = {v: k for k, v in UtilMgr.getOpenType().items()}
+
+            # restore the composite flags merged by getOpenFlagString #
+            oflagList["O_SYNC"] = oflagList["O_DSYNC"] | oflagList["__O_SYNC"]
+            oflagList["O_TMPFILE"] = (
+                oflagList["O_DIRECTORY"] | oflagList["__O_TMPFILE"]
+            )
+
             oflagBits = 0
             for flag in oflags:
                 try:
@@ -116770,7 +117062,7 @@ Key Value List:
     def getSchedPolicy(sched):
         return (
             ConfigMgr.SCHED_POLICY[sched]
-            if sched <= len(ConfigMgr.SCHED_POLICY)
+            if sched < len(ConfigMgr.SCHED_POLICY)
             else sched
         )
 
@@ -128437,7 +128729,7 @@ class BpfMgr(object):
     BPF_PROG_TYPE_LSM = 29
 
     # BPF attach type for LSM hooks #
-    BPF_LSM_MAC = 19
+    BPF_LSM_MAC = 27
 
     # XDP program type and action constants #
     BPF_PROG_TYPE_XDP = 6
@@ -130009,8 +130301,8 @@ class BpfMgr(object):
         # Explicitly detach XDP links before closing fds.
         # On some kernels (e.g. Android 6.1), closing a BPF_LINK_CREATE link_fd
         # does NOT automatically remove the XDP program from the interface.
-        # BPF_LINK_DETACH (cmd=30) forces the kernel to drop the attachment.
-        BPF_LINK_DETACH = 30
+        # BPF_LINK_DETACH (cmd=34) forces the kernel to drop the attachment.
+        BPF_LINK_DETACH = 34
         for fd in BpfMgr._xdpLinkFds:
             try:
                 attr = (c_uint8 * 8)()
@@ -154962,7 +155254,7 @@ class BpfMgr(object):
             struct.pack_into("<I", attr, 4, 0)  # target_fd (0 for LSM)
             struct.pack_into(
                 "<I", attr, 8, BpfMgr.BPF_LSM_MAC
-            )  # attach_type=19
+            )  # attach_type=27
             struct.pack_into("<I", attr, 12, 0)  # flags
             struct.pack_into("<I", attr, 16, btf_id)  # btf_id of hook
             link_fd = BpfMgr.bpfSyscall(
@@ -178822,9 +179114,7 @@ typedef struct {
                     return value
         elif syscall in ("open", "openat", "accept4"):
             if argname == "flags":
-                return UtilMgr.getFlagString(
-                    value, ConfigMgr.OPEN_TYPE, num="oct"
-                )
+                return UtilMgr.getOpenFlagString(value)
         elif syscall == "execve":
             # ignore envp arg #
             if argname == "argv":
@@ -178846,10 +179136,20 @@ typedef struct {
                 if value < len(ConfigMgr.FUTEX_TYPE):
                     return ConfigMgr.FUTEX_TYPE[value]
 
-                # check _PRIVATE FLAG #
-                value = value & 0xF
-                if value < len(ConfigMgr.FUTEX_TYPE):
-                    return ConfigMgr.FUTEX_TYPE[value] + "_PRIVATE"
+                # split the command and the FUTEX_PRIVATE_FLAG (128) /
+                # FUTEX_CLOCK_REALTIME (256) option bits #
+                optBits = (
+                    ConfigMgr.FUTEX_PRIVATE_FLAG
+                    | ConfigMgr.FUTEX_CLOCK_REALTIME
+                )
+                cmd = value & ~optBits
+                if cmd < len(ConfigMgr.FUTEX_TYPE):
+                    opStr = ConfigMgr.FUTEX_TYPE[cmd]
+                    if value & ConfigMgr.FUTEX_PRIVATE_FLAG:
+                        opStr += "_PRIVATE"
+                    if value & ConfigMgr.FUTEX_CLOCK_REALTIME:
+                        opStr += "|FUTEX_CLOCK_REALTIME"
+                    return opStr
             elif argname == "val3" and value == -1:
                 return "FUTEX_BITSET_MATCH_ANY"
         elif syscall == "ioctl":
@@ -178887,7 +179187,16 @@ typedef struct {
                 return UtilMgr.getFlagString(value, ConfigMgr.PERM_TYPE)
         elif syscall == "socket":
             if argname == "type":
-                return UtilMgr.getFlagString(value, ConfigMgr.SOCKET_TYPE)
+                # the low 4 bits hold an enum value, not flag bits #
+                sockType = long(value) & ConfigMgr.SOCK_TYPE_MASK
+                sockFlags = long(value) & ~ConfigMgr.SOCK_TYPE_MASK
+                typeStr = ConfigMgr.SOCKET_TYPE.get(sockType, sockType)
+                if sockFlags:
+                    flagStr = UtilMgr.getFlagString(
+                        sockFlags, ConfigMgr.SOCKET_FLAG
+                    )
+                    return "%s|%s" % (typeStr, flagStr)
+                return typeStr
         elif syscall == "clone":
             if argname == "flags":
                 return UtilMgr.getFlagString(value, ConfigMgr.CLONE_TYPE)
@@ -178948,7 +179257,7 @@ typedef struct {
             if argname == "flags":
                 return UtilMgr.getFlagString(value, ConfigMgr.FAN_INIT_TYPE)
             elif argname == "event_f_flags":
-                return UtilMgr.getFlagString(value, ConfigMgr.OPEN_TYPE, "oct")
+                return UtilMgr.getOpenFlagString(value)
         elif syscall == "fanotify_mark":
             if argname == "flags":
                 return UtilMgr.getFlagString(value, ConfigMgr.FAN_MARK_TYPE)
@@ -178979,7 +179288,18 @@ typedef struct {
                 )
         elif syscall == "io_uring_register":
             if argname == "op":
-                return ConfigMgr.IORING_REGISTER_OPCODE[value]
+                regRing = ConfigMgr.IORING_REGISTER_USE_REGISTERED_RING
+                try:
+                    opName = ConfigMgr.IORING_REGISTER_OPCODE[value & ~regRing]
+                    if value & regRing:
+                        opName = (
+                            "%s|IORING_REGISTER_USE_REGISTERED_RING" % opName
+                        )
+                    return opName
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    return value
         elif syscall == "io_uring_setup":
             if argname == "p":
                 return self.readUringParam(value)
@@ -178991,7 +179311,7 @@ typedef struct {
             except:
                 return value
         elif argname == "advice" and syscall.startswith(
-            ["madvise", "fadvise"]
+            ("madvise", "fadvise")
         ):
             try:
                 if syscall[0] == "m":
@@ -238002,9 +238322,7 @@ function isAutoNamedPlot(name) {{
                                 attr += "%s" % val
                             elif name == "flags":
                                 perm = long(val, 8)
-                                perm = UtilMgr.getFlagString(
-                                    perm, ConfigMgr.OPEN_TYPE, num="oct"
-                                )
+                                perm = UtilMgr.getOpenFlagString(perm)
                                 attr += ", %s" % perm
                             elif name in ("size", "exp_name", "count", "ino"):
                                 try:
