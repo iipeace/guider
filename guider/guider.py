@@ -693,7 +693,7 @@ class ConfigMgr(object):
         "MS_I_VERSION": (1 << 23),  # Update inode I_version field
         "MS_STRICTATIME": (1 << 24),  # Always perform atime updates
         "MS_LAZYTIME": (1 << 25),  # Update the on-disk [acm]times lazily
-        "MS_SUBMOUNT": (1 << 26),
+        "MS_DISCARD": (1 << 26),
         "MS_NOREMOTELOCK": (1 << 27),
         "MS_NOSEC": (1 << 28),
         "MS_BORN": (1 << 29),
@@ -800,12 +800,15 @@ class ConfigMgr(object):
         0x004: "EPOLLOUT",
         0x008: "EPOLLERR",
         0x010: "EPOLLHUP",
+        0x020: "EPOLLNVAL",
         0x040: "EPOLLRDNORM",
         0x080: "EPOLLRDBAND",
         0x100: "EPOLLWRNORM",
         0x200: "EPOLLWRBAND",
         0x400: "EPOLLMSG",
         0x2000: "EPOLLRDHUP",
+        (1 << 27): "EPOLL_URING_WAKE",
+        (1 << 28): "EPOLLEXCLUSIVE",
         (1 << 29): "EPOLLWAKEUP",
         (1 << 30): "EPOLLONESHOT",
         (1 << 31): "EPOLLET",
@@ -841,6 +844,7 @@ class ConfigMgr(object):
         2: "MADV_SEQUENTIAL",  # Expect sequential page references
         3: "MADV_WILLNEED",  # Will need these pages
         4: "MADV_DONTNEED",  # Don't need these pages
+        7: "MADV_SPACEAVAIL",
         8: "MADV_FREE",  # Free pages only if memory pressure
         9: "MADV_REMOVE",  # Remove these pages and resources
         10: "MADV_DONTFORK",  # Do not inherit across fork
@@ -6104,6 +6108,7 @@ class ConfigMgr(object):
         "ENOTRECOVERABLE",  # State not recoverable #
         "ERFKILL",  # Operation not possible due to RF-kill #
         "EHWPOISON",  # Memory page has hardware error #
+        "EFTYPE",  # Wrong file type for the intended operation #
     ]
 
     RLIMIT_TYPE = [
