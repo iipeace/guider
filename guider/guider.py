@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.9"
-__revision__ = "261101"
+__revision__ = "261119"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -9528,6 +9528,17 @@ class UtilMgr(object):
         return sec
 
     @staticmethod
+    def getNaturalKey(name):
+        """Return a sort key that compares the digits of name as numbers,
+        so guider_99999_* comes before guider_100000_*. The tokens at
+        even places are always text and those at odd places always numbers,
+        which keeps every pair of keys comparable"""
+        return [
+            long(token) if idx % 2 else token
+            for idx, token in enumerate(re.split(r"([0-9]+)", name))
+        ]
+
+    @staticmethod
     def convTime(time, remainder=False, digits=2):
         try:
             if not remainder:
@@ -11481,6 +11492,26 @@ function reset_help() {
             return list(set(pathList))
         else:
             return None
+
+    @staticmethod
+    def maskSecretEnv(env):
+        """Return a copy of env with the value of every credential variable
+        (*_API_KEY, *_AUTH_TOKEN) hidden but for its last 4 characters #"""
+        masked = dict(env)
+        for key in list(masked):
+            if not (key.endswith("_API_KEY") or key.endswith("_AUTH_TOKEN")):
+                continue
+            val = masked[key]
+            if not val:
+                continue
+            try:
+                masked[key] = "****" + val[-4:] if len(val) > 8 else "****"
+            except SystemExit:
+                sys.exit(0)
+            except:
+                # never show it, even when it is not a plain string #
+                masked[key] = "****"
+        return masked
 
     @staticmethod
     def convDict2Str(
@@ -28561,10 +28592,9 @@ class LogMgr(object):
         if logFilter and event not in ("E",):
             if not UtilMgr.isValidStr(etc[2], logFilter):
                 if event == "B":
-                    # Still push a sentinel (name=None) so the stack depth
-                    # stays correct; otherwise the matching 'E' below would
-                    # unconditionally pop an unrelated, unfiltered span and
-                    # desync the per-thread stack from that point on.
+                    """Still push a sentinel (name=None) so the stack depth stays correct; otherwise the matching 'E'
+                    below would unconditionally pop an unrelated, unfiltered span and desync the per-thread stack from
+                    that point on."""
                     taskInfo["stack"].append([tm, None])
                 return
 
@@ -32408,6 +32438,7 @@ class LLMMgr(object):
     _lastResponse = None  # Last LLM response content for programmatic access
     _llmContextConfig = {}  # guider.conf [llm].CONTEXT config
     _askrunConfig = {}  # guider.conf [llm].ASKRUN config
+    _allowCmdWarned = False  # LLMALLOWCMD blocked-name warning given once #
 
     # short aliases accepted via -q LLMMODEL:<alias> for the claude/
     # custom-claude providers, resolved to concrete Anthropic API model ids.
@@ -32465,10 +32496,9 @@ class LLMMgr(object):
             except:
                 pass
         else:
-            # AIPERIODIC/LLMPERIOD was removed from config entirely (as
-            # opposed to just never having been set) - explicitly disable
-            # rather than leaving a stale nonzero interval from an earlier
-            # RELOAD armed forever #
+            """AIPERIODIC/LLMPERIOD was removed from config entirely (as opposed to just never having been set) -
+            explicitly disable rather than leaving a stale nonzero interval from an earlier RELOAD armed forever
+            """
             SysMgr.llmPeriodicInterval = 0
 
     @staticmethod
@@ -32581,9 +32611,8 @@ class LLMMgr(object):
                 providerKey, LLMMgr._TOKEN_PRICING["default"]
             )
 
-            # guider.conf [llm].ASKRUN.PRICING_OVERRIDE lets an operator
-            # update rates without a code change; entries are tried before
-            # the built-in table so they take priority on substring match #
+            """ guider.conf [llm].ASKRUN.PRICING_OVERRIDE lets an operator update rates without a code change; entries
+            are tried before the built-in table so they take priority on substring match """
             try:
                 overrideCfg = (
                     LLMMgr._askrunConfig.get("PRICING_OVERRIDE") or {}
@@ -32647,11 +32676,9 @@ class LLMMgr(object):
         ):
             import threading as _threading
 
-            # serializes chat()/analyze() on THIS instance only, so
-            # concurrent threshold events that happen to share one cached
-            # LLM instance (same provider/model/config -> same getLLM()
-            # cache key) can't interleave self.history reads/appends and
-            # corrupt or drop a turn; distinct instances are unaffected #
+            """ serializes chat()/analyze() on THIS instance only, so concurrent threshold events that happen to share
+            one cached LLM instance (same provider/model/config -> same getLLM() cache key) can't interleave
+            self.history reads/appends and corrupt or drop a turn; distinct instances are unaffected """
             self._lock = _threading.RLock()
             self.apiKey = apiKey or self._getApiKeyFromEnv()
             if not skipKeyCheck and not self.apiKey:
@@ -32684,12 +32711,10 @@ class LLMMgr(object):
             )
             # Temperature: use provided value, env var, or default
             envTemp = os.getenv("LLM_TEMPERATURE")
-            # True only if the caller (or -q LLMTEMPERATURE / config / env)
-            # explicitly requested a temperature; False means self.temperature
-            # is just DEFAULT_TEMPERATURE's fallback value. Some newer models
-            # reject an explicitly-sent temperature that differs from their
-            # server-side default, so providers that hit this should only
-            # send "temperature" on the wire when this flag is True.
+            """ True only if the caller (or -q LLMTEMPERATURE / config / env) explicitly requested a temperature; False
+            means self.temperature is just DEFAULT_TEMPERATURE's fallback value. Some newer models reject an
+            explicitly-sent temperature that differs from their server-side default, so providers that hit this should
+            only send "temperature" on the wire when this flag is True. """
             self.temperatureExplicit = temperature is not None or bool(envTemp)
             self.temperature = (
                 temperature
@@ -32739,15 +32764,12 @@ class LLMMgr(object):
                 rest = self.history[pinned:]
                 keep = max(0, self.maxHistory - pinned)
                 trimmed = len(rest) - keep
-                # advance to the next "user"-role entry so a multi-message
-                # turn never gets split - analyze(useHistoryForAnalyze=True)
-                # can record a cache-priming/system message ahead of the
-                # real user prompt for a single turn (unlike chat(), which
-                # always appends exactly one user + one assistant message
-                # per turn), so a blind count-based slice could otherwise
-                # leave self.history starting with a dangling assistant/
-                # model reply, which providers with strict role alternation
-                # (e.g. Claude) would reject on the next chat() call #
+                """ advance to the next "user"-role entry so a multi-message turn never gets split -
+                analyze(useHistoryForAnalyze=True) can record a cache-priming/system message ahead of the real user
+                prompt for a single turn (unlike chat(), which always appends exactly one user + one assistant message
+                per turn), so a blind count-based slice could otherwise leave self.history starting with a dangling
+                assistant/ model reply, which providers with strict role alternation (e.g. Claude) would reject on the
+                next chat() call """
                 while trimmed < len(rest) and (
                     not isinstance(rest[trimmed], dict)
                     or rest[trimmed].get("role") != "user"
@@ -32871,14 +32893,11 @@ class LLMMgr(object):
             their own provider-specific response shape, then hand off the
             arithmetic/dict-shape to this single implementation.
             """
-            # every official SDK models these as Optional[int] = None, so
-            # a field can be genuinely PRESENT but None (e.g. Gemini's
-            # cached_content_token_count when a request doesn't hit the
-            # cache - the common case) - the callers' own getattr(...,0)/
-            # .get(...,0) only substitutes a default when the field is
-            # missing entirely, not when it's present-but-None, so
-            # without this normalization "cacheRead > 0" below raises
-            # TypeError and discards an already-successful API response #
+            """ every official SDK models these as Optional[int] = None, so a field can be genuinely PRESENT but None
+            (e.g. Gemini's cached_content_token_count when a request doesn't hit the cache - the common case) - the
+            callers' own getattr(...,0)/ .get(...,0) only substitutes a default when the field is missing entirely, not
+            when it's present-but-None, so without this normalization "cacheRead > 0" below raises TypeError and
+            discards an already-successful API response """
             cacheCreation = cacheCreation or 0
             cacheRead = cacheRead or 0
             totalPrompt = totalPrompt or 0
@@ -33013,11 +33032,9 @@ class LLMMgr(object):
                 raise IOError("failed to read session file '%s'" % filePath)
             session = json_mod.loads(content)
 
-            # provider-specific history shapes are incompatible (e.g.
-            # Gemini's {"role": "model", "parts": [...]} vs Claude/OpenAI's
-            # {"role": "assistant", "content": ...}) - loading a mismatched
-            # session would otherwise silently corrupt self.history and
-            # only surface as a confusing SDK/API error on the next chat()
+            """ provider-specific history shapes are incompatible (e.g. Gemini's {"role": "model", "parts": [...]} vs
+            Claude/OpenAI's {"role": "assistant", "content": ...}) - loading a mismatched session would otherwise
+            silently corrupt self.history and only surface as a confusing SDK/API error on the next chat() """
             savedProvider = session.get("provider")
             if savedProvider and savedProvider != self.__class__.__name__:
                 raise ValueError(
@@ -33027,11 +33044,9 @@ class LLMMgr(object):
                 )
 
             self.history = session.get("history", [])
-            # restore caching/temperature settings so the session is
-            # actually resumed as documented, not just its history -
-            # only touch these if the saved file actually has the key,
-            # so an older session file (saved before this field existed)
-            # leaves the current live instance's settings untouched #
+            """ restore caching/temperature settings so the session is actually resumed as documented, not just its
+            history - only touch these if the saved file actually has the key, so an older session file (saved before
+            this field existed) leaves the current live instance's settings untouched """
             if "enableCache" in session:
                 self.enableCache = session["enableCache"]
             if "cacheSystemPrompt" in session:
@@ -33174,10 +33189,9 @@ class LLMMgr(object):
             types = self._genai_types
             self._requirePkg(types, "google-genai")
 
-            # Create client with configuration. The SDK does NOT retry
-            # transient failures by default - HttpOptions.retry_options
-            # is None unless set explicitly, which hard-wires tenacity to
-            # stop_after_attempt(1) (zero retries) internally #
+            """ Create client with configuration. The SDK does NOT retry transient failures by default -
+            HttpOptions.retry_options is None unless set explicitly, which hard-wires tenacity to stop_after_attempt(1)
+            (zero retries) internally """
             httpOptionsKwargs = {
                 "retry_options": types.HttpRetryOptions(),
                 # HttpOptions.timeout is milliseconds; left unset it
@@ -33255,10 +33269,8 @@ class LLMMgr(object):
                         else None
                     )
                     self.lastCacheStats = cacheStats
-                    # chat() already guards against this (round 38) -
-                    # analyze() never did, so a content-filtered/empty
-                    # stream could poison history the same way when
-                    # useHistoryForAnalyze is set #
+                    """ chat() already guards against this (round 38) - analyze() never did, so a content-filtered/empty
+                    stream could poison history the same way when useHistoryForAnalyze is set """
                     if self.useHistoryForAnalyze:
                         if not analyzeText:
                             raise ValueError(
@@ -33399,10 +33411,8 @@ class LLMMgr(object):
                         else None
                     )
                     self.lastCacheStats = cacheStats
-                    # a stream that closes with zero text deltas (e.g.
-                    # content-filtered or tool-call-only) still reaches
-                    # here without raising - guard before poisoning
-                    # history with an empty model turn #
+                    """ a stream that closes with zero text deltas (e.g. content-filtered or tool-call-only) still
+                    reaches here without raising - guard before poisoning history with an empty model turn """
                     if not responseText:
                         raise ValueError(
                             "Empty response content from Gemini API"
@@ -33491,12 +33501,9 @@ class LLMMgr(object):
             usage = response.usage_metadata
             cachedTokens = getattr(usage, "cached_content_token_count", 0)
 
-            # Per-model accurate discount rates:
-            # Gemini 2.5: 90% discount, Gemini 2.0: 75% discount, others: 75%
-            # "-latest" version-less aliases (gemini-flash-latest,
-            # gemini-pro-latest, gemini-flash-lite-latest) currently all
-            # resolve to 2.5-series models too - revisit if Google ever
-            # repoints them at a non-2.5 generation #
+            """ Per-model accurate discount rates: Gemini 2.5: 90% discount, Gemini 2.0: 75% discount, others: 75%
+            "-latest" version-less aliases (gemini-flash-latest, gemini-pro-latest, gemini-flash-lite-latest) currently
+            all resolve to 2.5-series models too - revisit if Google ever repoints them at a non-2.5 generation """
             model = getattr(self, "model", "")
             if "2.5" in model or "latest" in model:
                 discountRate = 90.0
@@ -33561,11 +33568,7 @@ class LLMMgr(object):
 
         def _getApiKeyFromEnv(self):
             """Get Claude API key from environment variables (ANTHROPIC_API_KEY, CLAUDE_API_KEY, or ANTHROPIC_AUTH_TOKEN)"""
-            return (
-                os.getenv("ANTHROPIC_API_KEY")
-                or os.getenv("CLAUDE_API_KEY")
-                or os.getenv("ANTHROPIC_AUTH_TOKEN")
-            )
+            return LLMMgr._getClaudeKeyFromEnv()
 
         def _buildClient(self):
             """Build a new Anthropic Claude SDK client instance"""
@@ -33619,12 +33622,10 @@ class LLMMgr(object):
                 # Build messages with optional caching
                 messages = []
 
-                # Add cached system prompt if enabled and meets minimum
-                # token requirement. When useHistoryForAnalyze persists
-                # this turn into self.history below, skip re-adding it
-                # once it's already pinned at history[0] - otherwise a
-                # fresh duplicate would be appended (and sent to the API)
-                # on every single analyze() call instead of just once #
+                """ Add cached system prompt if enabled and meets minimum token requirement. When useHistoryForAnalyze
+                persists this turn into self.history below, skip re-adding it once it's already pinned at history[0] -
+                otherwise a fresh duplicate would be appended (and sent to the API) on every single analyze() call
+                instead of just once """
                 if (
                     self.enableCache
                     and self.cacheSystemPrompt
@@ -33675,10 +33676,9 @@ class LLMMgr(object):
                     finalMsg = stream.get_final_message()
                     cacheStats = self._extractClaudeCacheStats(finalMsg)
                     self.lastCacheStats = cacheStats
-                    # Claude's input_tokens excludes cache tokens, unlike
-                    # OpenAI/Gemini's prompt-token counts - fold them back
-                    # in here so cost estimation (which reads prompt_tokens)
-                    # doesn't silently treat cached tokens as free #
+                    """ Claude's input_tokens excludes cache tokens, unlike OpenAI/Gemini's prompt-token counts - fold
+                    them back in here so cost estimation (which reads prompt_tokens) doesn't silently treat cached
+                    tokens as free """
                     cachedTokens = (
                         cacheStats.get("cache_creation_tokens", 0)
                         + cacheStats.get("cache_read_tokens", 0)
@@ -33764,12 +33764,10 @@ class LLMMgr(object):
 
                 client = self._buildClient()
 
-                # Unlike analyze() (which rebuilds "messages" from scratch
-                # every call), chat() accumulates real multi-turn history,
-                # so the cached system-prompt turn only needs inserting
-                # once, at the very start of the conversation - otherwise
-                # (mirroring analyze()'s "system=" fallback below) it would
-                # never be sent at all while caching is enabled #
+                """ Unlike analyze() (which rebuilds "messages" from scratch every call), chat() accumulates real
+                multi-turn history, so the cached system-prompt turn only needs inserting once, at the very start of the
+                conversation - otherwise (mirroring analyze()'s "system=" fallback below) it would never be sent at all
+                while caching is enabled """
                 if (
                     self.enableCache
                     and self.cacheSystemPrompt
@@ -33896,12 +33894,10 @@ class LLMMgr(object):
             usage = response.usage
             cacheCreation = getattr(usage, "cache_creation_input_tokens", 0)
             cacheRead = getattr(usage, "cache_read_input_tokens", 0)
-            # Claude's input_tokens EXCLUDES cache_creation/cache_read
-            # tokens (unlike OpenAI/Gemini, whose prompt-token counts
-            # already include them) - fold them in here so totalPrompt
-            # means the same "true total prompt size" for every provider,
-            # otherwise cacheRead/totalPrompt in _buildCacheStats can
-            # exceed 1.0 and print a >100% savings percentage #
+            """ Claude's input_tokens EXCLUDES cache_creation/cache_read tokens (unlike OpenAI/Gemini, whose
+            prompt-token counts already include them) - fold them in here so totalPrompt means the same "true total
+            prompt size" for every provider, otherwise cacheRead/totalPrompt in _buildCacheStats can exceed 1.0 and
+            print a >100% savings percentage """
             totalPrompt = (
                 cacheCreation + cacheRead + getattr(usage, "input_tokens", 0)
             )
@@ -34006,11 +34002,9 @@ class LLMMgr(object):
                 LLMResponse with content, model, usage stats, and cache stats
             """
             with self._lock:
-                # some newer models (o1/o3/o1-mini/o1-preview reasoning
-                # models) reject an explicitly-sent temperature outright,
-                # so only send it when the caller (or -q LLMTEMPERATURE/
-                # config/env) actually asked for one - mirrors ClaudeLLM's
-                # identical sendTemperature guard #
+                """some newer models (o1/o3/o1-mini/o1-preview reasoning models) reject an explicitly-sent temperature
+                outright, so only send it when the caller (or -q LLMTEMPERATURE/ config/env) actually asked for one -
+                mirrors ClaudeLLM's identical sendTemperature guard"""
                 sendTemperature = (
                     temperature is not None or self.temperatureExplicit
                 )
@@ -34127,17 +34121,12 @@ class LLMMgr(object):
                 # Build messages with user turn (without mutating history yet)
                 userMsg = {"role": "user", "content": message}
 
-                # unlike analyze() (which already does this), chat()
-                # never sent cacheSystemPrompt at all - callers relying
-                # on setCacheSystemPrompt() (e.g. TaskAnalyzer's ASKRUN
-                # system prompt, which spells out the allowed-command
-                # list and required JSON output format) silently got no
-                # system-role message whatsoever for this provider,
-                # leaving the model to respond with no instructions on
-                # format/scope. Mirror analyze()'s handling here without
-                # touching self.history, so the system prompt isn't
-                # persisted across turns any more than Claude/Gemini's
-                # own system-param handling persists theirs #
+                """ unlike analyze() (which already does this), chat() never sent cacheSystemPrompt at all - callers
+                relying on setCacheSystemPrompt() (e.g. TaskAnalyzer's ASKRUN system prompt, which spells out the
+                allowed-command list and required JSON output format) silently got no system-role message whatsoever for
+                this provider, leaving the model to respond with no instructions on format/scope. Mirror analyze()'s
+                handling here without touching self.history, so the system prompt isn't persisted across turns any more
+                than Claude/Gemini's own system-param handling persists theirs """
                 messages = list(self.history) + [userMsg]
                 if self.cacheSystemPrompt:
                     messages = [
@@ -34358,10 +34347,9 @@ class LLMMgr(object):
                                     sys.stdout.flush()
                                     accumulated.append(text)
                             elif evtType == "message_start":
-                                # input_tokens only ever appears here; the
-                                # later message_delta.usage carries only
-                                # output_tokens, so merge rather than
-                                # overwrite.
+                                """input_tokens only ever appears here; the later message_delta.usage carries only
+                                output_tokens, so merge rather than overwrite.
+                                """
                                 usageData.update(
                                     evt.get("message", {}).get("usage", {})
                                 )
@@ -34546,10 +34534,9 @@ class LLMMgr(object):
                     "stream": useStream,
                 }
 
-                # Add system prompt as top-level field (Claude API
-                # requirement) - unless it was already injected above as a
-                # cached message turn, since sending it both ways would
-                # double the token cost and defeat the point of caching it
+                """ Add system prompt as top-level field (Claude API requirement) - unless it was already injected above
+                as a cached message turn, since sending it both ways would double the token cost and defeat the point of
+                caching it """
                 if self.cacheSystemPrompt and not cachedSystemInjected:
                     payload["system"] = self.cacheSystemPrompt
 
@@ -34578,11 +34565,8 @@ class LLMMgr(object):
                     analyzeContent, usageData = self._parseStreamResponse(
                         response
                     )
-                    # chat() already guards against this via
-                    # _appendAssistantReply() (round 38) - analyze()
-                    # never did, so an empty stream could poison
-                    # history the same way when useHistoryForAnalyze
-                    # is set #
+                    """ chat() already guards against this via _appendAssistantReply() (round 38) - analyze() never did,
+                    so an empty stream could poison history the same way when useHistoryForAnalyze is set """
                     if self.useHistoryForAnalyze:
                         if not analyzeContent:
                             raise ValueError("Empty response content from API")
@@ -34902,13 +34886,10 @@ class LLMMgr(object):
                     results = [results]
                 for res in results:
                     usageMeta = res.get("usageMetadata", usageMeta)
-                    # "candidates" can be present-but-empty (e.g. a
-                    # safety-filtered or finish-reason-only chunk), which
-                    # a get(..., [{}]) default doesn't cover since that
-                    # default only applies when the key is absent - index
-                    # into it directly would raise IndexError and, since
-                    # this whole loop is wrapped in a bare except below,
-                    # silently drop every remaining chunk in the array #
+                    """ "candidates" can be present-but-empty (e.g. a safety-filtered or finish-reason-only chunk),
+                    which a get(..., [{}]) default doesn't cover since that default only applies when the key is absent
+                    - index into it directly would raise IndexError and, since this whole loop is wrapped in a bare
+                    except below, silently drop every remaining chunk in the array """
                     candidates = res.get("candidates") or []
                     if not candidates:
                         continue
@@ -34936,12 +34917,9 @@ class LLMMgr(object):
             usage = result["usageMetadata"]
             cachedTokens = usage.get("cachedContentTokenCount", 0)
 
-            # Per-model accurate discount rates:
-            # Gemini 2.5: 90% discount, Gemini 2.0: 75% discount, others: 75%
-            # "-latest" version-less aliases (gemini-flash-latest,
-            # gemini-pro-latest, gemini-flash-lite-latest) currently all
-            # resolve to 2.5-series models too - revisit if Google ever
-            # repoints them at a non-2.5 generation #
+            """ Per-model accurate discount rates: Gemini 2.5: 90% discount, Gemini 2.0: 75% discount, others: 75%
+            "-latest" version-less aliases (gemini-flash-latest, gemini-pro-latest, gemini-flash-lite-latest) currently
+            all resolve to 2.5-series models too - revisit if Google ever repoints them at a non-2.5 generation """
             model = getattr(self, "model", "")
             if "2.5" in model or "latest" in model:
                 discountRate = 90.0
@@ -34986,12 +34964,10 @@ class LLMMgr(object):
                     "generationConfig": {"temperature": temperature},
                 }
 
-                # send whenever a system prompt is set, regardless of
-                # caching - Gemini's REST systemInstruction field has
-                # nothing to do with response caching, and gating it
-                # behind enableCache (default False) silently dropped
-                # ASKRUN's system prompt whenever this provider was
-                # selected, the same bug class fixed for OpenAILLM #
+                """ send whenever a system prompt is set, regardless of caching - Gemini's REST systemInstruction field
+                has nothing to do with response caching, and gating it behind enableCache (default False) silently
+                dropped ASKRUN's system prompt whenever this provider was selected, the same bug class fixed for
+                OpenAILLM """
                 if self.cacheSystemPrompt:
                     payload["systemInstruction"] = {
                         "parts": [{"text": self.cacheSystemPrompt}]
@@ -35012,12 +34988,10 @@ class LLMMgr(object):
                         stream=True,
                     )
                     if not response.ok:
-                        # avoid raise_for_status() here - it's a habit
-                        # kept from when the key was a ?key= query param
-                        # and response.url would have echoed it back;
-                        # the key is now header-only, but a hand-built
-                        # message avoids depending on requests' exact
-                        # error formatting either way #
+                        """avoid raise_for_status() here - it's a habit kept from when the key was a ?key= query param
+                        and response.url would have echoed it back; the key is now header-only, but a hand-built message
+                        avoids depending on requests' exact error formatting either way
+                        """
                         raise RuntimeError(
                             "{0} {1}: {2}".format(
                                 response.status_code,
@@ -35078,9 +35052,9 @@ class LLMMgr(object):
                     timeout=self.requestTimeout,
                 )
                 if not response.ok:
-                    # avoid raise_for_status() here - see the streaming
-                    # branch above (kept for consistency, not because
-                    # the now header-only key could leak via response.url) #
+                    """avoid raise_for_status() here - see the streaming branch above (kept for consistency, not
+                    because the now header-only key could leak via response.url)
+                    """
                     raise RuntimeError(
                         "{0} {1}: {2}".format(
                             response.status_code,
@@ -35176,12 +35150,10 @@ class LLMMgr(object):
                         stream=True,
                     )
                     if not response.ok:
-                        # avoid raise_for_status() here - it's a habit
-                        # kept from when the key was a ?key= query param
-                        # and response.url would have echoed it back;
-                        # the key is now header-only, but a hand-built
-                        # message avoids depending on requests' exact
-                        # error formatting either way #
+                        """avoid raise_for_status() here - it's a habit kept from when the key was a ?key= query param
+                        and response.url would have echoed it back; the key is now header-only, but a hand-built message
+                        avoids depending on requests' exact error formatting either way
+                        """
                         raise RuntimeError(
                             "{0} {1}: {2}".format(
                                 response.status_code,
@@ -35239,9 +35211,9 @@ class LLMMgr(object):
                     timeout=self.requestTimeout,
                 )
                 if not response.ok:
-                    # avoid raise_for_status() here - see the streaming
-                    # branch above (kept for consistency, not because
-                    # the now header-only key could leak via response.url) #
+                    """avoid raise_for_status() here - see the streaming branch above (kept for consistency, not
+                    because the now header-only key could leak via response.url)
+                    """
                     raise RuntimeError(
                         "{0} {1}: {2}".format(
                             response.status_code,
@@ -35456,11 +35428,9 @@ class LLMMgr(object):
 
                 headers = self._buildHeaders()
 
-                # send whenever a system prompt is set, regardless of
-                # caching - gating this behind enableCache (default
-                # False) silently dropped ASKRUN's system prompt
-                # whenever this provider was selected, the same bug
-                # class fixed for the official OpenAILLM class #
+                """ send whenever a system prompt is set, regardless of caching - gating this behind enableCache
+                (default False) silently dropped ASKRUN's system prompt whenever this provider was selected, the same
+                bug class fixed for the official OpenAILLM class """
                 messages = []
                 if self.cacheSystemPrompt:
                     messages.append(
@@ -35501,11 +35471,8 @@ class LLMMgr(object):
                     assistantContent, promptTokens, completionTokens = (
                         self._parseOpenAISSEStream(response)
                     )
-                    # chat() already guards against this via
-                    # _appendAssistantReply() (round 38) - analyze()
-                    # never did, so an empty stream could poison
-                    # history the same way when useHistoryForAnalyze
-                    # is set #
+                    """ chat() already guards against this via _appendAssistantReply() (round 38) - analyze() never did,
+                    so an empty stream could poison history the same way when useHistoryForAnalyze is set """
                     if self.useHistoryForAnalyze:
                         if not assistantContent:
                             raise ValueError("Empty response content from API")
@@ -35882,12 +35849,10 @@ class LLMMgr(object):
             for item in data:
                 vec = item.get("embedding")
                 if not vec:
-                    # an empty vector would otherwise pass through
-                    # silently (BaseEmbedder.cosineSimilarity() treats
-                    # a zero vector as a safe 0.0 score, not an error),
-                    # so a failed embedding call would just look like
-                    # a permanently-irrelevant RAG chunk with no signal
-                    # that anything went wrong. Fail loud instead #
+                    """an empty vector would otherwise pass through silently (BaseEmbedder.cosineSimilarity() treats a
+                    zero vector as a safe 0.0 score, not an error), so a failed embedding call would just look like a
+                    permanently-irrelevant RAG chunk with no signal that anything went wrong. Fail loud instead
+                    """
                     raise ValueError(
                         "Empty or malformed embedding response from API"
                     )
@@ -35963,10 +35928,9 @@ class LLMMgr(object):
 
             client_kwargs = {"api_key": self.apiKey}
             if types:
-                # the SDK does NOT retry transient failures by default -
-                # HttpOptions.retry_options is None unless set explicitly,
-                # which hard-wires tenacity to stop_after_attempt(1)
-                # (zero retries) internally #
+                """the SDK does NOT retry transient failures by default - HttpOptions.retry_options is None unless set
+                explicitly, which hard-wires tenacity to stop_after_attempt(1) (zero retries) internally
+                """
                 httpOptionsKwargs = {"retry_options": types.HttpRetryOptions()}
                 if self.baseUrl:
                     httpOptionsKwargs["base_url"] = self.baseUrl
@@ -35987,13 +35951,10 @@ class LLMMgr(object):
                 config=config,
             )
 
-            # an empty embeddings list, or an item with no/empty
-            # .values, would otherwise pass through silently
-            # (BaseEmbedder.cosineSimilarity() treats a zero vector as
-            # a safe 0.0 score, not an error), so a failed embedding
-            # call would just look like a permanently-irrelevant RAG
-            # chunk with no signal that anything went wrong. Fail
-            # loud instead #
+            """ an empty embeddings list, or an item with no/empty .values, would otherwise pass through silently
+            (BaseEmbedder.cosineSimilarity() treats a zero vector as a safe 0.0 score, not an error), so a failed
+            embedding call would just look like a permanently-irrelevant RAG chunk with no signal that anything went
+            wrong. Fail loud instead """
             if not result.embeddings:
                 raise ValueError("Empty embedding response from Gemini API")
             embeddings = []
@@ -36006,10 +35967,8 @@ class LLMMgr(object):
                     )
                 embeddings.append(list(vals))
 
-            # usage/statistics fields are Vertex-API-only and Optional
-            # even there, so extraction must be getattr-safe - the
-            # Gemini Developer API (the common path) legitimately returns
-            # None for both #
+            """ usage/statistics fields are Vertex-API-only and Optional even there, so extraction must be getattr-safe
+            - the Gemini Developer API (the common path) legitimately returns None for both """
             tokenCounts = [
                 getattr(getattr(e, "statistics", None), "token_count", None)
                 for e in (result.embeddings or [])
@@ -36429,11 +36388,19 @@ class LLMMgr(object):
         """
         Parse boolean value from string, supporting multiple formats.
         Accepts: '1', 'true', 'yes', 'on' (case-insensitive) as True.
-        All other values return False.
+        'SET' is what a -q option given without a value is stored as, so
+        a bare flag such as '-q LLMDRYRUN' reads as True. All other values
+        return False.
         """
         if value is None:
             return False
-        return str(value).lower().strip() in ("1", "true", "yes", "on")
+        return str(value).lower().strip() in (
+            "1",
+            "true",
+            "yes",
+            "on",
+            "set",
+        )
 
     @staticmethod
     def _resolveCache(configSettings):
@@ -36674,15 +36641,13 @@ class LLMMgr(object):
                 except:
                     pass
 
-            # LLMLIVE: inject a live system snapshot into the data sent to
-            # the LLM, reusing the same snapshot helpers as chat's
-            # interactive "sysinfo" command #
+            """ LLMLIVE: inject a live system snapshot into the data sent to the LLM, reusing the same snapshot helpers
+            as chat's interactive "sysinfo" command """
             if LLMMgr._parseBoolValue(LLMMgr._getEnvironValue("LLMLIVE")):
                 try:
-                    # apply LLMKEYS to the original data before wrapping it
-                    # with live_snapshot below, since askWithData's own
-                    # LLMKEYS filter only looks at top-level keys and would
-                    # otherwise see just "data"/"live_snapshot" and abort #
+                    """apply LLMKEYS to the original data before wrapping it with live_snapshot below, since
+                    askWithData's own LLMKEYS filter only looks at top-level keys and would otherwise see just
+                    "data"/"live_snapshot" and abort"""
                     llmKeys = LLMMgr._getEnvironValue("LLMKEYS")
                     if llmKeys and data and isinstance(data, dict):
                         keys = [k.strip() for k in llmKeys.split(":")]
@@ -36832,10 +36797,9 @@ class LLMMgr(object):
         if "DMESG" in ctx_cfg:
             try:
                 n = int(ctx_cfg["DMESG"])
-                # kernel message bodies can embed attacker-influenceable
-                # unbounded text (e.g. long filenames in a segfault/OOM/
-                # audit log line), unlike the kernel-truncated comm field,
-                # so cap each line before it reaches the LLM prompt #
+                """ kernel message bodies can embed attacker-influenceable unbounded text (e.g. long filenames in a
+                segfault/OOM/ audit log line), unlike the kernel-truncated comm field, so cap each line before it
+                reaches the LLM prompt """
                 extras["dmesg"] = [
                     line[:500] for line in (LogMgr.getKmsg(n) or [])
                 ]
@@ -36869,10 +36833,9 @@ class LLMMgr(object):
                 result = {}
                 cpuData = (inst and getattr(inst, "cpuData", None)) or {}
                 for key, vals in cpuData.items():
-                    # cpuData also carries non-per-CPU single-field
-                    # counters (ctxt/intr/softirq/processes/...) keyed
-                    # by name with no "idle" field - only integer keys
-                    # are real per-CPU core stat dicts #
+                    """cpuData also carries non-per-CPU single-field counters (ctxt/intr/softirq/processes/...) keyed
+                    by name with no "idle" field - only integer keys are real per-CPU core stat dicts
+                    """
                     if not isinstance(key, int) or not isinstance(vals, dict):
                         continue
                     total = sum(vals.values())
@@ -37269,10 +37232,8 @@ class LLMMgr(object):
             # 7. Get LLM instance
             llm = LLMMgr.getLLM(provider, **kwargs)
 
-            # streaming mode already writes response tokens straight to
-            # stdout inside llm.chat(); the "Assistant: <content>" prints
-            # below must be skipped in that case to avoid showing the
-            # same response twice.
+            """ streaming mode already writes response tokens straight to stdout inside llm.chat(); the "Assistant:
+            <content>" prints below must be skipped in that case to avoid showing the same response twice. """
             useStream = LLMMgr._isStreamEnabled()
 
             # 8. Set system prompt
@@ -37512,14 +37473,10 @@ class LLMMgr(object):
                                 "with: Executive Summary, Key Findings, Recommendations. "
                                 "Use markdown formatting."
                             )
-                            # show the generated report before ever
-                            # trying to save it - unlike every other
-                            # REPL command, this one used to be the
-                            # ONLY place the assistant's reply was
-                            # never printed, so a later save failure
-                            # (e.g. reportPath's directory doesn't
-                            # exist) silently discarded content that
-                            # already cost a real API call #
+                            """ show the generated report before ever trying to save it - unlike every other REPL
+                            command, this one used to be the ONLY place the assistant's reply was never printed, so a
+                            later save failure (e.g. reportPath's directory doesn't exist) silently discarded content
+                            that already cost a real API call """
                             SysMgr.printPipe(
                                 "\n{0}\n".format(response.content)
                             )
@@ -37621,12 +37578,10 @@ class LLMMgr(object):
             elif embedFile:
                 with open(embedFile, "r", encoding="utf-8") as f:
                     raw = f.read()
-                # EMBEDFILE is documented to accept JSON too - only act on
-                # the two unambiguous shapes (a JSON array of strings
-                # becomes the batch input, a bare JSON string becomes the
-                # single input); anything else (invalid JSON, or a valid
-                # but ambiguous shape like a dict) falls through to the
-                # existing plain-text/line-based handling unchanged #
+                """ EMBEDFILE is documented to accept JSON too - only act on the two unambiguous shapes (a JSON array of
+                strings becomes the batch input, a bare JSON string becomes the single input); anything else (invalid
+                JSON, or a valid but ambiguous shape like a dict) falls through to the existing plain-text/line-based
+                handling unchanged """
                 parsedJson = None
                 try:
                     json_mod_embed = SysMgr.getPkg("json", isExit=False)
@@ -37812,11 +37767,9 @@ class LLMMgr(object):
 
             # 3. Load or build vector index
             indexData = None  # list of {"text": str, "embedding": list[float]}
-            # meta of a freshly-*loaded* index only (stays None when the
-            # index is built fresh this run, or loaded in legacy bare-list
-            # form) - used below to guard against querying with a
-            # different embedding model/dimension than the index was
-            # built with #
+            """ meta of a freshly-*loaded* index only (stays None when the index is built fresh this run, or loaded in
+            legacy bare-list form) - used below to guard against querying with a different embedding model/dimension
+            than the index was built with """
             loadedMeta = None
 
             if ragIndex and os.path.isfile(ragIndex) and not ragForce:
@@ -37824,10 +37777,9 @@ class LLMMgr(object):
                 with open(ragIndex, "r", encoding="utf-8") as f:
                     loadedIndex = json_mod.load(f)
 
-                # new format: {"meta": {...}, "chunks": [...]} with a
-                # source-docs fingerprint for staleness detection.
-                # legacy format: a bare list, no fingerprint available,
-                # so it is trusted as-is (unchanged prior behavior) #
+                """ new format: {"meta": {...}, "chunks": [...]} with a source-docs fingerprint for staleness detection.
+                legacy format: a bare list, no fingerprint available, so it is trusted as-is (unchanged prior behavior)
+                """
                 if isinstance(loadedIndex, dict) and "chunks" in loadedIndex:
                     loadedMeta = loadedIndex.get("meta", {})
                     savedFingerprint = loadedMeta.get("docsFingerprint")
@@ -37901,11 +37853,9 @@ class LLMMgr(object):
                 chunks = []
                 start = 0
                 textLen = len(combinedText)
-                # clamp the step to at least 1 - RAGCHUNK/RAGOVERLAP are
-                # free-form user-supplied integers (-q RAGCHUNK:/RAGOVERLAP:)
-                # with no cross-validation; if overlap >= chunkSize this
-                # would otherwise never advance, hanging forever while
-                # appending the same chunk repeatedly #
+                """ clamp the step to at least 1 - RAGCHUNK/RAGOVERLAP are free-form user-supplied integers (-q
+                RAGCHUNK:/RAGOVERLAP:) with no cross-validation; if overlap >= chunkSize this would otherwise never
+                advance, hanging forever while appending the same chunk repeatedly """
                 step = max(1, chunkSize - overlap)
                 while start < textLen:
                     end = min(start + chunkSize, textLen)
@@ -37993,11 +37943,9 @@ class LLMMgr(object):
                 sys.exit(0)
             queryVec = queryResp.embeddings[0]
 
-            # a loaded (not freshly-built) index with recorded dimensions
-            # must match this query's embedder, or cosineSimilarity()'s
-            # zip(vecA, vecB) would silently truncate to the shorter
-            # vector and return a meaningless-but-plausible-looking score
-            # for every chunk instead of erroring #
+            """ a loaded (not freshly-built) index with recorded dimensions must match this query's embedder, or
+            cosineSimilarity()'s zip(vecA, vecB) would silently truncate to the shorter vector and return a
+            meaningless-but-plausible-looking score for every chunk instead of erroring """
             if loadedMeta:
                 indexDimensions = loadedMeta.get("embedDimensions")
                 if indexDimensions and len(queryVec) != indexDimensions:
@@ -38471,9 +38419,8 @@ class LLMMgr(object):
                 )
             )
 
-            # single-chunk shortcut (no map-reduce needed)
-            # streaming mode already writes response text straight to stdout
-            # inside llm.chat(); skip the content print below.
+            """ single-chunk shortcut (no map-reduce needed) streaming mode already writes response text straight to
+            stdout inside llm.chat(); skip the content print below. """
             useStream = LLMMgr._isStreamEnabled()
             if len(chunks) == 1:
                 SysMgr.printInfo(
@@ -38588,9 +38535,8 @@ class LLMMgr(object):
                 _printRawSummariesFallback()
                 return 1
 
-            # print final result
-            # streaming mode already writes response text straight to stdout
-            # inside llm.chat(); skip the content print below.
+            """ print final result streaming mode already writes response text straight to stdout inside llm.chat();
+            skip the content print below. """
             if not useStream:
                 SysMgr.printPipe("\n" + twoLine)
                 SysMgr.printPipe(
@@ -38800,12 +38746,10 @@ class LLMMgr(object):
 
         for provider in providers:
             try:
-                # Per-provider model override (-q LLMMODEL / config
-                # MODELS[provider] / env *_MODELS), falling back to the
-                # single shared `model` when none is configured for this
-                # provider - otherwise every provider in the comparison
-                # would silently get the same (possibly invalid-for-them)
-                # model string #
+                """Per-provider model override (-q LLMMODEL / config MODELS[provider] / env *_MODELS), falling back to
+                the single shared `model` when none is configured for this provider - otherwise every provider in the
+                comparison would silently get the same (possibly invalid-for-them) model string
+                """
                 providerModels = LLMMgr._getProviderModels(
                     provider, configSettings
                 )
@@ -38968,6 +38912,21 @@ class LLMMgr(object):
         return None
 
     @staticmethod
+    def _getClaudeKeyFromEnv():
+        """Return the Claude credential from the environment, or None.
+
+        Single source of truth for the env vars the claude provider
+        accepts, shared by provider auto-detection, key resolution and
+        ClaudeLLM itself so they can never disagree (proxy setups often
+        export only ANTHROPIC_AUTH_TOKEN) #
+        """
+        return (
+            os.getenv("ANTHROPIC_API_KEY")
+            or os.getenv("CLAUDE_API_KEY")
+            or os.getenv("ANTHROPIC_AUTH_TOKEN")
+        )
+
+    @staticmethod
     def _detectProviders():
         """
         Detect available providers from env vars.
@@ -39002,7 +38961,7 @@ class LLMMgr(object):
         # into the only outcome auto-detection ever produces.
         # SysMgr.getPkg() caches the import, so this costs nothing
         # extra when the real instance is constructed later #
-        if os.getenv("ANTHROPIC_API_KEY") and SysMgr.getPkg(
+        if LLMMgr._getClaudeKeyFromEnv() and SysMgr.getPkg(
             "anthropic", isExit=False
         ):
             providers.append("claude")
@@ -39053,26 +39012,22 @@ class LLMMgr(object):
         apiKey = opts.get("apiKey") or os.getenv("CUSTOM_API_KEY")
         baseUrl = opts.get("baseUrl") or os.getenv("CUSTOM_BASE_URL")
         if not apiKey and provider:
-            # standard (non-custom) providers resolve their own key
-            # from a provider-specific env var once, at construction
-            # time, and hold it in self.apiKey for the cached
-            # instance's whole lifetime - since apiKey wasn't part of
-            # getLLM()'s cache key for these providers, rotating a key
-            # in guider.conf (which gets re-written into these same
-            # env vars on every call) had no effect on an already-
-            # cached instance until some OTHER kwarg also changed or
-            # the process restarted. Snapshot each provider's PRIMARY
-            # env var here too (not the full fallback chain each
-            # class's own _getApiKeyFromEnv() checks, to avoid
-            # duplicating that logic) so a changed key usually busts
-            # the cache and a fresh instance picks it up #
-            _primaryEnvVar = {
-                "claude": "ANTHROPIC_API_KEY",
-                "gemini": "GEMINI_API_KEY",
-                "openai": "OPENAI_API_KEY",
-            }.get(provider.lower())
-            if _primaryEnvVar:
-                apiKey = os.getenv(_primaryEnvVar)
+            """standard (non-custom) providers resolve their own key from a provider-specific env var once, at
+            construction time, and hold it in self.apiKey for the cached instance's whole lifetime - since apiKey wasn't
+            part of getLLM()'s cache key for these providers, rotating a key in guider.conf (which gets re-written into
+            these same env vars on every call) had no effect on an already- cached instance until some OTHER kwarg also
+            changed or the process restarted. Snapshot each provider's PRIMARY env var here too (not the full fallback
+            chain each class's own _getApiKeyFromEnv() checks, to avoid duplicating that logic) so a changed key usually
+            busts the cache and a fresh instance picks it up"""
+            if provider.lower() == "claude":
+                apiKey = LLMMgr._getClaudeKeyFromEnv()
+            else:
+                _primaryEnvVar = {
+                    "gemini": "GEMINI_API_KEY",
+                    "openai": "OPENAI_API_KEY",
+                }.get(provider.lower())
+                if _primaryEnvVar:
+                    apiKey = os.getenv(_primaryEnvVar)
         if apiKey:
             kwargs["apiKey"] = apiKey
         if baseUrl:
@@ -39080,10 +39035,109 @@ class LLMMgr(object):
         return provider, kwargs
 
     @staticmethod
+    def _parseInlineOpts(rest):
+        """Split the argument of an AI event command, ":<PROMPT>#K:V,K,..",
+        into (prompt, {KEY: value}). KEY is upper-cased, a bare KEY gets
+        the value "true", and a command without ":" has no prompt. Used by
+        ASKAI/ASKRUN/ASKMULTI and by the start-up scan of the threshold
+        config, so all of them read the options the same way #"""
+        if not rest.startswith(":"):
+            return "", {}
+
+        prompt, _, optStr = rest[1:].partition("#")
+        opts = {}
+        for kv in optStr.split(","):
+            kv = kv.strip()
+            if not kv:
+                continue
+            key, sep, val = kv.partition(":")
+            opts[key.strip().upper()] = val.strip() if sep else "true"
+
+        return prompt.strip(), opts
+
+    @staticmethod
+    def _toInt(value, low=None, high=None):
+        """Return value as an int limited to [low, high], or None when it
+        is not an integer. The one place that decides how a numeric AI
+        option is read, whether it comes from -q or from an inline option"""
+        try:
+            num = int(value)
+        except (TypeError, ValueError):
+            return None
+
+        if low is not None and num < low:
+            num = low
+        if high is not None and num > high:
+            num = high
+        return num
+
+    @staticmethod
+    def _inlineToOpts(inline, perProvider=True, warnLabel=None):
+        """Convert the inline options of an AI event command, as returned
+        by _parseInlineOpts(), into LLM opts. A number that is not a number
+        is left out, so the -q value or the default is used instead. Ranges
+        are the same as for the -q options. perProvider=False leaves out
+        PROVIDER/MODEL/APIKEY/BASEURL, which only make sense for one
+        provider, for a command that calls several of them (ASKMULTI).
+        A value that is left out or limited is reported when warnLabel is
+        given, which is done once when the config is loaded, so the same
+        warning is not repeated by every event"""
+        opts = {}
+        for key, name, low, high in (
+            ("TIMEOUT", "timeout", 0, None),
+            ("MAXCMD", "maxCmd", 0, None),
+            ("CTXDEPTH", "ctxDepth", 1, 50),
+            ("CTXTICK", "ctxTick", 0, TaskAnalyzer._LLM_CTX_MAXTICKS),
+            ("FEEDBACK", "feedback", 0, None),
+            ("MAXCTX", "maxCtxChars", 0, None),
+        ):
+            raw = inline.get(key)
+            num = LLMMgr._toInt(raw, low, high)
+            if num is not None:
+                opts[name] = num
+
+            if warnLabel and raw is not None:
+                if num is None:
+                    SysMgr.printWarn(
+                        "[LLM] ignored %s '%s:%s' because it is not an "
+                        "integer, the default is used" % (warnLabel, key, raw),
+                        True,
+                    )
+                elif num != int(raw):
+                    SysMgr.printWarn(
+                        "[LLM] %s '%s:%s' is out of range, %d is used"
+                        % (warnLabel, key, raw, num),
+                        True,
+                    )
+
+        strList = [
+            # bare flag -> "true" (auto path), else explicit path #
+            ("SAVE", "save")
+        ]
+        if perProvider:
+            strList += [
+                ("PROVIDER", "provider"),
+                ("MODEL", "model"),
+                ("APIKEY", "apiKey"),
+                ("BASEURL", "baseUrl"),
+            ]
+        for key, name in strList:
+            if key in inline:
+                opts[name] = inline[key]
+
+        if "DRYRUN" in inline:
+            opts["dryRun"] = LLMMgr._parseBoolValue(inline["DRYRUN"])
+        if "HISTORY" in inline:
+            opts["keepHistory"] = LLMMgr._parseBoolValue(inline["HISTORY"])
+
+        return opts
+
+    @staticmethod
     def _buildLLMOptsFromEnv(opts=None):
         """
         Fill missing LLM opts from global -q options (LLMRATELIMIT,
-        LLMDRYRUN, LLMMAXCMD, LLMCTXDEPTH, LLMAUDITLOG, ALLOWRUN,
+        LLMDRYRUN, LLMMAXCMD, LLMCTXDEPTH, LLMHISTORY, LLMMAXCTX,
+        LLMAUDITLOG, ALLOWRUN,
         LLMALLOWCMD, LLMCUSTOM_API_KEY, LLMCUSTOM_BASE_URL). Existing
         keys in opts are preserved (explicit/inline values win).
 
@@ -39094,53 +39148,97 @@ class LLMMgr(object):
         envList = SysMgr.environList
         _envVal = LLMMgr._getEnvironValue
 
-        if "LLMRATELIMIT" in envList and "rateLimit" not in opts:
-            try:
-                opts["rateLimit"] = int(_envVal("LLMRATELIMIT"))
-            except:
-                pass
+        def _setNum(key, name, conv, kind, low=None, high=None):
+            """Set opts[name] from the -q value of key, limited to
+            [low, high]. A value that is missing or not a number is left
+            out so the default stays in effect, but it is reported:
+            staying silent made a typo such as LLMBUDGET:5usd switch the
+            spending cap off without any sign of it #
+            """
+            if key not in envList or name in opts:
+                return
+
+            raw = _envVal(key)
+            if conv is int:
+                val = LLMMgr._toInt(raw, low, high)
+            else:
+                try:
+                    val = conv(raw)
+                except (TypeError, ValueError):
+                    val = None
+
+            if val is None:
+                SysMgr.printWarn(
+                    "[LLM] ignored -q %s%s because it is not %s, "
+                    "the default is used"
+                    % (
+                        key,
+                        "" if raw in (None, "SET") else ":%s" % raw,
+                        kind,
+                    ),
+                    True,
+                )
+                return
+
+            if conv is int and val != int(raw):
+                SysMgr.printWarn(
+                    "[LLM] -q %s:%s is out of range, %d is used"
+                    % (key, raw, val),
+                    True,
+                )
+
+            opts[name] = val
+
+        _setNum("LLMRATELIMIT", "rateLimit", int, "an integer", low=0)
         if "LLMDRYRUN" in envList and "dryRun" not in opts:
             opts["dryRun"] = LLMMgr._parseBoolValue(_envVal("LLMDRYRUN"))
-        if "LLMMAXCMD" in envList and "maxCmd" not in opts:
-            try:
-                opts["maxCmd"] = int(_envVal("LLMMAXCMD"))
-            except:
-                pass
-        if "LLMCTXDEPTH" in envList and "ctxDepth" not in opts:
-            try:
-                opts["ctxDepth"] = int(_envVal("LLMCTXDEPTH"))
-            except:
-                pass
+        _setNum("LLMMAXCMD", "maxCmd", int, "an integer", low=0)
+        _setNum("LLMCTXDEPTH", "ctxDepth", int, "an integer", 1, 50)
+        _setNum(
+            "LLMCTXTICK",
+            "ctxTick",
+            int,
+            "an integer",
+            0,
+            TaskAnalyzer._LLM_CTX_MAXTICKS,
+        )
+        if "LLMHISTORY" in envList and "keepHistory" not in opts:
+            opts["keepHistory"] = LLMMgr._parseBoolValue(
+                _envVal("LLMHISTORY") or "true"
+            )
+        _setNum("LLMMAXCTX", "maxCtxChars", int, "an integer", low=0)
         if "LLMAUDITLOG" in envList and "auditLog" not in opts:
             opts["auditLog"] = _envVal("LLMAUDITLOG")
         if "ALLOWRUN" in envList and "allowRun" not in opts:
             opts["allowRun"] = True
         if "LLMALLOWCMD" in envList and "extraAllow" not in opts:
             raw = _envVal("LLMALLOWCMD") or ""
-            # _validateLLMCommand() always uppercases the command it
-            # checks, so this set must be normalized the same way or a
-            # lowercase LLMALLOWCMD value (matching the docs' own example
-            # style) would never match and silently allow nothing #
-            opts["extraAllow"] = (
-                set(v.strip().upper() for v in raw.split(":") if v.strip())
-                if raw
-                else None
-            )
+            """ _validateLLMCommand() always uppercases the command it checks, so this set must be normalized the same
+            way or a lowercase LLMALLOWCMD value (matching the docs' own example style) would never match and silently
+            allow nothing """
+            names = set(v.strip().upper() for v in raw.split(":") if v.strip())
+            # same as _validateLLMCommand(): a leading CMD_ is dropped #
+            names = set(n[4:] if n.startswith("CMD_") else n for n in names)
+            opts["extraAllow"] = names if raw else None
+
+            # a name that is always blocked can not be allowed by this
+            # option; say so once, not at every event #
+            if opts["extraAllow"] and not LLMMgr._allowCmdWarned:
+                LLMMgr._allowCmdWarned = True
+                for name in sorted(opts["extraAllow"]):
+                    if name in TaskAnalyzer._LLM_BLOCK_CMDS:
+                        SysMgr.printWarn(
+                            "[LLM] -q LLMALLOWCMD:%s is ignored because the "
+                            "command is always blocked for the AI" % name,
+                            True,
+                        )
         if "LLMCUSTOM_API_KEY" in envList and "apiKey" not in opts:
             opts["apiKey"] = _envVal("LLMCUSTOM_API_KEY")
         if "LLMCUSTOM_BASE_URL" in envList and "baseUrl" not in opts:
             opts["baseUrl"] = _envVal("LLMCUSTOM_BASE_URL")
-        if "LLMBUDGET" in envList and "budgetCapUsd" not in opts:
-            try:
-                opts["budgetCapUsd"] = float(_envVal("LLMBUDGET"))
-            except:
-                pass
+        _setNum("LLMBUDGET", "budgetCapUsd", float, "a number")
         for _minConfKey in ("LLMMINCONF", "MINCONF"):
-            if _minConfKey in envList and "minConfidence" not in opts:
-                try:
-                    opts["minConfidence"] = float(_envVal(_minConfKey))
-                except:
-                    pass
+            _setNum(_minConfKey, "minConfidence", float, "a number")
         return opts
 
 
@@ -40307,10 +40405,9 @@ class AndroidMgr(object):
                     meminfostr = meminfo[0]
 
             if out:
-                # NOTE: for the jsonEnable case, itemList[m] is only set
-                # after skip_proc is known below, so that a process hidden
-                # from the live view by THRESHOLD/DIFF is also excluded
-                # from memDumpIntData / the periodic MemDump summary.
+                """NOTE: for the jsonEnable case, itemList[m] is only set after skip_proc is known below, so that a
+                process hidden from the live view by THRESHOLD/DIFF is also excluded from memDumpIntData / the periodic
+                MemDump summary."""
                 if SysMgr.outPath and not SysMgr.jsonEnable:
                     itemList[m] = meminfostr
 
@@ -40912,11 +41009,9 @@ class AndroidMgr(object):
                 windowData[curNum] = d
                 continue
 
-            # a "Window #" line that fails the full header regex (garbled
-            # output, unexpected format) must not silently fall through to
-            # curBlock.append() below -- that would corrupt the *previous*
-            # window's block with this header line's text instead of
-            # being treated as its own boundary #
+            """ a "Window #" line that fails the full header regex (garbled output, unexpected format) must not silently
+            fall through to curBlock.append() below -- that would corrupt the *previous* window's block with this header
+            line's text instead of being treated as its own boundary """
             if s.startswith("Window #"):
                 SysMgr.printWarn(
                     "failed to parse window info from '%s'" % s.rstrip()
@@ -40926,19 +41021,14 @@ class AndroidMgr(object):
                 curBlock = []
                 continue
 
-            # device-verified bug: without this, the LAST window's block
-            # never terminates (no "next Window #" line follows it) and
-            # silently absorbs the entire trailing global-summary section
-            # -- AccessibilityController's "WindowsForAccessibilityObserver{
-            # mDisplayId=N, ...}" lines carry the exact same field names as
-            # a real window, risking data corruption on the last entry.
-            # Rather than discard this trailing section, switch to
-            # collecting it as global/display info instead #
-            # "  Hiding System Alert Windows:" is a section of its own that
-            # follows the last window block and lists some windows AGAIN
-            # (as "#0 Window{...}", with their attributes); left inside
-            # the last block it makes that window look as if it had the
-            # flags of a different one (found with FLAG_DIM_BEHIND) #
+            """ device-verified bug: without this, the LAST window's block never terminates (no "next Window #" line
+            follows it) and silently absorbs the entire trailing global-summary section -- AccessibilityController's
+            "WindowsForAccessibilityObserver{ mDisplayId=N, ...}" lines carry the exact same field names as a real
+            window, risking data corruption on the last entry. Rather than discard this trailing section, switch to
+            collecting it as global/display info instead # " Hiding System Alert Windows:" is a section of its own that
+            follows the last window block and lists some windows AGAIN (as "#0 Window{...}", with their attributes);
+            left inside the last block it makes that window look as if it had the flags of a different one (found with
+            FLAG_DIM_BEHIND) """
             if (
                 raw.startswith("  mGlobalConfiguration")
                 or raw.startswith("AccessibilityController")
@@ -40956,9 +41046,8 @@ class AndroidMgr(object):
                     focusAddrs.add(fm.group(1))
                 continue
 
-            # imeInputTarget only ever appears in the trailing global
-            # section (handled above via the inGlobal branch), never
-            # inside a window block -- no need to search for it here #
+            """ imeInputTarget only ever appears in the trailing global section (handled above via the inGlobal branch),
+            never inside a window block -- no need to search for it here """
             if curNum is not None:
                 curBlock.append(raw)
         _flush()
@@ -41309,31 +41398,24 @@ class AndroidMgr(object):
         taskData, _ = AndroidMgr.parseActivityDump(actLines)
 
         if SysMgr.jsonEnable:
-            # gettaskstat -J already includes its own join result
-            # (winCount/visWinCount) -- mirror that here so getwindowstat
-            # -J doesn't silently drop the only join field (taskMode)
-            # it computes, forcing JSON consumers to call gettaskstat
-            # separately just to learn fullscreen vs multi-window #
+            """gettaskstat -J already includes its own join result (winCount/visWinCount) -- mirror that here so
+            getwindowstat -J doesn't silently drop the only join field (taskMode) it computes, forcing JSON consumers to
+            call gettaskstat separately just to learn fullscreen vs multi-window
+            """
             jsonWindows = {}
             for num, info in windowData.items():
-                # the table below filters by pkg via this exact same
-                # "package or '-'" substring check before printing a
-                # row; this branch used to skip it entirely and always
-                # dump every window regardless of "getwindowstat:pkg"
-                # -- same "JSON branch forgot the filter the table
-                # remembered" gap already found and fixed in
-                # getsurfacestat/gettaskstat's own "-J" modes #
+                """the table below filters by pkg via this exact same "package or '-'" substring check before printing
+                a row; this branch used to skip it entirely and always dump every window regardless of
+                "getwindowstat:pkg" -- same "JSON branch forgot the filter the table remembered" gap already found and
+                fixed in getsurfacestat/gettaskstat's own "-J" modes"""
                 curPkg = info.get("package") or "-"
                 if pkg and pkg not in curPkg:
                     continue
                 entry = dict(info)
                 rtid = info.get("rootTaskId")
-                # "-1" (AOSP's INVALID_TASK_ID) is a valid regex match
-                # for this field (the fieldPats entry explicitly allows
-                # a leading "-") but is truthy as a non-empty string --
-                # without this check a window with no real task would
-                # look up taskData["-1"] instead of being treated as
-                # taskless #
+                """ "-1" (AOSP's INVALID_TASK_ID) is a valid regex match for this field (the fieldPats entry explicitly
+                allows a leading "-") but is truthy as a non-empty string -- without this check a window with no real
+                task would look up taskData["-1"] instead of being treated as taskless """
                 entry["taskMode"] = (
                     taskData.get(rtid, {}).get("mode")
                     if rtid and rtid != "-1"
@@ -41426,21 +41508,16 @@ class AndroidMgr(object):
         for num, info in sorted(windowData.items(), key=lambda x: int(x[0])):
             visible = info.get("visible", False)
 
-            # resolved once here (rather than at its original later
-            # use site) so this check, the "visible" count/filter below,
-            # and the WinType display column all agree on the same
-            # value -- comparing against the raw info["winType"] would
-            # miss a device/build that ever emits ty=2022 unstringified
-            # (the same class of fallback case _resolveWinType()/
-            # _SYSTEM_WINDOW_TYPES exists for; 2022 is TYPE_INPUT_CONSUMER's
-            # FIRST_SYSTEM_WINDOW offset) #
+            """ resolved once here (rather than at its original later use site) so this check, the "visible"
+            count/filter below, and the WinType display column all agree on the same value -- comparing against the raw
+            info["winType"] would miss a device/build that ever emits ty=2022 unstringified (the same class of fallback
+            case _resolveWinType()/ _SYSTEM_WINDOW_TYPES exists for; 2022 is TYPE_INPUT_CONSUMER's FIRST_SYSTEM_WINDOW
+            offset) """
             winTypeName = _resolveWinType(info.get("winType"))
             isInputOnly = winTypeName == "INPUT_CONSUMER"
-            # an INPUT_CONSUMER window (e.g. a touch-spy overlay) reports
-            # raw isVisible=true in dumpsys with no actual rendered
-            # content -- excluded from both the "visible" tally/footer
-            # and "-q ONLYVISWIN" so both match what the Vis column's
-            # own O/I marker already shows the user #
+            """ an INPUT_CONSUMER window (e.g. a touch-spy overlay) reports raw isVisible=true in dumpsys with no actual
+            rendered content -- excluded from both the "visible" tally/footer and "-q ONLYVISWIN" so both match what the
+            Vis column's own O/I marker already shows the user """
             countsAsVisible = visible and not isInputOnly
             if onlyVis and not countsAsVisible:
                 continue
@@ -41449,11 +41526,9 @@ class AndroidMgr(object):
             if pkg and pkg not in curPkg:
                 continue
 
-            # both tallies are taken AFTER onlyVis/pkg filtering so the
-            # footer summarizes what was actually printed above it, not
-            # the whole unfiltered windowData -- getwindowstat:"pkg" or
-            # -q ONLYVISWIN would otherwise still report system-wide
-            # totals while the table itself shows only a subset #
+            """ both tallies are taken AFTER onlyVis/pkg filtering so the footer summarizes what was actually printed
+            above it, not the whole unfiltered windowData -- getwindowstat:"pkg" or -q ONLYVISWIN would otherwise still
+            report system-wide totals while the table itself shows only a subset """
             nrPrinted += 1
             if countsAsVisible:
                 nrVis += 1
@@ -41492,9 +41567,8 @@ class AndroidMgr(object):
             else:
                 dimCol = "{0:^3}".format("")
 
-            # pixel format: the OPAQUE default is not printed in the dump
-            # and stays blank here; L = TRANSLUCENT, T = TRANSPARENT
-            # (the full name is in -J "format") #
+            """ pixel format: the OPAQUE default is not printed in the dump and stays blank here; L = TRANSLUCENT, T =
+            TRANSPARENT (the full name is in -J "format") """
             pixFmt = info.get("format")
             fmtCol = {"TRANSLUCENT": "L", "TRANSPARENT": "T"}.get(
                 pixFmt, "?" if pixFmt else ""
@@ -41513,10 +41587,8 @@ class AndroidMgr(object):
                 alpha = UtilMgr.convColor(alpha, "YELLOW")
 
             rootTaskId = info.get("rootTaskId")
-            # "-1" (AOSP's INVALID_TASK_ID) matches the rootTaskId
-            # regex (which explicitly allows a leading "-") but is
-            # truthy as a non-empty string -- treat it the same as
-            # "no rootTaskId at all" everywhere below #
+            """ "-1" (AOSP's INVALID_TASK_ID) matches the rootTaskId regex (which explicitly allows a leading "-") but
+            is truthy as a non-empty string -- treat it the same as "no rootTaskId at all" everywhere below """
             hasRootTask = bool(rootTaskId) and rootTaskId != "-1"
             taskMode = (
                 taskData.get(rootTaskId, {}).get("mode", "-")
@@ -41530,10 +41602,9 @@ class AndroidMgr(object):
             # every column after it out of alignment #
             taskMode = taskMode[:13]
             immediateTaskId = info.get("immediateTaskId")
-            # only append the nested-task marker when there's an actual
-            # taskId to attach it to -- otherwise a window with no
-            # rootTaskId at all but some immediateTaskId would render as
-            # the confusing "-*" instead of staying a plain "-" #
+            """ only append the nested-task marker when there's an actual taskId to attach it to -- otherwise a window
+            with no rootTaskId at all but some immediateTaskId would render as the confusing "-*" instead of staying a
+            plain "-" """
             if hasRootTask:
                 rootTask = rootTaskId
                 if immediateTaskId and immediateTaskId != rootTaskId:
@@ -41541,11 +41612,9 @@ class AndroidMgr(object):
             else:
                 rootTask = "-"
 
-            # appop is parsed but was previously only visible in -J JSON
-            # output -- NONE is the overwhelming majority (device-
-            # verified), so only surface it when it's actually set (e.g.
-            # SYSTEM_ALERT_WINDOW, confirmed live on a real window) to
-            # avoid cluttering every other row with "NONE" #
+            """ appop is parsed but was previously only visible in -J JSON output -- NONE is the overwhelming majority
+            (device- verified), so only surface it when it's actually set (e.g. SYSTEM_ALERT_WINDOW, confirmed live on a
+            real window) to avoid cluttering every other row with "NONE" """
             appop = info.get("appop")
             appopPart = appop if appop and appop != "NONE" else ""
 
@@ -41553,13 +41622,10 @@ class AndroidMgr(object):
                 "" if winTypeName in _COMMON_WIN_TYPES else (winTypeName or "")
             )
 
-            # merged into one column (WinType/AppOp) rather than two
-            # separate ones -- AppOp is non-blank on at most 1 of 17
-            # live windows (device-verified on both 5af877f6/66aed018),
-            # so a dedicated column spent an entire line's width on an
-            # almost-always-empty value; combining frees that width for
-            # WinType, whose values were getting truncated at 13 chars
-            # (e.g. "STATUS_BAR_ADDITIONAL" -> "STATUS_BAR_AD") #
+            """ merged into one column (WinType/AppOp) rather than two separate ones -- AppOp is non-blank on at most 1
+            of 17 live windows (device-verified on both 5af877f6/66aed018), so a dedicated column spent an entire line's
+            width on an almost-always-empty value; combining frees that width for WinType, whose values were getting
+            truncated at 13 chars (e.g. "STATUS_BAR_ADDITIONAL" -> "STATUS_BAR_AD") """
             if winTypePart and appopPart:
                 winTypeCol = "%s/%s" % (winTypePart, appopPart)
             elif winTypePart:
@@ -41568,12 +41634,10 @@ class AndroidMgr(object):
                 winTypeCol = appopPart
             winTypeCol = winTypeCol[:40]
 
-            # the header's own "u<N>" (device-verified both u0/u10 mixed
-            # in the same real capture) is distinct from mOwnerUid's
-            # package-ownership uid -- same "parsed but never reached
-            # the table" gap gettaskstat's/getservicestat's own User
-            # column fixes already found, "u" prefix stripped to match
-            # their plain-digit convention #
+            """ the header's own "u<N>" (device-verified both u0/u10 mixed in the same real capture) is distinct from
+            mOwnerUid's package-ownership uid -- same "parsed but never reached the table" gap
+            gettaskstat's/getservicestat's own User column fixes already found, "u" prefix stripped to match their
+            plain-digit convention """
             uidRaw = info.get("uid")
             userCol = uidRaw.lstrip("u") if uidRaw else "-"
 
@@ -41735,9 +41799,8 @@ class AndroidMgr(object):
             if cbm:
                 info["createdByOrganizer"] = cbm.group(1) == "true"
 
-            # a Task's back stack can hold any number of Hist entries;
-            # split on "* Hist #" boundaries so each entry's own
-            # state=/finishing=/PID don't leak across entries #
+            """ a Task's back stack can hold any number of Hist entries; split on "* Hist #" boundaries so each entry's
+            own state=/finishing=/PID don't leak across entries """
             hist = []
             histBlocks = re.split(r"(?=\* Hist  #\d+:)", text)
             for hb in histBlocks:
@@ -41775,10 +41838,9 @@ class AndroidMgr(object):
                 curDisplayId = dm.group(1)
                 continue
 
-            # ActivityTaskSupervisor state: marks the end of the
-            # per-display Task listing -- same "last block never
-            # terminates" trap as getwindowstat's mGlobalConfiguration
-            # marker, so flush and switch into tail-section handling #
+            """ ActivityTaskSupervisor state: marks the end of the per-display Task listing -- same "last block never
+            terminates" trap as getwindowstat's mGlobalConfiguration marker, so flush and switch into tail-section
+            handling """
             if raw.startswith("ActivityTaskSupervisor state:"):
                 _flush()
                 curTaskId = None
@@ -41799,17 +41861,15 @@ class AndroidMgr(object):
                 indent = len(tm.group("indent"))
                 taskId = tm.group("taskId")
                 rtm = rootTaskIdPat.search(raw)
-                # top-level headers don't carry a "rootTaskId=" field of
-                # their own (device-verified) since they ARE the root --
-                # fall back to their own taskId so the key is never null
-                # for a task that genuinely has no parent #
+                """ top-level headers don't carry a "rootTaskId=" field of their own (device-verified) since they ARE
+                the root -- fall back to their own taskId so the key is never null for a task that genuinely has no
+                parent """
                 rootTaskId = (
                     rtm.group(1) if rtm else (taskId if indent <= 2 else None)
                 )
 
-                # pop any stack entries at the same or deeper indent --
-                # they're siblings or children of a block we've already
-                # left, not ancestors of this new task #
+                """ pop any stack entries at the same or deeper indent -- they're siblings or children of a block we've
+                already left, not ancestors of this new task """
                 while indentStack and indentStack[-1][0] >= indent:
                     indentStack.pop()
                 immediateParent = indentStack[-1][1] if indentStack else None
@@ -41835,12 +41895,10 @@ class AndroidMgr(object):
                         "rootTaskId": rootTaskId,
                     }
                 else:
-                    # nested child task -- flush the current (parent)
-                    # block's accumulated text first so its Hist entries
-                    # aren't duplicated into the child's parsing pass,
-                    # then start a fresh block for the child while
-                    # keeping the parent's taskId as the reflush target
-                    # once the child itself is flushed #
+                    """nested child task -- flush the current (parent) block's accumulated text first so its Hist
+                    entries aren't duplicated into the child's parsing pass, then start a fresh block for the child
+                    while keeping the parent's taskId as the reflush target once the child itself is flushed
+                    """
                     _flush()
                     taskData[taskId] = {
                         "addr": tm.group("addr"),
@@ -42007,13 +42065,10 @@ class AndroidMgr(object):
             info["inactiveSec"] = recentActiveTime.get(taskId)
 
         if SysMgr.jsonEnable:
-            # the table below filters by pkg via this exact same
-            # "package or '-'" substring check before printing a row;
-            # this branch used to skip it entirely and always dump
-            # every task regardless of "gettaskstat:pkg" -- same
-            # "JSON branch forgot the filter the table remembered" gap
-            # already found and fixed in getsurfacestat's own "-J" mode
-            # (see [[getsurfacestat_andcmd_feature]]) #
+            """the table below filters by pkg via this exact same "package or '-'" substring check before printing a
+            row; this branch used to skip it entirely and always dump every task regardless of "gettaskstat:pkg" -- same
+            "JSON branch forgot the filter the table remembered" gap already found and fixed in getsurfacestat's own
+            "-J" mode (see [[getsurfacestat_andcmd_feature]])"""
             jsonTasks = {
                 tid: info
                 for tid, info in taskData.items()
@@ -42121,20 +42176,15 @@ class AndroidMgr(object):
             state = (top.get("state") if top else None) or "-"
             pid = (top.get("pid") if top else None) or "-"
 
-            # the cell keeps its plain text here and is padded and colored
-            # when printed, because the escape bytes would otherwise count
-            # toward the width and shift every column after it.
-            # RESUMED is the foreground activity (green, same as Vis);
-            # states on the way in or out of the foreground/alive are
-            # yellow; a settled STOPPED or "-" keeps the default color #
+            """ the cell keeps its plain text here and is padded and colored when printed, because the escape bytes
+            would otherwise count toward the width and shift every column after it. RESUMED is the foreground activity
+            (green, same as Vis); states on the way in or out of the foreground/alive are yellow; a settled STOPPED or
+            "-" keeps the default color """
             stateCol = state
 
-            # topmost Hist entry's own drawing/visibility state -- same
-            # O/blank convention as the Task-level Vis column (not a
-            # 3-state Y/N/blank): a Hist-less task (None) and a Hist
-            # whose allDrawn/nowVisible is explicitly false both read
-            # as "not drawn"/"not visible", so no distinction is drawn
-            # between them here #
+            """ topmost Hist entry's own drawing/visibility state -- same O/blank convention as the Task-level Vis
+            column (not a 3-state Y/N/blank): a Hist-less task (None) and a Hist whose allDrawn/nowVisible is explicitly
+            false both read as "not drawn"/"not visible", so no distinction is drawn between them here """
             allDrawn = top.get("allDrawn") if top else None
             nowVisible = top.get("nowVisible") if top else None
             allDrawnCol = "O" if allDrawn else ""
@@ -42148,21 +42198,18 @@ class AndroidMgr(object):
 
             org = "*" if info.get("organizerMode") else ""
 
-            # AOSP ActivityType (standard/home/recents/assistant/dream/
-            # undefined) -- distinct from Mode (windowing mode:
-            # fullscreen/multi-window); unlike WinType's BASE_APPLICATION,
-            # no single value dominates here (device-verified: standard/
-            # home/undefined are all common), so no value is hidden #
+            """ AOSP ActivityType (standard/home/recents/assistant/dream/ undefined) -- distinct from Mode (windowing
+            mode: fullscreen/multi-window); unlike WinType's BASE_APPLICATION, no single value dominates here
+            (device-verified: standard/ home/undefined are all common), so no value is hidden """
             typeCol = info.get("type") or "-"
 
             pkgCol = curPkg
             if showTree and depth > 0:
                 pkgCol = "`- " + pkgCol
 
-            # zero is the common case for Depth/Win/VisWin on placeholder
-            # or child tasks (no back stack entries, no windows of their
-            # own) -- showing it as a blank cell instead of a literal "0"
-            # keeps the table focused on the non-trivial values #
+            """ zero is the common case for Depth/Win/VisWin on placeholder or child tasks (no back stack entries, no
+            windows of their own) -- showing it as a blank cell instead of a literal "0" keeps the table focused on the
+            non-trivial values """
             depthCol = info.get("sz") or ""
             winCol = info.get("winCount") or ""
             visWinCol = info.get("visWinCount") or ""
@@ -42172,25 +42219,18 @@ class AndroidMgr(object):
             # in its header); the common false value stays blank #
             translCol = "O" if info.get("translucent") else ""
 
-            # "dumpsys activity recents"'s own most-recently-used index
-            # (0 = top of stack) -- a different ordering axis than
-            # DUMPORDER, since recents only tracks tasks that have
-            # actually been used/backgrounded; blank (not "-") when
-            # this task has no recents entry at all (e.g. the root
-            # home container or an empty organizer-created placeholder
-            # task) -- unlike PID/RootTask, "-" would visually compete
-            # with real small index values like "0"/"1" in this narrow
-            # numeric column #
+            """ "dumpsys activity recents"'s own most-recently-used index (0 = top of stack) -- a different ordering
+            axis than DUMPORDER, since recents only tracks tasks that have actually been used/backgrounded; blank (not
+            "-") when this task has no recents entry at all (e.g. the root home container or an empty organizer-created
+            placeholder task) -- unlike PID/RootTask, "-" would visually compete with real small index values like
+            "0"/"1" in this narrow numeric column """
             recIdxCol = info.get("recentIdx")
             recIdxCol = recIdxCol if recIdxCol is not None else ""
 
-            # "dumpsys activity recents"'s own "(inactive for Ns)" value
-            # -- unlike Seq/recentIdx (position only), this is the
-            # actual elapsed time, so a Seq=2 task that's genuinely
-            # been untouched for a long time is distinguishable from
-            # one that was just backgrounded a moment ago. Reuses the
-            # existing UtilMgr.convTime() formatter (d:HH:MM:SS) rather
-            # than a bespoke one #
+            """ "dumpsys activity recents"'s own "(inactive for Ns)" value -- unlike Seq/recentIdx (position only), this
+            is the actual elapsed time, so a Seq=2 task that's genuinely been untouched for a long time is
+            distinguishable from one that was just backgrounded a moment ago. Reuses the existing UtilMgr.convTime()
+            formatter (d:HH:MM:SS) rather than a bespoke one """
             inactiveSec = info.get("inactiveSec")
             inactiveCol = (
                 UtilMgr.convTime(inactiveSec)
@@ -42198,13 +42238,10 @@ class AndroidMgr(object):
                 else ""
             )
 
-            # Android's own multi-user id (AOSP's "U=<N>" header field,
-            # distinct from uid=package ownership) -- device-verified
-            # both test devices actually mix U=0 and U=10 tasks in the
-            # same dump, the same "parsed but never reached the table"
-            # gap getservicestat's own User column fix (see
-            # [[getservicestat_andcmd_feature]]) already found and
-            # fixed for its sibling command #
+            """ Android's own multi-user id (AOSP's "U=<N>" header field, distinct from uid=package ownership) --
+            device-verified both test devices actually mix U=0 and U=10 tasks in the same dump, the same "parsed but
+            never reached the table" gap getservicestat's own User column fix (see [[getservicestat_andcmd_feature]])
+            already found and fixed for its sibling command """
             userCol = info.get("user", "-")
 
             if showTree:
@@ -42262,13 +42299,10 @@ class AndroidMgr(object):
         nrVis = 0
         nrPrinted = 0
         if showTree:
-            # depth-first: a child task is rendered immediately after
-            # its parent, with only the Package column marked -- every
-            # other column stays at the table's fixed column position
-            # regardless of nesting depth, unlike a free-form
-            # "key=value" dump where each field would start at a
-            # different x-offset per row (rejected design, less
-            # scannable) #
+            """depth-first: a child task is rendered immediately after its parent, with only the Package column marked
+            -- every other column stays at the table's fixed column position regardless of nesting depth, unlike a
+            free-form "key=value" dump where each field would start at a different x-offset per row (rejected design,
+            less scannable)"""
             childrenOf = {}
             for taskId, info in taskData.items():
                 childrenOf.setdefault(info.get("parentTaskId"), []).append(
@@ -42279,35 +42313,26 @@ class AndroidMgr(object):
                 nonlocal nrVis, nrPrinted
                 info = taskData[taskId]
                 row, visible, curPkg = _buildRow(taskId, info, depth)
-                # tallied AFTER the pkg filter so the footer summarizes
-                # what was actually printed above it, not the whole
-                # unfiltered taskData -- gettaskstat:"pkg" would
-                # otherwise still report system-wide totals while the
-                # tree itself shows only the matching subset #
+                """ tallied AFTER the pkg filter so the footer summarizes what was actually printed above it, not the
+                whole unfiltered taskData -- gettaskstat:"pkg" would otherwise still report system-wide totals while the
+                tree itself shows only the matching subset """
                 printed = not (pkg and pkg not in curPkg)
                 if printed:
                     rowList.append(row)
                     nrPrinted += 1
                     if visible:
                         nrVis += 1
-                # same DUMPORDER-vs-numeric choice as the root level below
-                # -- without this, "-q DUMPORDER,TREE" would preserve
-                # dumpsys order only for root tasks while silently
-                # reverting every child level back to numeric taskId
-                # order, contradicting the option's own description #
+                """ same DUMPORDER-vs-numeric choice as the root level below -- without this, "-q DUMPORDER,TREE" would
+                preserve dumpsys order only for root tasks while silently reverting every child level back to numeric
+                taskId order, contradicting the option's own description """
                 childIds = childrenOf.get(taskId, [])
                 if not dumpOrder:
                     childIds = sorted(childIds, key=lambda x: int(x))
-                # depth counts PRINTED ancestors only -- a pkg filter
-                # can hide a parent while still printing its child
-                # (device-verified: both test devices have a parent
-                # placeholder task with no package at all, whose only
-                # child DOES match a real pkg filter), and incrementing
-                # depth regardless left that child with a dangling
-                # "`- " prefix and no visible parent chain above it to
-                # justify it. Same fix as getsurfacestat's own TREE
-                # mode (see [[getsurfacestat_andcmd_feature]]'s UX
-                # follow-up round) applied here #
+                """ depth counts PRINTED ancestors only -- a pkg filter can hide a parent while still printing its child
+                (device-verified: both test devices have a parent placeholder task with no package at all, whose only
+                child DOES match a real pkg filter), and incrementing depth regardless left that child with a dangling
+                "`- " prefix and no visible parent chain above it to justify it. Same fix as getsurfacestat's own TREE
+                mode (see [[getsurfacestat_andcmd_feature]]'s UX follow-up round) applied here """
                 childDepth = depth + 1 if printed else depth
                 for childId in childIds:
                     _walk(childId, childDepth)
@@ -42420,10 +42445,8 @@ class AndroidMgr(object):
             elif state in transientStates:
                 cell = UtilMgr.convColor(cell, "YELLOW")
             row[stateIdx] = cell
-            # Dim is the second column from the end (before Tr) in both
-            # layouts; it gets the same color getwindowstat's Dim has,
-            # padded to its width first so the escape codes do not shift
-            # the column after it #
+            """ Dim is the second column from the end (before Tr) in both layouts; it gets the same color
+            getwindowstat's Dim has, padded to its width first so the escape codes do not shift the column after it """
             if row[-2]:
                 row[-2] = UtilMgr.convColor("{0:^3}".format(row[-2]), "YELLOW")
             SysMgr.printPipe(fmt.format(*row))
@@ -42494,11 +42517,9 @@ class AndroidMgr(object):
             if not hm:
                 continue
             user, package, serviceClass = hm.groups()
-            # same package-prefix-strip convention as getWindowStat()'s
-            # own Activity column, so a service class renders
-            # consistently whether dumpsys gave it as ".ClassName" or
-            # the fully-qualified "pkg.sub.ClassName" (both observed
-            # live on 5af877f6/66aed018) #
+            """ same package-prefix-strip convention as getWindowStat()'s own Activity column, so a service class
+            renders consistently whether dumpsys gave it as ".ClassName" or the fully-qualified "pkg.sub.ClassName"
+            (both observed live on 5af877f6/66aed018) """
             if serviceClass.startswith(package):
                 serviceClass = serviceClass[len(package) :]
             serviceClass = serviceClass.lstrip(".") or serviceClass
@@ -42580,11 +42601,9 @@ class AndroidMgr(object):
                 with open("%s/%s/stat" % (SysMgr.procPath, pid), "r") as fd:
                     statList = fd.read().split()
                 statList = SysMgr.mergeCommStat(statList, commIdx)
-                # raw jiffies (HZ=100), not converted to seconds -- a
-                # tick IS a percent-of-one-second unit (100 ticks ==
-                # 1 second == "100%"), so the accumulated utime+stime
-                # total doubles directly as a lifetime CPU% figure
-                # without any further conversion #
+                """ raw jiffies (HZ=100), not converted to seconds -- a tick IS a percent-of-one-second unit (100 ticks
+                == 1 second == "100%"), so the accumulated utime+stime total doubles directly as a lifetime CPU% figure
+                without any further conversion """
                 entry["cpuTicks"] = long(statList[utimeIdx]) + long(
                     statList[stimeIdx]
                 )
@@ -42655,10 +42674,9 @@ class AndroidMgr(object):
             fgCol = "{0:^{1}}".format(fgCol, fgWidth)
             if fg:
                 fgCol = UtilMgr.convColor(fgCol, "GREEN")
-            # reuse the same UtilMgr.convTime() formatter (d:HH:MM:SS)
-            # gettaskstat's own Inactive column uses, rather than a
-            # bespoke one -- it takes seconds, so the already-parsed
-            # ms value (used for sorting) is simply divided down #
+            """ reuse the same UtilMgr.convTime() formatter (d:HH:MM:SS) gettaskstat's own Inactive column uses, rather
+            than a bespoke one -- it takes seconds, so the already-parsed ms value (used for sorting) is simply divided
+            down """
             createdMs = svc["createdMs"]
             lastActivityMs = svc["lastActivityMs"]
             createdCol = (
@@ -42678,32 +42696,26 @@ class AndroidMgr(object):
             startedCol = "O" if svc["startRequested"] else ""
             crashCol = svc["crashCount"] or ""
 
-            # CPU/RSS are properties of the OWNING PROCESS, not this
-            # specific service -- a process hosting multiple services
-            # (e.g. com.android.systemui) repeats the same value on
-            # every one of its service rows (user-approved tradeoff,
-            # there is no per-service breakdown in dumpsys) #
+            """ CPU/RSS are properties of the OWNING PROCESS, not this specific service -- a process hosting multiple
+            services (e.g. com.android.systemui) repeats the same value on every one of its service rows (user-approved
+            tradeoff, there is no per-service breakdown in dumpsys) """
             cpuTicks = svc["cpuTicks"]
             cpuCol = UtilMgr.convNum(cpuTicks) if cpuTicks is not None else "-"
             rss = svc["rss"]
             rssCol = (
                 UtilMgr.convSize2Unit(rss, True) if rss is not None else "-"
             )
-            # only shown when the owning process' actual cmdline
-            # differs from this service's declaring package --
-            # device-verified 13/162 (8%) of services on 5af877f6 run
-            # under a different process (android:process= attribute,
-            # e.g. ":remote" suffixes or a shared system process), the
-            # other 92% would just repeat the Package column #
+            """ only shown when the owning process' actual cmdline differs from this service's declaring package --
+            device-verified 13/162 (8%) of services on 5af877f6 run under a different process (android:process=
+            attribute, e.g. ":remote" suffixes or a shared system process), the other 92% would just repeat the Package
+            column """
             cmdline = svc["cmdline"]
             cmdlineCol = (
                 cmdline if cmdline and cmdline != svc["package"] else ""
             )
-            # bind permission, when the service's own manifest entry
-            # declares one -- blank (not "-") since this is a genuine
-            # presence/absence signal, same convention as Bind/Crash
-            # above, not a "value usually exists but is occasionally
-            # missing" field #
+            """ bind permission, when the service's own manifest entry declares one -- blank (not "-") since this is a
+            genuine presence/absence signal, same convention as Bind/Crash above, not a "value usually exists but is
+            occasionally missing" field """
             permissionCol = svc.get("permission") or ""
 
             rowList.append(
@@ -42932,9 +42944,9 @@ class AndroidMgr(object):
                     continue
                 m = timePat.match(raw)
                 if m:
-                    # a broadcast that was never dispatched (nobody to
-                    # deliver to) has dispatchClockTime=1970-01-01, and the
-                    # "since disp" counted from that epoch is not a duration #
+                    """a broadcast that was never dispatched (nobody to deliver to) has dispatchClockTime=1970-01-01,
+                    and the "since disp" counted from that epoch is not a duration
+                    """
                     if cur.get("dispatched", True):
                         cur["elapsedMs"] = AndroidMgr._parseElapsedMs(
                             m.group(3)
@@ -43185,12 +43197,10 @@ class AndroidMgr(object):
             if a["wakeup"]:
                 wakeupCol = UtilMgr.convColor(wakeupCol, "YELLOW")
 
-            # UtilMgr.convTime() assumes a non-negative second count
-            # (its divmod-based day/hour/min/sec breakdown produces a
-            # confusing result for a negative input, e.g. -1148
-            # becomes "-1:40:52" instead of a readable "-19:08") --
-            # sign and magnitude are split apart first so the overdue
-            # case renders as a plain "-"-prefixed duration instead #
+            """ UtilMgr.convTime() assumes a non-negative second count (its divmod-based day/hour/min/sec breakdown
+            produces a confusing result for a negative input, e.g. -1148 becomes "-1:40:52" instead of a readable
+            "-19:08") -- sign and magnitude are split apart first so the overdue case renders as a plain "-"-prefixed
+            duration instead """
             whenMs = a["whenElapsedMs"]
             if whenMs is None:
                 whenCol = "-"
@@ -43454,13 +43464,10 @@ class AndroidMgr(object):
             states = {}
             for sm in statePat.finditer(block):
                 label = sm.group(1).strip()
-                # pct can be a decimal below 10% (AOSP's own
-                # DumpUtils.printPercent() switches from "%.0f" to
-                # "%.1f"/"%.2f" under 10%/1%, e.g. "5.9%"/"0.04%",
-                # device-verified live) -- int() would raise
-                # ValueError on those; the "(...)" min/avg/max/count
-                # group is itself optional (absent when that state has
-                # zero PSS samples), so sampleCount falls back to 0 #
+                """ pct can be a decimal below 10% (AOSP's own DumpUtils.printPercent() switches from "%.0f" to
+                "%.1f"/"%.2f" under 10%/1%, e.g. "5.9%"/"0.04%", device-verified live) -- int() would raise ValueError
+                on those; the "(...)" min/avg/max/count group is itself optional (absent when that state has zero PSS
+                samples), so sampleCount falls back to 0 """
                 states[label] = {
                     "pct": float(sm.group(2)),
                     "pssMin": sm.group(3),
@@ -43476,11 +43483,9 @@ class AndroidMgr(object):
                 }
             if not states:
                 continue
-            # TOTAL's own pct is always 100 (the states below it
-            # necessarily sum to the full observed window) -- the
-            # dominant non-TOTAL state is whichever one actually
-            # explains most of that window, used for the table's own
-            # single-state summary column #
+            """ TOTAL's own pct is always 100 (the states below it necessarily sum to the full observed window) -- the
+            dominant non-TOTAL state is whichever one actually explains most of that window, used for the table's own
+            single-state summary column """
             nonTotal = {k: v for k, v in states.items() if k != "TOTAL"}
             dominant = (
                 max(nonTotal.items(), key=lambda kv: kv[1]["pct"])[0]
@@ -43583,11 +43588,9 @@ class AndroidMgr(object):
         def _pssAvgBytes(p):
             if not p["dominant"]:
                 return 0
-            # a state with zero PSS samples has no "pssAvg" string at
-            # all (parseProcStatsDump leaves it None) -- device-
-            # verified real dominant states hit this (e.g. "Service
-            # Rs"/"Top" at low pct), so convUnit2Size(None) must be
-            # avoided rather than letting it raise #
+            """ a state with zero PSS samples has no "pssAvg" string at all (parseProcStatsDump leaves it None) --
+            device- verified real dominant states hit this (e.g. "Service Rs"/"Top" at low pct), so convUnit2Size(None)
+            must be avoided rather than letting it raise """
             pssAvg = p["states"][p["dominant"]]["pssAvg"]
             if pssAvg is None:
                 return 0
@@ -43605,9 +43608,8 @@ class AndroidMgr(object):
         for i, p in enumerate(procs, 1):
             dominant = p["dominant"]
             st = p["states"].get(dominant, {}) if dominant else {}
-            # pssAvg/ussAvg/rssAvg are None (not absent) for a state
-            # with zero PSS samples -- "- or" would format() a bare
-            # None and crash, since the key IS present, just empty #
+            """ pssAvg/ussAvg/rssAvg are None (not absent) for a state with zero PSS samples -- "- or" would format() a
+            bare None and crash, since the key IS present, just empty """
             rowList.append(
                 (
                     i,
@@ -43828,13 +43830,10 @@ class AndroidMgr(object):
                     "stride": int(abm.group(3)),
                     "format": abm.group(4),
                 }
-            # WindowManager's dimmer (FLAG_DIM_BEHIND windows, dialogs) is
-            # a solid-color layer literally named "Dim Layer for - <what
-            # it dims>"; the 4th value of its color is how dark it is
-            # (0 = clear, 1 = black). The unrelated "dimming enabled=" /
-            # "dimmingRatio" fields in the same dump are about display
-            # brightness and must not be read as this. Only a dimmer has
-            # the key, so a plain layer stays exactly as before #
+            """ WindowManager's dimmer (FLAG_DIM_BEHIND windows, dialogs) is a solid-color layer literally named "Dim
+            Layer for - <what it dims>"; the 4th value of its color is how dark it is (0 = clear, 1 = black). The
+            unrelated "dimming enabled=" / "dimmingRatio" fields in the same dump are about display brightness and must
+            not be read as this. Only a dimmer has the key, so a plain layer stays exactly as before """
             if info["name"].startswith("Dim Layer for") and info.get("color"):
                 info["dim"] = round(info["color"][3], 2)
             layers[lid] = info
@@ -44133,9 +44132,8 @@ class AndroidMgr(object):
             hasSkip = bool(skip) and skip != "-"
             rcv = _warn(rcv, 7, hasSkip)
             skip = _warn(skip, 4, hasSkip)
-            # the action is the key name of a row, so it is the only part
-            # coloured; the Action column is the last one, hence the escape
-            # codes cannot shift any other column #
+            """ the action is the key name of a row, so it is the only part coloured; the Action column is the last one,
+            hence the escape codes cannot shift any other column """
             action = UtilMgr.convColor(r["action"], "CYAN")
             if r.get("target"):
                 action += " -> %s" % r["target"]
@@ -44286,9 +44284,8 @@ class AndroidMgr(object):
         for j in jobs:
             if j["ready"]:
                 nrReady += 1
-            # pre-padded to the column width before colorizing: the ANSI
-            # escape bytes would otherwise count toward the width and
-            # shift every column after it #
+            """ pre-padded to the column width before colorizing: the ANSI escape bytes would otherwise count toward the
+            width and shift every column after it """
             readyCol = "{0:^6}".format("O" if j["ready"] else "")
             if j["ready"]:
                 readyCol = UtilMgr.convColor(readyCol, "GREEN")
@@ -44362,12 +44359,10 @@ class AndroidMgr(object):
             names = uidToPkg.get(uid)
             if not names:
                 return None
-            # a shared uid (android:sharedUserId) can map to multiple
-            # package names -- when a pkg filter is active, prefer the
-            # name that actually matches it instead of blindly picking
-            # names[0], otherwise a layer legitimately owned by the
-            # filtered-for package silently drops out just because some
-            # OTHER co-uid package happened to sort first #
+            """ a shared uid (android:sharedUserId) can map to multiple package names -- when a pkg filter is active,
+            prefer the name that actually matches it instead of blindly picking names[0], otherwise a layer legitimately
+            owned by the filtered-for package silently drops out just because some OTHER co-uid package happened to sort
+            first """
             if pkg:
                 for name in names:
                     if pkg in name:
@@ -44397,14 +44392,12 @@ class AndroidMgr(object):
                 entry["pkg"] = pkgName
                 jsonLayers[str(lid)] = entry
 
-            # "-q DISPLAY:N"/pkg filters both apply to jsonLayers above
-            # and to the table in _printSurfaceFlat(), but this branch
-            # built jsonHwc straight from the raw hwcDisplays dict with
-            # neither filter applied -- "-q DISPLAY:0 -J" on a real
-            # multi-display capture kept Display 1's (empty) key in
-            # hwcLayers and would have kept any of its real rows too,
-            # silently diverging from surfaceLayers' own filtered view
-            # in the exact same response #
+            """ "-q DISPLAY:N"/pkg filters both apply to jsonLayers above and to the table in _printSurfaceFlat(), but
+            this branch built jsonHwc straight from the raw hwcDisplays dict with neither filter applied -- "-q
+            DISPLAY:0 -J" on a real multi-display capture kept Display 1's (empty) key in hwcLayers and would have kept
+            any of its real rows too, silently diverging from surfaceLayers' own filtered view in the exact same
+            response """
+
             def _hwcRowMatchesPkg(l):
                 lid = nameToLid.get(l["name"])
                 pkgName = (
@@ -44514,9 +44507,8 @@ class AndroidMgr(object):
             nrPrinted += 1
             if l["focused"]:
                 nrFocused += 1
-            # Focus and Dim are padded before they are colored, so the
-            # escape codes do not shift the columns after them; the colors
-            # are the ones getwindowstat uses for its own Dim #
+            """ Focus and Dim are padded before they are colored, so the escape codes do not shift the columns after
+            them; the colors are the ones getwindowstat uses for its own Dim """
             focusCol = "{0:^5}".format("O" if l["focused"] else "")
             if l["focused"]:
                 focusCol = UtilMgr.convColor(focusCol, "YELLOW")
@@ -44594,30 +44586,23 @@ class AndroidMgr(object):
             name = info.get("name") or "-"
             if depth > 0:
                 name = "`- " + name
-            # "size=" in the raw dump is frequently (0,0) even for a
-            # fully-drawn, visible layer -- device-verified AOSP tracks
-            # the actual rendered dimensions on activeBuffer instead,
-            # so that's the field worth showing here, not the always-
-            # zero "size=" one. Blank (not "-") for a bufferless
-            # container layer -- same near-always-empty shape as Pid/
-            # FrameRate above, "-" there was pure visual noise #
+            """ "size=" in the raw dump is frequently (0,0) even for a fully-drawn, visible layer -- device-verified
+            AOSP tracks the actual rendered dimensions on activeBuffer instead, so that's the field worth showing here,
+            not the always- zero "size=" one. Blank (not "-") for a bufferless container layer -- same near-always-empty
+            shape as Pid/ FrameRate above, "-" there was pure visual noise """
             buf = info.get("activeBuffer")
             sizeCol = (
                 "[%dx%d]" % (buf["w"], buf["h"])
                 if buf and (buf["w"] or buf["h"])
                 else ""
             )
-            # "V"/"O" instead of a shared "O" for both -- a quick scan
-            # of this column pair couldn't otherwise tell at a glance
-            # which one of Vis/Op was actually set on a given row #
+            """ "V"/"O" instead of a shared "O" for both -- a quick scan of this column pair couldn't otherwise tell at
+            a glance which one of Vis/Op was actually set on a given row """
             z = info.get("z", "")
-            # -2147483648 (INT32_MIN) is not a real distance -- it's
-            # AOSP's own "always below every sibling" sentinel (see
-            # ActivityRecordInputSink/SurfaceView-background callers of
-            # Layer::setLayer(INT32_MIN), device-verified both devices).
-            # The raw int is still exact and sorts correctly either way,
-            # so only the display string changes here, not the value
-            # _walk()'s own sort key reads from info["z"] #
+            """ -2147483648 (INT32_MIN) is not a real distance -- it's AOSP's own "always below every sibling" sentinel
+            (see ActivityRecordInputSink/SurfaceView-background callers of Layer::setLayer(INT32_MIN), device-verified
+            both devices). The raw int is still exact and sorts correctly either way, so only the display string changes
+            here, not the value _walk()'s own sort key reads from info["z"] """
             zCol = "MIN" if z == -2147483648 else z
             return fmt.format(
                 lid,
@@ -44642,18 +44627,14 @@ class AndroidMgr(object):
             nonlocal nrPrinted, nrVis
             info = layers[lid]
             pkgName = _pkgOf(info["uid"]) if pkg else None
-            # pkg filter matches only the layer itself here (unlike
-            # gettaskstat's TREE mode, a layer's own uid/pkg is
-            # unrelated to its parent's -- a system container layer can
-            # legitimately own app-owned children, so pulling the whole
-            # subtree up on a parent match would mix in unrelated
-            # layers the filter was never meant to include) #
+            """ pkg filter matches only the layer itself here (unlike gettaskstat's TREE mode, a layer's own uid/pkg is
+            unrelated to its parent's -- a system container layer can legitimately own app-owned children, so pulling
+            the whole subtree up on a parent match would mix in unrelated layers the filter was never meant to include)
+            """
             printed = not pkg or (pkgName and pkg in pkgName)
-            # same "ONLYVISWIN" idea as getwindowstat -- most of the
-            # tree is pure structural/container layers with no buffer
-            # of their own, so filtering to Vis=V-only is the one way
-            # to see just what's actually contributing visible pixels
-            # right now instead of the full (mostly invisible) tree #
+            """ same "ONLYVISWIN" idea as getwindowstat -- most of the tree is pure structural/container layers with no
+            buffer of their own, so filtering to Vis=V-only is the one way to see just what's actually contributing
+            visible pixels right now instead of the full (mostly invisible) tree """
             if onlyVis and not info.get("visible"):
                 printed = False
             if printed:
@@ -44662,18 +44643,13 @@ class AndroidMgr(object):
                 if info.get("visible"):
                     nrVis += 1
             childIds = childrenOf.get(lid, [])
-            # AOSP's own composition order: z<0 children print before
-            # the parent's siblings at this level, z>=0 after -- same
-            # negative-is-below convention the real dumpsys output uses #
+            """ AOSP's own composition order: z<0 children print before the parent's siblings at this level, z>=0 after
+            -- same negative-is-below convention the real dumpsys output uses """
             childIds = sorted(childIds, key=lambda c: layers[c].get("z", 0))
-            # depth counts PRINTED ancestors only, not every ancestor in
-            # the real tree -- with a pkg filter active, most ancestors
-            # never print at all (they belong to other packages), so
-            # incrementing on every recursive step regardless produced
-            # a "dangling" `- `- `- ... prefix with no visible parent
-            # chain above it; a filtered-out node is invisible to the
-            # printed output, so it must not advance depth for its
-            # children either #
+            """ depth counts PRINTED ancestors only, not every ancestor in the real tree -- with a pkg filter active,
+            most ancestors never print at all (they belong to other packages), so incrementing on every recursive step
+            regardless produced a "dangling" `- `- `- ... prefix with no visible parent chain above it; a filtered-out
+            node is invisible to the printed output, so it must not advance depth for its children either """
             childDepth = depth + 1 if printed else depth
             for childId in childIds:
                 _walk(childId, childDepth)
@@ -44854,11 +44830,9 @@ class AndroidMgr(object):
                     except (ValueError, IndexError):
                         continue
                 else:
-                    # fields, with empty strings from the TABTAB
-                    # separator already filtered out: name(0),
-                    # active_count(1), event_count(2), wakeup_count(3),
-                    # expire_count(4), active_since(5), total_time(6),
-                    # max_time(7), last_change(8), prevent_suspend_time(9) #
+                    """fields, with empty strings from the TABTAB separator already filtered out: name(0),
+                    active_count(1), event_count(2), wakeup_count(3), expire_count(4), active_since(5), total_time(6),
+                    max_time(7), last_change(8), prevent_suspend_time(9)"""
                     parts = [p for p in line.split("\t") if p != ""]
                     if len(parts) < 7:
                         continue
@@ -44981,10 +44955,9 @@ class AndroidMgr(object):
                     cur_pid = int(s.split()[1])
                 except Exception:
                     cur_pid = -1
-                # getComm() returns None (its "default" arg) when the pid
-                # already exited between the kernel dumping its binder
-                # stats and this lookup (TOCTOU) -- the "name in cur_name"
-                # filter_name match below needs a str, not None #
+                """ getComm() returns None (its "default" arg) when the pid already exited between the kernel dumping
+                its binder stats and this lookup (TOCTOU) -- the "name in cur_name" filter_name match below needs a str,
+                not None """
                 cur_name = (
                     (SysMgr.getComm(cur_pid) or "") if cur_pid >= 0 else ""
                 )
@@ -45144,16 +45117,12 @@ class AndroidMgr(object):
         inputCmd, inputVal = items
         for v in inputVal.split("|"):
             if inputCmd == "listall":
-                # the per-"|"-split filter value "v" was built but never
-                # used, so every filter in a multi-filter list ran the
-                # exact same unfiltered 'dumpsys package providers' command.
-                # Unlike "listact"'s AOSP target (dumpsys activity
-                # providers), confirmed via DumpHelper.doDump() the
-                # package-manager side reads exactly ONE top-level
-                # positional token ("providers" itself) and never loops
-                # over further args, so a trailing filter token would be
-                # silently ignored by AOSP rather than acting as a filter
-                # -- do the filtering here instead, client-side #
+                """the per-"|"-split filter value "v" was built but never used, so every filter in a multi-filter list
+                ran the exact same unfiltered 'dumpsys package providers' command. Unlike "listact"'s AOSP target
+                (dumpsys activity providers), confirmed via DumpHelper.doDump() the package-manager side reads exactly
+                ONE top-level positional token ("providers" itself) and never loops over further args, so a trailing
+                filter token would be silently ignored by AOSP rather than acting as a filter -- do the filtering here
+                instead, client-side"""
                 cmd = ["dumpsys", "package", "providers"]
                 lines = SysMgr.executeCmdSync(cmd)
                 if v and v != "*":
@@ -45161,27 +45130,21 @@ class AndroidMgr(object):
                 SysMgr.printPipe("\n".join(lines))
                 continue
             elif inputCmd == "listact":
-                # same bug as "listall" above -- AOSP's own
-                # ActivityManagerService.dumpProvidersLocked()/ItemMatcher
-                # accepts trailing args after "providers" to filter by
-                # component name/object id/substring #
+                """same bug as "listall" above -- AOSP's own ActivityManagerService.dumpProvidersLocked()/ItemMatcher
+                accepts trailing args after "providers" to filter by component name/object id/substring
+                """
                 cmd = ["dumpsys", "activity", "providers"]
                 if v and v != "*":
                     cmd.append(v)
             elif inputCmd == "notify":
-                # NOTE: unlike query/insert/update/delete/call, AOSP's
-                # real Content.java has no "notify" sub-command at all
-                # (confirmed against master and android16-release), and
-                # no shipped AOSP ContentProvider.call() implementation
-                # (SettingsProvider/MediaProvider/ContactsProvider all
-                # checked) recognizes a "notifyChange" method name -- so
-                # this branch's constructed 'content call ... --method
-                # notifyChange' always hits the target provider's own
-                # "invalid/unsupported method" fallback and never fires
-                # a real notifyChange(). Left as a best-effort passthrough
-                # (not removed) since a custom app provider could choose
-                # to implement a method literally named "notifyChange",
-                # but this is NOT guaranteed by any AOSP contract #
+                """NOTE: unlike query/insert/update/delete/call, AOSP's real Content.java has no "notify" sub-command
+                at all (confirmed against master and android16-release), and no shipped AOSP ContentProvider.call()
+                implementation (SettingsProvider/MediaProvider/ContactsProvider all checked) recognizes a "notifyChange"
+                method name -- so this branch's constructed 'content call ... --method notifyChange' always hits the
+                target provider's own "invalid/unsupported method" fallback and never fires a real notifyChange(). Left
+                as a best-effort passthrough (not removed) since a custom app provider could choose to implement a
+                method literally named "notifyChange", but this is NOT guaranteed by any AOSP contract
+                """
                 cmd = [
                     "content",
                     "call",
@@ -45191,13 +45154,10 @@ class AndroidMgr(object):
                     "notifyChange",
                 ]
             else:
-                # UtilMgr.parseCommand() instead of a plain v.split(" ")
-                # so a flag value containing a literal space (e.g. --sort
-                # "name ASC") stays as ONE token -- AOSP's own 'content'
-                # tool consumes exactly one token per --sort/--where/
-                # --projection and throws "Unsupported argument" on any
-                # leftover bare token, so a naive space-split silently
-                # breaks every multi-word --sort value #
+                """UtilMgr.parseCommand() instead of a plain v.split(" ") so a flag value containing a literal space
+                (e.g. --sort "name ASC") stays as ONE token -- AOSP's own 'content' tool consumes exactly one token per
+                --sort/--where/ --projection and throws "Unsupported argument" on any leftover bare token, so a naive
+                space-split silently breaks every multi-word --sort value"""
                 cmd = ["content", inputCmd, "--uri"] + UtilMgr.parseCommand(v)
             SysMgr.printPipe("\n".join(SysMgr.executeCmdSync(cmd)))
 
@@ -45237,10 +45197,9 @@ class AndroidMgr(object):
                     v = "KEYCODE_" + v
 
             if inputCmd == "text":
-                # AOSP's runText() calls getNextArgRequired() exactly
-                # ONCE -- the whole string must land as a single argv
-                # token, not be broken up on spaces like the other
-                # commands' numeric args are #
+                """AOSP's runText() calls getNextArgRequired() exactly ONCE -- the whole string must land as a single
+                argv token, not be broken up on spaces like the other commands' numeric args are
+                """
                 cmd = ["input", inputCmd, v]
             else:
                 cmd = ["input", inputCmd] + v.split(" ")
@@ -45365,16 +45324,13 @@ class AndroidMgr(object):
     @staticmethod
     def runVehicleCmd(cscmd=None, vhal=True):
         if cscmd:
-            # use the forward (alias -> value) map here, matching the
-            # same map doPerfetto()'s CSCMD/VHALCMD dispatch loop already
-            # applies before calling this function -- reverse=True looked
-            # up the ALREADY-substituted real value (e.g. "0x1234") in a
-            # value->alias map and replaced it back with the alias string
-            # (e.g. "BREAK"), undoing the outer substitution and sending
-            # the unresolved alias to car_service/VHAL. Using the forward
-            # map here is idempotent if the outer loop already substituted
-            # (the real value isn't a key in it) and still resolves the
-            # alias correctly if this is ever called before/without it #
+            """use the forward (alias -> value) map here, matching the same map doPerfetto()'s CSCMD/VHALCMD dispatch
+            loop already applies before calling this function -- reverse=True looked up the ALREADY-substituted real
+            value (e.g. "0x1234") in a value->alias map and replaced it back with the alias string (e.g. "BREAK"),
+            undoing the outer substitution and sending the unresolved alias to car_service/VHAL. Using the forward map
+            here is idempotent if the outer loop already substituted (the real value isn't a key in it) and still
+            resolves the alias correctly if this is ever called before/without it
+            """
             restr, inputMapList, mapData, color = UtilMgr.getParseMapAttr()
             if mapData:
                 cscmdList = cscmd.split()
@@ -46435,11 +46391,9 @@ class AndroidMgr(object):
             if not pid or pid < 0:
                 return True
 
-            # "started" lets a caller that launched several children before
-            # waiting on the first one pass each child's REAL launch time;
-            # otherwise a later child, which has been running all along,
-            # would get a fresh budget when its turn to be waited on comes
-            # and its timeout/elapsed time would be under-counted #
+            """ "started" lets a caller that launched several children before waiting on the first one pass each child's
+            REAL launch time; otherwise a later child, which has been running all along, would get a fresh budget when
+            its turn to be waited on comes and its timeout/elapsed time would be under-counted """
             if started is None:
                 started = time.time()
             nextNotice = started + progressInterval
@@ -46463,11 +46417,9 @@ class AndroidMgr(object):
                         "continuing with partial data" % (cmd, timeout),
                         True,
                     )
-                    # SIGINT first so the child can flush what it has,
-                    # then SIGKILL only if it ignores it -- a child stuck
-                    # in an uninterruptible state never honors SIGINT,
-                    # and an unbounded waitpid() after it would hang the
-                    # whole report again #
+                    """ SIGINT first so the child can flush what it has, then SIGKILL only if it ignores it -- a child
+                    stuck in an uninterruptible state never honors SIGINT, and an unbounded waitpid() after it would
+                    hang the whole report again """
                     for sig, grace in (
                         (signal.SIGINT, killGraceTime),
                         (signal.SIGKILL, None),
@@ -47173,9 +47125,8 @@ class AndroidMgr(object):
             if not cond:
                 continue
 
-            # keep at most collectParallel children running: when the
-            # window is full, wait for the oldest one first (1 = strictly
-            # one at a time, the behavior before the core-count default) #
+            """ keep at most collectParallel children running: when the window is full, wait for the oldest one first (1
+            = strictly one at a time, the behavior before the core-count default) """
             while len(collectRunning) >= collectParallel:
                 _waitPidDeadline(*collectRunning.pop(0))
 
@@ -47183,9 +47134,8 @@ class AndroidMgr(object):
             ret = SysMgr.launchGuider(
                 cmd, pipe=False, stderr=True, wait=False, setComm=True
             )
-            # label with the command and its own options only; the "-o"
-            # output path is long and would push the elapsed time out of
-            # view on a narrow terminal #
+            """ label with the command and its own options only; the "-o" output path is long and would push the elapsed
+            time out of view on a narrow terminal """
             collectRunning.append(
                 (
                     ret,
@@ -47397,12 +47347,10 @@ class AndroidMgr(object):
             if desc:
                 SysMgr.writeFile(descPath, desc)
             else:
-                # read the description from stdin without a shell -- the
-                # former 'sh -c "cat > <descPath>"' interpolated descPath
-                # (which embeds the user-supplied TITLE) into a shell
-                # command line, so shell metacharacters in TITLE such as
-                # $(...) or backticks ran arbitrary commands when the
-                # description was entered interactively #
+                """read the description from stdin without a shell -- the former 'sh -c "cat > <descPath>"'
+                interpolated descPath (which embeds the user-supplied TITLE) into a shell command line, so shell
+                metacharacters in TITLE such as $(...) or backticks ran arbitrary commands when the description was
+                entered interactively"""
                 sys.stdout.write(lineStr + "\n")
                 sys.stdout.flush()
                 SysMgr.writeFile(descPath, sys.stdin.read())
@@ -48194,18 +48142,13 @@ class AndroidMgr(object):
             if "RESETTRACING" in SysMgr.environList:
                 SysMgr.writeTraceCmd("../tracing_on", "0")
 
-            # targetstr always uses the process_cmdline/pid field names
-            # (HeapprofdConfig/JavaHprofConfig scope) for heapConfig/
-            # javaConfig/oomConfig; perfTargetstr always uses the
-            # target_cmdline/target_pid field names (PerfEventConfig.
-            # Scope) for perfConfig -- these two must never share one
-            # variable keyed off "PERF" in SysMgr.environList, since that
-            # breaks whichever consumer didn't "win" the naming when
-            # both HEAPPROF and PERF (or JAVADUMP/OOMWATCH and PERF) are
-            # combined: e.g. -q HEAPPROF,PERF used to put target_pid
-            # into heapprofd_config, which perfetto's pbtxt parser
-            # rejects with "No field named target_pid in proto
-            # HeapprofdConfig", failing the whole recording #
+            """ targetstr always uses the process_cmdline/pid field names (HeapprofdConfig/JavaHprofConfig scope) for
+            heapConfig/ javaConfig/oomConfig; perfTargetstr always uses the target_cmdline/target_pid field names
+            (PerfEventConfig. Scope) for perfConfig -- these two must never share one variable keyed off "PERF" in
+            SysMgr.environList, since that breaks whichever consumer didn't "win" the naming when both HEAPPROF and PERF
+            (or JAVADUMP/OOMWATCH and PERF) are combined: e.g. -q HEAPPROF,PERF used to put target_pid into
+            heapprofd_config, which perfetto's pbtxt parser rejects with "No field named target_pid in proto
+            HeapprofdConfig", failing the whole recording """
             apps = None
             if exe and "MEMTOP" not in SysMgr.environList:
                 exe = " ".join(exe)
@@ -48276,14 +48219,11 @@ class AndroidMgr(object):
                 )
                 memTarget = target = pids
 
-                # atrace -a / FtraceConfig.atrace_apps matches against
-                # each process' own /proc/self/cmdline (its argv0, see
-                # atrace_is_cmdline_match() in system/core/libcutils/
-                # trace-dev.inc) -- not a package name, so getCmdline's
-                # argv0 (same as /proc/pid/cmdline) works for both apps
-                # and system services (e.g. "system_server"), unlike the
-                # APP branch above which only resolves installed package
-                # names via getPkgList() and drops non-package targets #
+                """ atrace -a / FtraceConfig.atrace_apps matches against each process' own /proc/self/cmdline (its
+                argv0, see atrace_is_cmdline_match() in system/core/libcutils/ trace-dev.inc) -- not a package name, so
+                getCmdline's argv0 (same as /proc/pid/cmdline) works for both apps and system services (e.g.
+                "system_server"), unlike the APP branch above which only resolves installed package names via
+                getPkgList() and drops non-package targets """
                 _appNames = set()
                 for pid in pids:
                     _argv = SysMgr.getCmdline(pid, retList=True)
@@ -48331,11 +48271,9 @@ class AndroidMgr(object):
 
                 sys.exit(0)
 
-            # WARN: target app will be restarted
-            # "am clear-debug-app" (AOSP's ActivityManagerShellCommand)
-            # takes NO arguments at all -- it only ever needs to run
-            # once per CLEARDEBUG invocation, unlike SETDEBUG which
-            # takes one "-w [--persistent] <pkg>" per listed package #
+            """ WARN: target app will be restarted "am clear-debug-app" (AOSP's ActivityManagerShellCommand) takes NO
+            arguments at all -- it only ever needs to run once per CLEARDEBUG invocation, unlike SETDEBUG which takes
+            one "-w [--persistent] <pkg>" per listed package """
             for i in SysMgr.environList.get("SETDEBUG", []):
                 if i == "SET":
                     i = target
@@ -48370,9 +48308,8 @@ class AndroidMgr(object):
             except:
                 shmemBytes = 134217728
 
-            # get block_client setting: -q BLOCKCLIENT:false, default true #
-            # block_client:true blocks target when shmem full (complete data)
-            # block_client:false drops samples when shmem full (no target impact)
+            """ get block_client setting: -q BLOCKCLIENT:false, default true # block_client:true blocks target when
+            shmem full (complete data) block_client:false drops samples when shmem full (no target impact) """
             blockClient = SysMgr.environList.get("BLOCKCLIENT", ["true"])[
                 0
             ].lower()
@@ -48386,10 +48323,9 @@ class AndroidMgr(object):
                         "\n      block_client_timeout_us: %s" % blockTo
                     )
 
-            # HEAPDUMPINTERVAL adds a periodic dump every N ms on top of
-            # HEAPPROF's existing continuous sampling session, same
-            # purpose/shape as JAVADUMPINTERVAL above but for native
-            # heaps -- HEAPPROF alone only dumps once at session end #
+            """ HEAPDUMPINTERVAL adds a periodic dump every N ms on top of HEAPPROF's existing continuous sampling
+            session, same purpose/shape as JAVADUMPINTERVAL above but for native heaps -- HEAPPROF alone only dumps once
+            at session end """
             _heapContinuousDump = ""
             if "HEAPDUMPINTERVAL" in SysMgr.environList:
                 try:
@@ -48449,16 +48385,12 @@ data_sources {
                 SysMgr.environList.get("PROCSTATPOLL", ["100"])[0]
             )
 
-            # NOMEMSTAT keeps linux.process_stats (so process/thread names
-            # still resolve in the UI, unlike NOPROCSTAT which drops the
-            # data source entirely) but switches it from a repeating
-            # /proc-wide mem_counters poll to a single scan_all_processes_
-            # on_start dump at trace start -- Perfetto's own poller has no
-            # per-process filtering (see process_stats_data_source.cc's
-            # "TODO: implement filtering of processes by names"), so this
-            # is the only way to get names without the repeated full-/proc
-            # memory scan. device-verified (66aed018): mem_counters 0,
-            # cmdline/threads still present via the one-shot dump #
+            """ NOMEMSTAT keeps linux.process_stats (so process/thread names still resolve in the UI, unlike NOPROCSTAT
+            which drops the data source entirely) but switches it from a repeating /proc-wide mem_counters poll to a
+            single scan_all_processes_ on_start dump at trace start -- Perfetto's own poller has no per-process
+            filtering (see process_stats_data_source.cc's "TODO: implement filtering of processes by names"), so this is
+            the only way to get names without the repeated full-/proc memory scan. device-verified (66aed018):
+            mem_counters 0, cmdline/threads still present via the one-shot dump """
             _memStatOverride = ""
             if "NOMEMSTAT" in SysMgr.environList:
                 procStatPollMs = 0
@@ -48470,12 +48402,10 @@ data_sources {
                         True,
                     )
 
-            # PROCFD/PROCSMAPS are shared across every linux.process_stats
-            # instance (atraceConfig/perfConfig/ftraceConfig/statConfig/
-            # logConfig all declare their own) via this common line, same
-            # pattern as procStatPollMs above. resolve_process_fds needs a
-            # raw_syscalls/sys_exit ftrace event to actually resolve FDs
-            # (perfetto docs) -- warn, don't block, since it's opt-in #
+            """ PROCFD/PROCSMAPS are shared across every linux.process_stats instance
+            (atraceConfig/perfConfig/ftraceConfig/statConfig/ logConfig all declare their own) via this common line,
+            same pattern as procStatPollMs above. resolve_process_fds needs a raw_syscalls/sys_exit ftrace event to
+            actually resolve FDs (perfetto docs) -- warn, don't block, since it's opt-in """
             _procStatsExtraLines = ""
             if "PROCFD" in SysMgr.environList:
                 _procStatsExtraLines += "      resolve_process_fds: true\n"
@@ -48569,13 +48499,10 @@ data_sources {
             sampleRate = 1000
             swClock = "SW_CPU_CLOCK"
             incKernel = False
-            # PERFTIMEBASE switches linux.perf's timebase from a periodic
-            # counter (SW_CPU_CLOCK/SW_TASK_CLOCK) to a kernel ftrace
-            # tracepoint, so stacks are sampled only when that tracepoint
-            # fires -- e.g. PERFTIMEBASE:"raw_syscalls/sys_enter" with
-            # PERFTPFILTER:"id == 64" samples only on the write syscall.
-            # device-verified (66aed018): 27 samples in 5s, libc.so:write
-            # frame present in every callstack #
+            """ PERFTIMEBASE switches linux.perf's timebase from a periodic counter (SW_CPU_CLOCK/SW_TASK_CLOCK) to a
+            kernel ftrace tracepoint, so stacks are sampled only when that tracepoint fires -- e.g.
+            PERFTIMEBASE:"raw_syscalls/sys_enter" with PERFTPFILTER:"id == 64" samples only on the write syscall.
+            device-verified (66aed018): 27 samples in 5s, libc.so:write frame present in every callstack """
             perfTracepoint = None
             perfTracepointFilter = None
             perfTracepointPeriod = 1
@@ -48858,23 +48785,18 @@ data_sources {
                     % events
                 )
 
-            # JavaHprofConfig (unlike HeapprofdConfig) has no all_heaps
-            # field -- targetstr defaults to "all_heaps: true" when no
-            # -g/APP target is given, and perfetto's pbtxt parser rejects
-            # that with "No field named 'all_heaps' in proto
-            # JavaHprofConfig", so plain -q JAVADUMP (no target) always
-            # failed to start. Mirror the same substitution oomConfig
-            # already does for the same field below #
+            """ JavaHprofConfig (unlike HeapprofdConfig) has no all_heaps field -- targetstr defaults to "all_heaps:
+            true" when no -g/APP target is given, and perfetto's pbtxt parser rejects that with "No field named
+            'all_heaps' in proto JavaHprofConfig", so plain -q JAVADUMP (no target) always failed to start. Mirror the
+            same substitution oomConfig already does for the same field below """
             if targetstr and "all_heaps" not in targetstr:
                 javaTargetstr = targetstr
             else:
                 javaTargetstr = 'process_cmdline: "*"'
 
-            # JAVADUMPINTERVAL switches JAVADUMP from a single one-shot
-            # dump (duration_ms: 1000, see the dedup site below) to a
-            # periodic dump every N ms via continuous_dump_config, so
-            # memory-leak trends can be observed across one recording
-            # instead of needing several separate one-shot runs #
+            """ JAVADUMPINTERVAL switches JAVADUMP from a single one-shot dump (duration_ms: 1000, see the dedup site
+            below) to a periodic dump every N ms via continuous_dump_config, so memory-leak trends can be observed
+            across one recording instead of needing several separate one-shot runs """
             _javaContinuousDump = ""
             if "JAVADUMPINTERVAL" in SysMgr.environList:
                 try:
@@ -48964,11 +48886,9 @@ buffers {
       log_ids: LID_KERNEL
                 """
 
-            # target_buffer is a placeholder token, resolved (via .replace(),
-            # not %-formatting, since this string already went through %)
-            # once this fragment is actually appended to the combined config
-            # below -- its real index depends on how many other fragments'
-            # "buffers {}" blocks precede it there #
+            """ target_buffer is a placeholder token, resolved (via .replace(), not %-formatting, since this string
+            already went through %) once this fragment is actually appended to the combined config below -- its real
+            index depends on how many other fragments' "buffers {}" blocks precede it there """
             logConfig += """
 data_sources {
   config {
@@ -48988,12 +48908,10 @@ data_sources {
                 lids,
             )
 
-            # android.log only carries raw pid/tid numbers per event; without
-            # linux.process_stats' initial full-process scan the Perfetto UI
-            # has no ProcessTree/thread-name snapshot to resolve them against,
-            # so every process/thread shows up blank when ANDLOG is combined
-            # with nothing else (device-verified: 0 process_tree packets,
-            # every android_log event's pid/tid unresolved in the UI) #
+            """ android.log only carries raw pid/tid numbers per event; without linux.process_stats' initial
+            full-process scan the Perfetto UI has no ProcessTree/thread-name snapshot to resolve them against, so every
+            process/thread shows up blank when ANDLOG is combined with nothing else (device-verified: 0 process_tree
+            packets, every android_log event's pid/tid unresolved in the UI) """
             if "NOPROCSTAT" not in SysMgr.environList:
                 logConfig += """
 data_sources {
@@ -49098,14 +49016,11 @@ data_sources {
 
             # OOM watch config (Android 14+) #
             if "OOMWATCH" in SysMgr.environList:
-                # OOMWATCH already emits its own singular trigger_config
-                # (below) to auto-start on ART OOM; TRIGGER emits another
-                # one for its own trigger list. TraceConfig.trigger_config
-                # is optional/singular (perfetto_config.proto), so having
-                # both makes perfetto reject the whole config with "Saw
-                # non-repeating field 'trigger_config' more than once" --
-                # same class as the duration_ms dedup fix a few lines
-                # below, just for a field these two options collide on #
+                """OOMWATCH already emits its own singular trigger_config (below) to auto-start on ART OOM; TRIGGER
+                emits another one for its own trigger list. TraceConfig.trigger_config is optional/singular
+                (perfetto_config.proto), so having both makes perfetto reject the whole config with "Saw non-repeating
+                field 'trigger_config' more than once" -- same class as the duration_ms dedup fix a few lines below,
+                just for a field these two options collide on"""
                 if "TRIGGER" in SysMgr.environList:
                     _printErr(
                         "OOMWATCH and TRIGGER cannot be used together "
@@ -49164,30 +49079,26 @@ trigger_config {
                 config = pkgConfig
                 term = True
             if "GETPROCLIST" in SysMgr.environList:
-                # statConfig's own dedicated buffer lands at whatever
-                # index follows every "buffers {}" block already
-                # appended by an earlier fragment (e.g. JAVADUMP) --
-                # without this, its target_buffer defaults to 0 and its
-                # events silently pile into a buffer meant for another
-                # fragment, same class of bug as android.log below #
+                """statConfig's own dedicated buffer lands at whatever index follows every "buffers {}" block already
+                appended by an earlier fragment (e.g. JAVADUMP) -- without this, its target_buffer defaults to 0 and its
+                events silently pile into a buffer meant for another fragment, same class of bug as android.log below
+                """
                 statConfig = statConfig.replace(
                     "__STAT_TARGET_BUFFER__", str(config.count("buffers {"))
                 )
                 config += statConfig
                 term = True
             if "PERF" in SysMgr.environList:
-                # same target_buffer placeholder pattern as statConfig
-                # above -- verified live: GETPROCLIST+PERF combined
-                # sent linux.ftrace/linux.process_stats events into
-                # statConfig's buffer 0 instead of perfConfig's own #
+                """same target_buffer placeholder pattern as statConfig above -- verified live: GETPROCLIST+PERF
+                combined sent linux.ftrace/linux.process_stats events into statConfig's buffer 0 instead of perfConfig's
+                own"""
                 perfConfig = perfConfig.replace(
                     "__PERF_TARGET_BUFFER__", str(config.count("buffers {"))
                 )
                 config += perfConfig
             if "ATRACE" in SysMgr.environList:
-                # same target_buffer placeholder pattern as above --
-                # verified live: PERF+ATRACE combined left atrace's own
-                # buffer at 0 bytes while its events piled into perf's #
+                """same target_buffer placeholder pattern as above -- verified live: PERF+ATRACE combined left atrace's
+                own buffer at 0 bytes while its events piled into perf's"""
                 atraceConfig = atraceConfig.replace(
                     "__ATRACE_TARGET_BUFFER__", str(config.count("buffers {"))
                 )
@@ -49204,15 +49115,12 @@ trigger_config {
                 )
                 config += ftraceConfig
             if "ANDLOG" in SysMgr.environList:
-                # android.log's own dedicated buffer (declared at the top
-                # of logConfig) lands at whatever index follows every
-                # "buffers {}" block already appended by an earlier
-                # fragment (PERF/ATRACE/FTRACE/etc) -- without this, its
-                # target_buffer defaults to 0 and its events silently pile
-                # into buffer 0 (shared with linux.ftrace/perf) instead of
-                # the buffer meant for them, verified live: real device
-                # trace showed buffer 1 (android.log's own buffer) at 0
-                # bytes while buffer 0 absorbed everything #
+                """android.log's own dedicated buffer (declared at the top of logConfig) lands at whatever index
+                follows every "buffers {}" block already appended by an earlier fragment (PERF/ATRACE/FTRACE/etc) --
+                without this, its target_buffer defaults to 0 and its events silently pile into buffer 0 (shared with
+                linux.ftrace/perf) instead of the buffer meant for them, verified live: real device trace showed buffer
+                1 (android.log's own buffer) at 0 bytes while buffer 0 absorbed everything
+                """
                 logConfig = logConfig.replace(
                     "__LOG_TARGET_BUFFER__", str(config.count("buffers {"))
                 )
@@ -49236,25 +49144,17 @@ trigger_config {
             if "OOMWATCH" in SysMgr.environList:
                 config += oomConfig
 
-            # duration_ms/write_into_file/flush_timeout_ms/flush_period_ms/
-            # data_source_stop_timeout_ms are singular TraceConfig-level
-            # fields (perfetto_config.proto), so they may appear at most
-            # ONCE in the whole text config -- they used to be baked into
-            # each of heapConfig/perfConfig/ftraceConfig/javaConfig/
-            # pkgConfig/oomConfig individually, so any 2+ of those
-            # combined (e.g. the documented "-q PERF, FTRACE:..." example,
-            # or PERF/FTRACE + HEAPPROF/JAVADUMP) made perfetto's own
-            # pbtxt parser hard-error ("Saw non-repeating field 'duration_ms'
-            # more than once") and the whole recording silently never
-            # started. Device-verified: this reproduced identically on the
-            # pre-existing (pre-session) code, so it predates this session's
-            # other fixes. GETPKGLISTINFO/JAVADUMP intentionally use a
-            # short one-shot duration_ms instead of the continuous (0,
-            # externally controlled by -R/SIGINT) value every other source
-            # wants; GETPKGLISTINFO's "config = pkgConfig" a few lines up
-            # already discards any earlier javaConfig contribution, so its
-            # short duration takes precedence over JAVADUMP's if both were
-            # somehow set #
+            """ duration_ms/write_into_file/flush_timeout_ms/flush_period_ms/ data_source_stop_timeout_ms are singular
+            TraceConfig-level fields (perfetto_config.proto), so they may appear at most ONCE in the whole text config
+            -- they used to be baked into each of heapConfig/perfConfig/ftraceConfig/javaConfig/ pkgConfig/oomConfig
+            individually, so any 2+ of those combined (e.g. the documented "-q PERF, FTRACE:..." example, or PERF/FTRACE
+            + HEAPPROF/JAVADUMP) made perfetto's own pbtxt parser hard-error ("Saw non-repeating field 'duration_ms'
+            more than once") and the whole recording silently never started. Device-verified: this reproduced
+            identically on the pre-existing (pre-session) code, so it predates this session's other fixes.
+            GETPKGLISTINFO/JAVADUMP intentionally use a short one-shot duration_ms instead of the continuous (0,
+            externally controlled by -R/SIGINT) value every other source wants; GETPKGLISTINFO's "config = pkgConfig" a
+            few lines up already discards any earlier javaConfig contribution, so its short duration takes precedence
+            over JAVADUMP's if both were somehow set """
             if "GETPKGLISTINFO" in SysMgr.environList:
                 config += (
                     "\nduration_ms: 100\nwrite_into_file: true\n"
@@ -49276,11 +49176,10 @@ trigger_config {
             ):
                 config += "data_source_stop_timeout_ms: 100000\n"
 
-            # MAXFILESIZE/FILEWRITEPERIOD are also singular TraceConfig
-            # fields (max_file_size_bytes/file_write_period_ms), same
-            # dedup concern as duration_ms above -- only meaningful
-            # alongside write_into_file (long/continuous recordings
-            # that would otherwise grow the output file unbounded) #
+            """ MAXFILESIZE/FILEWRITEPERIOD are also singular TraceConfig fields
+            (max_file_size_bytes/file_write_period_ms), same dedup concern as duration_ms above -- only meaningful
+            alongside write_into_file (long/continuous recordings that would otherwise grow the output file unbounded)
+            """
             if "write_into_file: true" in config:
                 if "MAXFILESIZE" in SysMgr.environList:
                     try:
@@ -49323,22 +49222,16 @@ trigger_config {
                     True,
                 )
 
-            # android.heapprofd/android.java_hprof(.oom)/frametimeline/
-            # layers/vulkan.memory_tracker packets all carry a raw pid with
-            # no name -- Perfetto UI (and trace_processor) resolve those
-            # against ProcessTree snapshots. Those only appear if some
-            # linux.process_stats instance has scan_all_processes_on_start
-            # (an initial full dump) OR linux.ftrace is present to drive
-            # its on-demand OnPids() resolution as new pids show up (see
-            # perfetto's probes_producer.cc: ftrace metadata is the only
-            # thing that feeds OnPids()). PERF/ATRACE/FTRACE bring ftrace;
-            # HEAPPROF/JAVADUMP/JANK/VULKAN/OOMWATCH alone bring neither --
-            # and PERF+NOSCHEDSTAT drops ftrace but still adds a
-            # poll-only linux.process_stats (no scan_all_processes_on_start),
-            # so checking for *any* process_stats instance isn't enough;
-            # check for the actual full-scan flag instead. Device-verified
-            # for HEAPPROF: 0 process_tree packets, every process_dumps.pid
-            # left unresolved in the trace. NOPROCSTAT still opts out #
+            """ android.heapprofd/android.java_hprof(.oom)/frametimeline/ layers/vulkan.memory_tracker packets all carry
+            a raw pid with no name -- Perfetto UI (and trace_processor) resolve those against ProcessTree snapshots.
+            Those only appear if some linux.process_stats instance has scan_all_processes_on_start (an initial full
+            dump) OR linux.ftrace is present to drive its on-demand OnPids() resolution as new pids show up (see
+            perfetto's probes_producer.cc: ftrace metadata is the only thing that feeds OnPids()). PERF/ATRACE/FTRACE
+            bring ftrace; HEAPPROF/JAVADUMP/JANK/VULKAN/OOMWATCH alone bring neither -- and PERF+NOSCHEDSTAT drops
+            ftrace but still adds a poll-only linux.process_stats (no scan_all_processes_on_start), so checking for
+            *any* process_stats instance isn't enough; check for the actual full-scan flag instead. Device-verified for
+            HEAPPROF: 0 process_tree packets, every process_dumps.pid left unresolved in the trace. NOPROCSTAT still
+            opts out """
             if (
                 "NOPROCSTAT" not in SysMgr.environList
                 and "scan_all_processes_on_start: true" not in config
@@ -49372,9 +49265,8 @@ data_sources {
                     _procStatsExtraLines,
                 )
 
-            # prepend a default buffers block when optional-only data sources
-            # were added (JANK, POWER, etc.) without any primary config that
-            # already includes a buffers section #
+            """ prepend a default buffers block when optional-only data sources were added (JANK, POWER, etc.) without
+            any primary config that already includes a buffers section """
             if config and "buffers {" not in config:
                 config = (
                     """
@@ -49492,12 +49384,10 @@ data_sources {
                 return -1
 
             if "SYSCALL" in SysMgr.environList:
-                # syscall_events (empty = record all syscalls, the
-                # previous unconditional behavior) restricts sys_enter/
-                # sys_exit to only the named syscalls -- without it,
-                # a busy syscall like futex/read/write floods the
-                # buffer, drowning out whatever the user actually
-                # wanted to trace #
+                """syscall_events (empty = record all syscalls, the previous unconditional behavior) restricts
+                sys_enter/ sys_exit to only the named syscalls -- without it, a busy syscall like futex/read/write
+                floods the buffer, drowning out whatever the user actually wanted to trace
+                """
                 _syscallFilterLines = "\n".join(
                     '      syscall_events: "%s"' % s
                     for s in SysMgr.environList.get("SYSCALLFILTER", [])
@@ -49561,13 +49451,10 @@ trigger_config {
             # use -D (background-wait) if WAITREADY is set, else -d (background) #
             backFlag = "-D" if "WAITREADY" in SysMgr.environList else "-d"
 
-            # the perfetto binary runs in its own confined SELinux domain
-            # (u:r:perfetto:s0) which is denied "search" on arbitrary
-            # directories such as /data/local/tmp (shell_data_file) even
-            # when guider itself runs as root. Its only reliably writable
-            # location on stock policy is /data/misc/perfetto-traces, so
-            # record there and move the result to the real outPath once
-            # recording finishes (root has no such SELinux restriction) #
+            """ the perfetto binary runs in its own confined SELinux domain (u:r:perfetto:s0) which is denied "search"
+            on arbitrary directories such as /data/local/tmp (shell_data_file) even when guider itself runs as root. Its
+            only reliably writable location on stock policy is /data/misc/perfetto-traces, so record there and move the
+            result to the real outPath once recording finishes (root has no such SELinux restriction) """
             recPath = outPath
             if SysMgr.isAndroid:
                 _perfSafeDir = "/data/misc/perfetto-traces"
@@ -50202,11 +50089,10 @@ trigger_config {
             runtime = v.get("runtime", 0)
             cpu = v.get("cpu", 0)
             cpu = UtilMgr.convNum(cpu) if cpu else 0
-            # keep the JSON/sort value as a plain MB number, matching cpu's #
-            # plain numeric string above; convSize2Unit()'s "M"-suffixed text #
-            # (e.g. "44.8M") is only for the human-readable console line below, #
-            # since a unit-suffixed string can't be parsed as a number by #
-            # JSON consumers (e.g. HPerf silently rendered every RSS as 0) #
+            """ keep the JSON/sort value as a plain MB number, matching cpu's # plain numeric string above;
+            convSize2Unit()'s "M"-suffixed text # (e.g. "44.8M") is only for the human-readable console line below, #
+            since a unit-suffixed string can't be parsed as a number by # JSON consumers (e.g. HPerf silently rendered
+            every RSS as 0) """
             rssRaw = v.get("rss", 0)
             rss = round(rssRaw / 1048576.0, 1) if rssRaw else 0
 
@@ -52840,10 +52726,9 @@ trigger_config {
             if stk:
                 enter_name, enter_ts = stk.pop()
                 dur_ns = ts - enter_ts if ts > enter_ts else 0
-                # key by (pid, method) so identically-named methods from
-                # different processes in a multi-process trace (multiple
-                # -g targets or system-wide ART tracing) are not silently
-                # summed together under one global method total #
+                """ key by (pid, method) so identically-named methods from different processes in a multi-process trace
+                (multiple -g targets or system-wide ART tracing) are not silently summed together under one global
+                method total """
                 pid = (
                     profile_data.get("track_descs", {})
                     .get(track_uuid, {})
@@ -54923,6 +54808,7 @@ class SysMgr(object):
     termCnt = 0
     repeatInterval = 0
     maxIntervalTick = 0
+    trimIntervalEnable = False  # cut intervalData to maxIntervalTick #
     ipAddr = None
     swappiness = 0
     vmpressure = 0
@@ -55096,6 +54982,11 @@ class SysMgr(object):
     overlayfsCache = {}
     vmflagList = []
     requestQueue = []
+    llmCmdQueue = []  # ASKRUN commands waiting for the main thread #
+    llmCmdClosed = False  # True once exit started (no more requests) #
+    llmGovRefused = (
+        0  # AI governor commands refused: the event has no targetList #
+    )
     runtimeOption = []
     uptimeOption = []
     memDumpData = {}
@@ -55448,6 +55339,7 @@ class SysMgr(object):
     initWssEnable = False
     inotifyEnable = False
     intervalEnable = 0
+    intervalFloat = 0  # fractional -i value, only with -q FLOATINTERVAL
     ioschedEnable = False
     iouringEnable = False
     irqEnable = False
@@ -55570,7 +55462,9 @@ class SysMgr(object):
         r"\[(?P<core>[0-9]+)\]\s+(?P<irq>(\S{5}\s)*)(?P<time>\S+):\s+"
         r"(?P<func>\S+[^: ]):?\s*(?P<etc>.+)"
     )
-    reportFormat = r"^guider_(?P<run>[0-9]+)_*"
+    # requires the <run> and <report> numbers followed by "_", so lock,
+    # svg and user files such as guider_<pid>.lock are not taken as reports #
+    reportFormat = r"^guider_(?P<run>[0-9]+)_[0-9]+_"
     traceTgidFormat1Code = None
     traceTgidFormat2Code = None
     traceNoTgidFormatCode = None
@@ -55682,6 +55576,7 @@ Commands:
         self.userData = {}
         self.mountData = None
         self.mountUpdated = False
+        self.blockScanned = False
         self.loadData = None
         self.nrMaxThread = 0
         self.cmdlineData = None
@@ -55718,6 +55613,8 @@ Commands:
 
         try:
             fd.write(log)
+            # os._exit() skips the flush of a redirected stderr #
+            fd.flush()
         except SystemExit:
             sys.exit(0)
         except:
@@ -56921,16 +56818,13 @@ Commands:
             if not flist:
                 errMsg = "no target file from '%s'" % path.rstrip("/*")
                 SysMgr.printErr(errMsg)
-                # when this runs as a TCP-server-spawned drawflame child (e.g. #
-                # ALLANR/ALLTOMBSTONE with nothing found), printErr() alone only #
-                # reaches this child's stderr, which the server's relay loop #
-                # never captures - only stdout is piped back to the client #
-                # (see the isDrawMode branch in the request dispatcher). that #
-                # leaves the client with zero bytes and a generic "no data #
-                # received" error instead of the real reason. Print the same #
-                # {"error": ...} shape the dispatcher's own _sendErrMsg() uses #
-                # to stdout so the relay loop forwards it - guarded on isatty() #
-                # so a local interactive run's terminal output is unaffected #
+                """ when this runs as a TCP-server-spawned drawflame child (e.g. # ALLANR/ALLTOMBSTONE with nothing
+                found), printErr() alone only # reaches this child's stderr, which the server's relay loop # never
+                captures - only stdout is piped back to the client # (see the isDrawMode branch in the request
+                dispatcher). that # leaves the client with zero bytes and a generic "no data # received" error instead
+                of the real reason. Print the same # {"error": ...} shape the dispatcher's own _sendErrMsg() uses # to
+                stdout so the relay loop forwards it - guarded on isatty() # so a local interactive run's terminal
+                output is unaffected """
                 try:
                     if not sys.stdout.isatty():
                         print('{"error": %s}' % errMsg)
@@ -57162,9 +57056,8 @@ Commands:
                 if pid in runList or SysMgr.isAlive(pid):
                     continue
 
-                # this function can be re-entered from the request handler #
-                # while this loop is running, so the event or the pid may #
-                # have been removed from the live list already #
+                """ this function can be re-entered from the request handler # while this loop is running, so the event
+                or the pid may # have been removed from the live list already """
                 curList = SysMgr.eventCommandList.get(event)
                 if curList is None:
                     break
@@ -58384,9 +58277,8 @@ Commands:
             # honors AIPERIODIC set via the config file's [init].OPTION #
             LLMMgr._initPeriodicAI()
 
-            # ensure a clean shutdown (Ctrl-C, normal completion) restores
-            # any process frozen/throttled by AUTOSIGNAL/AUTOLIMITCPU/etc,
-            # since nothing else would ever undo it otherwise #
+            """ ensure a clean shutdown (Ctrl-C, normal completion) restores any process frozen/throttled by
+            AUTOSIGNAL/AUTOLIMITCPU/etc, since nothing else would ever undo it otherwise """
             SysMgr.addExitFunc(SysMgr.restoreAllGovState)
 
             SysMgr.colorEnable = False
@@ -59953,7 +59845,6 @@ Commands:
                 break
             if not "time" in taskInfo and path and "@" in path:
                 try:
-                    datetime = SysMgr.getPkg("datetime", False)
                     ts = (
                         long(
                             path.rsplit("/", 1)[-1]
@@ -59962,9 +59853,7 @@ Commands:
                         )
                         / 1000
                     )
-                    tsp = datetime.datetime.utcfromtimestamp(ts).strftime(
-                        "%Y-%m-%d %H:%M:%S"
-                    )
+                    tsp = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(ts))
                     taskInfo["time"] = tsp
                 except SystemExit:
                     sys.exit(0)
@@ -61379,22 +61268,18 @@ Commands:
             )
             return
 
-        flist = sorted(
-            filter(
-                lambda x: os.path.isfile(os.path.join(path, x)),
-                os.listdir(path),
-            ),
-            reverse=True,
-        )
-
-        for fname in flist:
+        # compare the run numbers as numbers: a name sort puts 99999 after
+        # 100001 once the number grows past the five digits of the format #
+        maxRun = -1
+        for fname in os.listdir(path):
             m = re.match(SysMgr.reportFormat, fname)
-            if not m:
+            if not m or not os.path.isfile(os.path.join(path, fname)):
                 continue
 
-            d = m.groupdict()
-            SysMgr.nrRun = long(d["run"]) + 1
-            return
+            maxRun = max(maxRun, long(m.groupdict()["run"]))
+
+        if maxRun >= 0:
+            SysMgr.nrRun = maxRun + 1
 
     @staticmethod
     def getMemDict(sfilter="", retList=False):
@@ -61567,12 +61452,145 @@ Commands:
         return result
 
     @staticmethod
+    def fillProcCpu(inst, pids=None):
+        """Set the "ttimeDiff" (CPU seconds used since the previous tick)
+        of the processes of inst.procData that have none, for pids or for
+        all of them. The procfs path only keeps the raw utime/stime ticks
+        of this and the previous tick in the '/proc/PID/stat' lists, so the
+        difference is made here and converted from clock ticks to seconds,
+        the unit the psutil path stores in the same key. Callers that read
+        "ttimeDiff" (topProcs, get_process_info, find_anomalies) all go
+        through this, because nothing else makes it on Linux #"""
+        try:
+            prevData = getattr(inst, "prevProcData", {})
+            uidx = getattr(inst, "utimeIdx", None)
+            sidx = getattr(inst, "stimeIdx", None)
+            if uidx is None or sidx is None or not prevData:
+                return
+
+            # snapshot first: the monitor loop changes procData while LLM
+            # worker threads read it #
+            procs = dict(inst.procData)
+            if pids is not None:
+                procs = dict((p, procs[p]) for p in pids if p in procs)
+
+            for pid, val in procs.items():
+                if (
+                    "ttimeDiff" in val
+                    or not val.get("stat")
+                    or pid not in prevData
+                ):
+                    continue
+
+                pst = prevData[pid].get("stat")
+                if not pst:
+                    continue
+
+                try:
+                    utick = long(val["stat"][uidx]) - long(pst[uidx])
+                    stick = long(val["stat"][sidx]) - long(pst[sidx])
+                    val["ttimeDiff"] = max(0, utick + stick) / float(
+                        SysMgr.TICK
+                    )
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    pass
+        except SystemExit:
+            sys.exit(0)
+        except:
+            pass
+
+    @staticmethod
+    def procEntry(inst, pid, val, uptimeDiff):
+        """Return the dict of one process for topProcs() and funcall
+        get_process_info, or None if it cannot be built.
+
+        A key of the psutil path (pstatus, ppid, nrThread, ttimeDiff,
+        ioReadDiff, ioWriteDiff, nrpgfltDiff) wins where it exists. The
+        procfs path (Linux, which never uses psutil) keeps the same facts
+        in the raw '/proc/PID/stat' list at inst.statIdx/ppidIdx/
+        nrthreadIdx, and in "read"/"write" (bytes) and "majflt". Nothing
+        is written to val, so it is safe to call from a worker thread #"""
+
+        def _getStat(idx):
+            try:
+                return val["stat"][idx]
+            except SystemExit:
+                sys.exit(0)
+            except:
+                return None
+
+        def _getInt(key, idx):
+            ret = val.get(key)
+            if ret is None:
+                try:
+                    ret = long(_getStat(idx))
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    ret = 0
+            return ret
+
+        def _getUser():
+            user = val.get("user")
+            if user and user != "-":
+                return user
+            elif not SysMgr.isLinux or not val.get("stat"):
+                return user or ""
+
+            try:
+                sysInstance = SysMgr.sysInstance
+                sysInstance.saveUserInfo()
+                uid = SysMgr.getTaskAttr(pid, "Uid").split(None, 1)[0]
+                return sysInstance.getUserName(uid, uid)
+            except SystemExit:
+                sys.exit(0)
+            except:
+                return ""
+
+        try:
+            io_read = val.get("ioReadDiff", val.get("read", 0))
+            io_write = val.get("ioWriteDiff", val.get("write", 0))
+            state = val.get("pstatus") or _getStat(
+                getattr(inst, "statIdx", None)
+            )
+            return {
+                "pid": pid,
+                "comm": val.get("comm", ""),
+                "state": state or "?",
+                "user": _getUser(),
+                "ppid": _getInt("ppid", getattr(inst, "ppidIdx", None)),
+                "nr_threads": _getInt(
+                    "nrThread", getattr(inst, "nrthreadIdx", None)
+                ),
+                "cpu_pct": round(
+                    val.get("ttimeDiff", 0) * 100.0 / uptimeDiff, 1
+                ),
+                "rss_mb": val.get("rss", 0),
+                "vss_mb": val.get("vss", 0),
+                "io_read_mb": io_read >> 20,
+                "io_write_mb": io_write >> 20,
+                # per tick, not per second: see the topProcs() docstring #
+                "pgflt_rate": val.get("nrpgfltDiff", val.get("majflt", 0)),
+            }
+        except SystemExit:
+            sys.exit(0)
+        except:
+            return None
+
+    @staticmethod
     def topProcs(n=10, sort="cpu"):
         """Return top N processes sorted by metric.
         sort: 'cpu' | 'mem' | 'io' | 'pid'
         Per-entry fields: pid, comm, state, user, ppid, nr_threads,
                           cpu_pct, rss_mb, vss_mb, io_read_mb, io_write_mb,
-                          pgflt_rate"""
+                          pgflt_rate
+
+        pgflt_rate is the number of page faults since the previous tick
+        (not divided by the interval): all faults on the psutil path, only
+        the major ones on the procfs path, which has no minor fault count.
+        The name is kept because callers already read it #"""
         inst = getattr(SysMgr, "topInstance", None)
         if inst is None or not hasattr(inst, "procData"):
             return []
@@ -61587,81 +61605,29 @@ Commands:
         }
         sort_key = sort_map.get(sort, "ttimeDiff")
 
-        if sort_key == "ttimeDiff":
-            try:
-                prevData = getattr(inst, "prevProcData", {})
-                uidx = getattr(inst, "utimeIdx", None)
-                sidx = getattr(inst, "stimeIdx", None)
-                if uidx is not None and sidx is not None and prevData:
-                    # snapshot first: the main monitor-loop thread
-                    # add/removes pids from inst.procData continuously
-                    # (process churn), and this can now genuinely run
-                    # concurrently with up to LLMMAXCONCURRENT worker
-                    # threads all calling topProcs() for LLM context #
-                    for pid, val in dict(inst.procData).items():
-                        if (
-                            "ttimeDiff" not in val
-                            and val.get("stat")
-                            and pid in prevData
-                        ):
-                            pst = prevData[pid].get("stat")
-                            if pst:
-                                try:
-                                    utick = long(val["stat"][uidx]) - long(
-                                        pst[uidx]
-                                    )
-                                    stick = long(val["stat"][sidx]) - long(
-                                        pst[sidx]
-                                    )
-                                    val["ttimeDiff"] = max(0, utick + stick)
-                                except SystemExit:
-                                    sys.exit(0)
-                                except:
-                                    pass
-            except SystemExit:
-                sys.exit(0)
-            except:
-                pass
+        # procfs keys used when the psutil-style key does not exist #
+        alt_key = {"ioReadDiff": "read", "ioWriteDiff": "write"}.get(sort_key)
+
+        # for every order, not only cpu: cpu_pct comes from "ttimeDiff".
+        # Entries already derived are skipped #
+        SysMgr.fillProcCpu(inst)
 
         try:
             items = sorted(
                 dict(inst.procData).items(),
-                key=lambda e: e[1].get(sort_key, 0),
+                key=lambda e: e[1].get(sort_key, e[1].get(alt_key, 0)),
                 reverse=(sort != "pid"),
             )
         except SystemExit:
             sys.exit(0)
         except:
             return []
+
         result = []
         for pid, val in items[:n]:
-            try:
-                io_read = val.get("ioReadDiff", 0)
-                io_write = val.get("ioWriteDiff", 0)
-                result.append(
-                    {
-                        "pid": pid,
-                        "comm": val.get("comm", ""),
-                        "state": val.get("pstatus", "?"),
-                        "user": val.get("user", ""),
-                        "ppid": val.get("ppid", 0),
-                        "nr_threads": val.get(
-                            "nrThread", val.get("nrthread", 0)
-                        ),
-                        "cpu_pct": round(
-                            val.get("ttimeDiff", 0) * 100.0 / uptimeDiff, 1
-                        ),
-                        "rss_mb": val.get("rss", 0),
-                        "vss_mb": val.get("vss", 0),
-                        "io_read_mb": io_read >> 20,
-                        "io_write_mb": io_write >> 20,
-                        "pgflt_rate": val.get("nrpgfltDiff", 0),
-                    }
-                )
-            except SystemExit:
-                sys.exit(0)
-            except:
-                pass
+            entry = SysMgr.procEntry(inst, pid, val, uptimeDiff)
+            if entry:
+                result.append(entry)
         return result
 
     @staticmethod
@@ -64018,11 +63984,9 @@ Commands:
                     SysMgr.printErr("no filter for '%s' monitoring" % name)
                     continue
 
-                # set port opt: lazily create the local server address on
-                # first use, because ctop's startup applies the threshold
-                # config (spawning this watcher) BEFORE it sets up its own
-                # network identity for the plain top-mode path, so
-                # SysMgr.localServObj is normally still empty at this point #
+                """ set port opt: lazily create the local server address on first use, because ctop's startup applies
+                the threshold config (spawning this watcher) BEFORE it sets up its own network identity for the plain
+                top-mode path, so SysMgr.localServObj is normally still empty at this point """
                 if not SysMgr.localServObj:
                     NetworkMgr.setServerNetwork(
                         None, None, reuse=False, weakPort=True
@@ -64769,9 +64733,8 @@ Commands:
 
                 mute = "UNMUTE" not in SysMgr.environList
 
-                # set port opt: lazily create the local server address on
-                # first use (see initLogWatcher for why it's usually empty
-                # here) #
+                """ set port opt: lazily create the local server address on first use (see initLogWatcher for why it's
+                usually empty here) """
                 if not SysMgr.localServObj:
                     NetworkMgr.setServerNetwork(
                         None, None, reuse=False, weakPort=True
@@ -64877,9 +64840,8 @@ Commands:
                     SysMgr.printErr("no filter for 'fdtrace' monitoring")
                     continue
 
-                # set port opt: lazily create the local server address on
-                # first use (see initLogWatcher for why it's usually empty
-                # here) #
+                """ set port opt: lazily create the local server address on first use (see initLogWatcher for why it's
+                usually empty here) """
                 if not SysMgr.localServObj:
                     NetworkMgr.setServerNetwork(
                         None, None, reuse=False, weakPort=True
@@ -64906,27 +64868,21 @@ Commands:
                 else:
                     exitCond = ""
 
-                # get tracepoint target (default: raw_syscalls/sys_exit, since
-                # per-syscall tracepoints like syscalls/sys_exit_openat aren't
-                # available on many kernels, e.g. Android GKI without
-                # CONFIG_FTRACE_SYSCALLS) #
+                """ get tracepoint target (default: raw_syscalls/sys_exit, since per-syscall tracepoints like
+                syscalls/sys_exit_openat aren't available on many kernels, e.g. Android GKI without
+                CONFIG_FTRACE_SYSCALLS) """
                 tp = value.get("target", "raw_syscalls/sys_exit")
 
-                # raw_syscalls fires for EVERY syscall, so scope to the common
-                # fd-creating syscalls (open/socket/pipe/dup/eventfd/timerfd/
-                # memfd families — still NOT exhaustive, e.g. epoll_create/
-                # inotify_init/fanotify_init/pidfd_open/perf_event_open/
-                # userfaultfd/io_uring_setup/mq_open/bpf() aren't included by
-                # default; extend FDTRACE_SYSCALLS below or override via a
-                # "target" pointing at a different tracepoint if broader
-                # coverage is needed). Names are resolved per-arch via the
-                # existing SysMgr.getNrSyscall() table (same as -t); a name
-                # absent on the current arch (e.g. "pipe"/"dup2"/"accept"/
-                # "eventfd" don't exist on aarch64/riscv64's generic syscall
-                # ABI — only the newer eventfd2/pipe2/dup3/accept4 do) is
-                # skipped with a warning, not a hard failure — only applies to
-                # the raw_syscalls default, not a user-overridden single-
-                # syscall tracepoint target (which has no syscall-nr field) #
+                """ raw_syscalls fires for EVERY syscall, so scope to the common fd-creating syscalls
+                (open/socket/pipe/dup/eventfd/timerfd/ memfd families — still NOT exhaustive, e.g. epoll_create/
+                inotify_init/fanotify_init/pidfd_open/perf_event_open/ userfaultfd/io_uring_setup/mq_open/bpf() aren't
+                included by default; extend FDTRACE_SYSCALLS below or override via a "target" pointing at a different
+                tracepoint if broader coverage is needed). Names are resolved per-arch via the existing
+                SysMgr.getNrSyscall() table (same as -t); a name absent on the current arch (e.g.
+                "pipe"/"dup2"/"accept"/ "eventfd" don't exist on aarch64/riscv64's generic syscall ABI — only the newer
+                eventfd2/pipe2/dup3/accept4 do) is skipped with a warning, not a hard failure — only applies to the
+                raw_syscalls default, not a user-overridden single- syscall tracepoint target (which has no syscall-nr
+                field) """
                 FDTRACE_SYSCALLS = [
                     "openat",
                     "socket",
@@ -65027,19 +64983,14 @@ Commands:
                     )
                 )
 
-                # scope to a specific process comm, unless system-wide/all.
-                # Uses PROCCOMMFILTER (matches the target PROCESS's own
-                # /proc/<tgid>/comm) rather than -g (matches whichever THREAD
-                # happened to make the syscall) -- FDCOUNT already measures
-                # the whole process's fd table via /proc/<tgid>/fd, so a
-                # multi-threaded scope name like "system_server" should gate
-                # on the same (process) granularity: under plain -g, worker
-                # threads (e.g. "Binder:1234_1") never equal "system_server"
-                # and most of that process's fd-creating syscalls would be
-                # silently missed -- name is comma-escaped for the same
-                # reason as WATCHLOGCMD's 'event' above (it's the last -q
-                # flag here, but a raw comma in it would still truncate
-                # PROCCOMMFILTER's own value and spill a bogus flag) #
+                """ scope to a specific process comm, unless system-wide/all. Uses PROCCOMMFILTER (matches the target
+                PROCESS's own /proc/<tgid>/comm) rather than -g (matches whichever THREAD happened to make the syscall)
+                -- FDCOUNT already measures the whole process's fd table via /proc/<tgid>/fd, so a multi-threaded scope
+                name like "system_server" should gate on the same (process) granularity: under plain -g, worker threads
+                (e.g. "Binder:1234_1") never equal "system_server" and most of that process's fd-creating syscalls would
+                be silently missed -- name is comma-escaped for the same reason as WATCHLOGCMD's 'event' above (it's the
+                last -q flag here, but a raw comma in it would still truncate PROCCOMMFILTER's own value and spill a
+                bogus flag) """
                 if name not in ("SYSTEM", "*"):
                     envOpt += ",PROCCOMMFILTER:%s" % name.replace(",", r"\,")
 
@@ -65057,6 +65008,13 @@ Commands:
 
     @staticmethod
     def applyThreshold(update=False):
+        def _isOff(item):
+            # an entry waiting for ENABLETHR (tgroup) is not off for good,
+            # so its interval must be kept in the history length #
+            return item.get("apply") not in (None, "true") and not item.get(
+                "tgroup"
+            )
+
         def _getMaxInterval(node, maxVal=0, root=None):
             for key, item in node.items():
                 if root:
@@ -65068,14 +65026,14 @@ Commands:
                     for subitem in item:
                         if not isinstance(subitem, dict):
                             continue
-                        elif subitem.get("apply") not in (None, "true"):
+                        elif _isOff(subitem):
                             continue
 
                         val = _getMaxInterval(subitem, maxVal, res)
                         if maxVal < val:
                             maxVal = val
                 elif isinstance(item, dict):
-                    if item.get("apply") not in (None, "true"):
+                    if _isOff(item):
                         continue
 
                     val = _getMaxInterval(item, maxVal, res)
@@ -65278,6 +65236,15 @@ Commands:
 
             confData = SysMgr.getConfigItem("threshold")
             if not confData or not isinstance(confData, dict):
+                SysMgr.printWarn(
+                    "no valid <threshold> data in the config%s"
+                    % (
+                        ", the previous threshold is kept"
+                        if SysMgr.thrData
+                        else ""
+                    ),
+                    True,
+                )
                 return
             elif not _checkResource(confData):
                 SysMgr.printWarn(
@@ -65289,11 +65256,9 @@ Commands:
                 )
                 return
             else:
-                # back up the outgoing threshold data (same convention as
-                # every other thrData reset site) so a COMMAND-dict
-                # shortcut or CMD_ prefix lookup right after a RELOAD can
-                # still find a name defined only in the config being
-                # replaced #
+                """back up the outgoing threshold data (same convention as every other thrData reset site) so a
+                COMMAND-dict shortcut or CMD_ prefix lookup right after a RELOAD can still find a name defined only in
+                the config being replaced"""
                 SysMgr.prevThrData = SysMgr.thrData
                 SysMgr.thrData = confData
 
@@ -65315,10 +65280,19 @@ Commands:
                             (_res, _scope, _entry)
                         )
 
-        for path in SysMgr.environList.get("UPDATETHRESHOLD", []):
-            SysMgr.updateThreshold(path)
-
-            SysMgr.printInfo("updated the threshold data from '%s'" % path)
+        # merge the -q files only on the first apply: updateThreshold()
+        # calls this again with update=True and would loop forever #
+        if not update:
+            for path in SysMgr.environList.get("UPDATETHRESHOLD", []):
+                if SysMgr.updateThreshold(path):
+                    SysMgr.printInfo(
+                        "updated the threshold data from '%s'" % path
+                    )
+                else:
+                    SysMgr.printWarn(
+                        "failed to update the threshold data from '%s'" % path,
+                        True,
+                    )
 
         if "APPLYALL" in SysMgr.environList:
             confData = UtilMgr.convStr2Dict(
@@ -65580,6 +65554,50 @@ Commands:
                 if enableList - {"cpu", "cpuacct", "throttle"}:
                     SysMgr.sort = False
 
+        def _iterCmds(item, alias=None):
+            """Yield every command string of the active threshold entries
+            (and of the correlation groups that are applied), with the
+            COMMAND alias names resolved. Only what is actually used is
+            yielded, so an alias that is merely defined is never seen.
+            Containers (the root, a resource, a list of entries) have no
+            "apply" and are followed; an entry that holds commands counts
+            only with "apply": "true", which is also the rule of the code
+            that runs them (a correlation group without it is off) #"""
+            if alias is None:
+                alias = (
+                    item.get("COMMAND", {}) if isinstance(item, dict) else {}
+                )
+                if not isinstance(alias, dict):
+                    alias = {}
+
+            if isinstance(item, list):
+                for val in item:
+                    for cmd in _iterCmds(val, alias):
+                        yield cmd
+                return
+            elif not isinstance(item, dict):
+                return
+            elif item.get("apply", "true") != "true":
+                return
+
+            for key, val in item.items():
+                if key == "COMMAND":
+                    continue
+                elif key in ("command", "lcommand", "commands", "escalation"):
+                    if "apply" not in item:
+                        # only an entry that is switched on runs commands #
+                        continue
+                    for cmd in val if isinstance(val, list) else [val]:
+                        if isinstance(cmd, dict):
+                            cmd = cmd.get("action", "")
+                        if isinstance(cmd, str):
+                            cmd = alias.get(cmd, cmd).strip()
+                            yield cmd[4:] if cmd.startswith("CMD_") else cmd
+                    continue
+
+                for cmd in _iterCmds(val, alias):
+                    yield cmd
+
         def _hasGovCmd(item):
             """Return True if any active threshold entry uses an AUTO* governor command."""
             _GOV_PREFIXES = (
@@ -65592,25 +65610,27 @@ Commands:
                 "AUTORESTORE",
                 "AUTOSWAPOUT",
             )
-            if isinstance(item, list):
-                return any(_hasGovCmd(v) for v in item)
-            if not isinstance(item, dict):
-                return False
-            if item.get("apply") == "true":
-                for key in ("command", "lcommand", "escalation"):
-                    val = item.get(key)
-                    if not val:
-                        continue
-                    cmds = val if isinstance(val, list) else [val]
-                    for cmd in cmds:
-                        # escalation entries are dicts {"action": "AUTONICE:+5"} #
-                        if isinstance(cmd, dict):
-                            cmd = cmd.get("action", "")
-                        if isinstance(cmd, str) and any(
-                            cmd.startswith(p) for p in _GOV_PREFIXES
-                        ):
-                            return True
-            return any(_hasGovCmd(v) for v in item.values())
+            return any(
+                cmd.startswith(_GOV_PREFIXES) for cmd in _iterCmds(item)
+            )
+
+        def _getAICtxTick(item, defTick):
+            """Return the most ticks of metric history any AI command of
+            the active threshold entries asks for (its own #CTXTICK, else
+            defTick), or None if there is no AI command #"""
+            ticks = []
+            for cmd in _iterCmds(item):
+                name, _, rest = cmd.partition(":")
+                if name.upper() not in ("ASKAI", "ASKRUN", "ASKMULTI"):
+                    continue
+                inline = LLMMgr._parseInlineOpts(":" + rest)[1]
+
+                # report a bad number once here, not at every event #
+                opts = LLMMgr._inlineToOpts(
+                    inline, warnLabel="inline option of %s" % name.upper()
+                )
+                ticks.append(opts.get("ctxTick", defTick))
+            return max(ticks) if ticks else None
 
         try:
             SysMgr.taskEnable = _checkTask(confData)
@@ -65629,7 +65649,10 @@ Commands:
                     SysMgr.printWarn(
                         (
                             "disabled the task monitoring "
-                            "because there is no threshold for task"
+                            "because there is no threshold for task "
+                            '(set "taskmon": "true" on a threshold '
+                            "to keep process info for SAVE, SNAPSHOT, "
+                            "and ASKAI/ASKRUN)"
                         ),
                         True,
                     )
@@ -65638,9 +65661,37 @@ Commands:
         except:
             SysMgr.printWarn("failed to check task monitoring", reason=True)
 
-        SysMgr.maxIntervalTick = max(
-            SysMgr.maxIntervalTick, _getMaxInterval(confData)
-        )
+        # derive it from the config being applied so a smaller RELOAD /
+        # UPDATE can shrink it; the AI history below may raise it #
+        SysMgr.maxIntervalTick = _getMaxInterval(confData)
+
+        # keep enough ticks for the AI metric history #
+        try:
+            defTick = LLMMgr._buildLLMOptsFromEnv().get(
+                "ctxTick", TaskAnalyzer._LLM_CTX_TICKS
+            )
+
+            aiTick = _getAICtxTick(confData, defTick)
+            if aiTick is None and any(
+                k in SysMgr.environList
+                for k in ("ASKAI", "AIPERIODIC", "LLMPERIOD", "LLMCTXTICK")
+            ):
+                aiTick = defTick
+
+            if aiTick:
+                if aiTick > SysMgr.maxIntervalTick:
+                    SysMgr.maxIntervalTick = aiTick
+                    SysMgr.printInfo(
+                        "raised maxInterval to %d for the AI context history"
+                        % aiTick
+                    )
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printWarn("failed to check AI context history", True)
+
+        # let the monitor loop trim the stored history to the new limit #
+        SysMgr.trimIntervalEnable = True
 
         SysMgr.printInfo(
             "applied thresholds from '%s' (maxInterval:%s)"
@@ -66495,6 +66546,9 @@ Commands:
             return None
 
         value = SysMgr.getConfigItem("threshold", value)
+        if not value:
+            SysMgr.printWarn("no valid <threshold> data in '%s'" % path, True)
+            return None
 
         try:
             SysMgr.thrData.update(value)
@@ -66505,6 +66559,8 @@ Commands:
         SysMgr.applyThreshold(update=True)
 
         SysMgr.printWarn(UtilMgr.convDict2Str(SysMgr.thrData, pretty=True))
+
+        return True
 
     @staticmethod
     def updateConfigPath():
@@ -68484,9 +68540,8 @@ Commands:
             try:
                 SysMgr.printWarn("terminated by %s\n" % reason, True)
                 os.kill(SysMgr.pid, signal.SIGINT)
-                # send SIGKILL only if already in reporting phase (i.e., second
-                # checkProgress call during stopHandler) to avoid killing the
-                # process mid-report when outPath is set #
+                """ send SIGKILL only if already in reporting phase (i.e., second checkProgress call during stopHandler)
+                to avoid killing the process mid-report when outPath is set """
                 if SysMgr.inExit:
                     os.kill(SysMgr.pid, signal.SIGKILL)
             except SystemExit:
@@ -68905,7 +68960,7 @@ Usage:
     -a                          show all stats and events
     -g  <COMM|TID{:FILE}>       set task filter
     -O  <CORE{,CORE}>           set core filter (comma-separated, range: N:M)
-    -i  <SEC>                   set interval
+    -i  <SEC>                   set interval (fractional with -q FLOATINTERVAL)
     -R  <INTERVAL:TIME:TERM>    set repeat count
     -c  <CMD>                   set hot command
     -Q                          print all rows in a stream
@@ -68918,6 +68973,7 @@ Usage:
                      OOMADJ:<score>
           [display]  NODATETIME | DLTTIME | UTCTIME | KBUNIT | FASTINIT
                      NOCONVSIZE | NOCONVTIME | NOCONVNUM | COMMLEN:<n> | CMDLINE
+                     FLOATINTERVAL
                      ORDERASC | ORDERDESC | TASKSTREAM | SORTINCSWAP
                      LIVEGRAPH{:<filter>} | PSIGRAPH | FULLPSI | CPUGRAPH | CORESTAT | SWAPMEMSUM
                      LIVETASKCPUGRAPH:<pid|comm> | LIVETASKRSSGRAPH:<pid|comm>
@@ -68967,8 +69023,10 @@ Usage:
           [ai]       ASKAI[:<PROMPT>] | AIPERIODIC:<SEC> | LLMDRYRUN | ALLOWRUN
                      RUNTIMEOUT:<sec> (bound RUN's wait, unset = wait forever)
                      LLMPROVIDER:<NAME> | LLMMODEL:<NAME> | LLMRATELIMIT:<SEC>
-                     LLMMAXCMD:<n> | LLMCTXDEPTH:<n>
-                     LLMAUDITLOG:<path> | LLMALLOWCMD:<cmds>
+                     LLMMAXCMD:<n> | LLMCTXDEPTH:<n> | LLMCTXTICK:<n>
+                     LLMHISTORY[:<bool>] | LLMMAXCTX:<chars>
+                     LLMAUDITLOG:<path> (JSONL, 0.5-3KB a call, never rotated
+                       and not managed by LIMITREPDIR/LIMITDIR) | LLMALLOWCMD:<cmds>
                      LLMBUDGET:<usd> | LLMMINCONF:<0.0-1.0> (alias: MINCONF)
           [limit]    LIMITCPU:<pct>[@<name>] | LIMITCPUSET:<cores>[@<name>]
                      LIMITMEM:<size>[@<name>] | LIMITMEMSOFT:<size>[@<name>]
@@ -69205,7 +69263,14 @@ Troubleshooting:
     -q  LLMPROVIDER:<NAME>      LLM provider: custom-claude / claude / openai / gemini
     -q  LLMMODEL:<NAME>         model name override (e.g. claude-sonnet-5)
     -q  LLMBUDGET:<USD>         stop AI calls once cumulative estimated cost
-                                reaches this cap (shared across ASKAI/ASKRUN)"""
+                                reaches this cap (shared across ASKAI/ASKRUN)
+    -q  LLMHISTORY[:<BOOL>]     keep the conversation across AI calls
+                                (default: off, each call is independent)
+    -q  LLMMAXCTX:<CHARS>       max size of the data sent (default 32768,
+                                0 = unlimited): a larger one is trimmed by
+                                halving its longest list, to 3 entries at
+                                least, and the trimmed lists are named in
+                                the "truncated" key"""
                 # shared common -i/-R/-H options block (interval 3s, repeat, depth 127) #
                 _bpf_iRH = """\
     -i  <SEC>                   set interval in seconds (default: 3)
@@ -69903,9 +69968,9 @@ Examples:
     - {3:1} {2:1} and operate TCP server for LLM function calling (funcschema / funcall)
         # {0:1} {1:1} -q TCPSERVER:55555
         # guider cli "funcschema" -q TCPSERVER:55555
-        # guider cli 'funcall|{{"name":"get_system_stats","arguments":{{}}}}' -q TCPSERVER:55555
-        # guider cli 'funcall|{{"name":"get_top_processes","arguments":{{"n":5,"sort":"cpu"}}}}' -q TCPSERVER:55555
-        # guider cli 'funcall|{{"name":"find_anomalies","arguments":{{"cpu_thr":80.0,"mem_thr":500.0}}}}' -q TCPSERVER:55555
+        # guider cli 'funcall|{{"name":"get_system_stats"\,"arguments":{{}}}}' -q TCPSERVER:55555
+        # guider cli 'funcall|{{"name":"get_top_processes"\,"arguments":{{"n":5\,"sort":"cpu"}}}}' -q TCPSERVER:55555
+        # guider cli 'funcall|{{"name":"find_anomalies"\,"arguments":{{"cpu_thr":80.0\,"mem_thr":500.0}}}}' -q TCPSERVER:55555
                 """.format(
                     cmd,
                     mode,
@@ -73159,8 +73224,8 @@ Examples:
     - {2:1} {3:1} and call LLM functions via TCP (funcschema / funcall)
         # {0:1} {1:1} -q TCPSERVER:55555
         # guider cli "funcschema" -q TCPSERVER:55555
-        # guider cli 'funcall|{{"name":"get_system_stats","arguments":{{}}}}' -q TCPSERVER:55555
-        # guider cli 'funcall|{{"name":"get_top_processes","arguments":{{"n":5,"sort":"cpu"}}}}' -q TCPSERVER:55555
+        # guider cli 'funcall|{{"name":"get_system_stats"\,"arguments":{{}}}}' -q TCPSERVER:55555
+        # guider cli 'funcall|{{"name":"get_top_processes"\,"arguments":{{"n":5\,"sort":"cpu"}}}}' -q TCPSERVER:55555
 
     See the top COMMAND help for more examples.
                     """.format(
@@ -77507,18 +77572,30 @@ Examples:
 
                 elif SysMgr.checkMode("bpfudpsnoop"):
                     helpStr = _getDesc(
-                        "Stream UDP sendto events in real-time using eBPF perf ring buffer",
+                        "Stream UDP sendto events and DNS query names in real-time using eBPF perf ring buffer",
                         t=1,
                     )
                     helpStr += (
                         "\nOptions:\n"
                         + _bpf_iR
-                        + """    -q  DNSONLY                 show only DNS-related UDP packets (port 53)
-    -J                          output in JSON format
+                        + """    -g  COMM|TGID               show only the specified tasks
+    -q  DNSONLY                 show only DNS queries (port 53 or DNS-like payload)
+    -q  NODNS                   hide DNS queries
+    -J                          output one JSON object per event (no header)
 
 Notes:
-    - Attaches to syscalls/sys_enter_sendto tracepoint
-    - Streams sendto events: TIME | PID | COMM | LEN | SOCKFD
+    - Attaches to the sendto, sendmsg and sendmmsg syscall tracepoints
+    - JSON fields: time(uptime), pid, tid, comm, len, dport, sockfd, isDns, dns
+    - Streams events: TIME | PROCESS(PID) | LEN | DPORT | SOCKFD | DNS
+    - sendto: every UDP datagram is shown, and the DNS column is filled for DNS queries
+    - sendmsg/sendmmsg: only DNS queries are shown, using the first iovec of the
+      first message (a sendmmsg that carries A and AAAA queries shows one line)
+    - DNS queries are identified by destination port 53, or by the payload header
+      when the socket is connected (DPORT is shown as '-')
+    - Only the first 48 bytes of the payload are read, so a query name longer than
+      about 35 characters is cut and ends with '[...]'. The marker is also shown
+      when the name ends exactly at the end of the window
+    - Not traced: responses, query type/rcode/latency, TCP/53, DoT, DoH, mDNS, io_uring
     - Requires root privilege and kernel BPF support (Linux 4.9+)
                     """
                     )
@@ -80293,10 +80370,14 @@ Description:
     Send the specific signal to specific tasks or all Guider processes
 
 Options:
-    -i  <SEC>                   set interval
+    -i  <SEC>                   set interval (fractional with -q FLOATINTERVAL)
     -l                          print signal list
     -W  <SEC>                   wait before starting
     -v                          verbose
+    -q  <NAME{:VALUE}>          set environment variables
+          [target]   TARGETEXE | TARGETCMD | WAITTASK{:<SEC>} | NOPIDCACHE
+                     INCCHILD
+          [interval] FLOATINTERVAL
                     """.format(
                         cmd, mode
                     )
@@ -80324,6 +80405,9 @@ Examples:
     - {2:1} every 2 seconds
         # {0:1} {1:1} -9 1234 -i 2
         # {0:1} {1:1} -sigkill 1234 -i 2
+
+    - {2:1} every 0.1 seconds
+        # {0:1} {1:1} -sigstop 1234 -i 0.1 -q FLOATINTERVAL
 
     - {2:1} with all sub tasks
         # {0:1} {1:1} -sigstop a.out -q INCCHILD
@@ -84034,10 +84118,15 @@ Commands:
     CMD_STOP                         stop the threshold monitoring
     CMD_UPDATE:PATH                  update the threshold data from the file
     CMD_ASKAI{{:<PROMPT>[#OPTS]}}     ask LLM to analyze the current event (log only)
-    CMD_ASKRUN{{:<PROMPT>[#OPTS]}}    ask LLM to analyze and auto-execute safe commands
-    CMD_ASKMULTI{{:<PROMPT>#PROVIDERS:p1:p2}}  query multiple LLM providers in parallel
+    CMD_ASKRUN{{:<PROMPT>[#OPTS]}}    ask LLM to analyze and auto-execute safe commands (never PAUSE or SLEEP)
+    CMD_ASKMULTI{{:<PROMPT>#PROVIDERS:p1:p2[,OPTS]}}  query multiple LLM providers in parallel
     CMD_WEBHOOK:<URL>[#KEY:VAL,...]   POST JSON event snapshot to external URL
     CMD_SNAPSHOT[:<LABEL>]            save system snapshot JSON to output directory
+                                      (saved like the SAVE report, ..._SNAPSHOT[-<LABEL>]_<TIME>.json[.gz])
+    CMD_DUMPLOG:KMSG[:<RECORDS>]      save the past N kernel log records at the event time to output directory
+                                      (saved like the SAVE report, ..._DUMPLOG-KMSG_<TIME>[_<PID>].txt[.gz])
+    CMD_DUMPLOG:FILE:<PATH>[:<BYTES>] save the last N bytes of a file at the event time to output directory
+                                      (saved like the SAVE report, ..._DUMPLOG-FILE_<TIME>.txt[.gz])
     CMD_CORR:<GROUP>:<WINDOW_TICKS>   set event correlation window for a group (runtime)
     CMD_AUTOSCHED:<POLICY>:<PRI>       change CPU sched policy of top process (governor, e.g. I:0 B:0 F:1)
     CMD_AUTOIONICE:<CLASS>:<PRI>      change I/O sched class of top process (governor, e.g. idle:0 be:4 rt:2)
@@ -84117,7 +84206,14 @@ Commands:
                           TIMEOUT:<sec>        LLM request timeout (default 60)
                           DRYRUN:<true/false>  log commands without executing
                           MAXCMD:<n>           max commands to execute (default 3)
-                          CTXDEPTH:<n>         top-N processes in context (default 10)
+                          CTXDEPTH:<n>         top-N processes in context (1-50, default 10)
+                          CTXTICK:<n>          recent ticks of metric history in context
+                                               (0-60, default 5, 0 = none)
+                          HISTORY:<bool>       keep the conversation across events
+                                               (default false: each event is an
+                                               independent request)
+                          MAXCTX:<chars>       max size of the context sent to the
+                                               LLM (default 32768, 0 = unlimited)
                           PROVIDER:<name>      override LLM provider
                           MODEL:<name>         override LLM model
                           FEEDBACK:<sec>       re-check effect N sec after execution
@@ -84127,9 +84223,24 @@ Commands:
                                                the file under -o path or "."; a directory
                                                value auto-names inside it; any other value
                                                is used as the literal file path
+                        Boolean values (DRYRUN, HISTORY): 1/true/yes/on (any case) is
+                          true, anything else is false; a bare key is true. The same
+                          applies to -q LLMDRYRUN and -q LLMHISTORY: given without a
+                          value they are true too
                         Global -q options: LLMRATELIMIT, LLMDRYRUN, LLMMAXCMD,
                           LLMCTXDEPTH, LLMAUDITLOG, LLMALLOWCMD, LLMBUDGET,
+                          LLMHISTORY, LLMMAXCTX,
                           LLMMINCONF (alias: MINCONF, ASKRUN only)
+                      CMD_ASKMULTI:<PROMPT>#PROVIDERS:p1:p2,OPTS
+                        PROVIDERS:<p1:p2>  providers to query, one request each (default
+                                           claude:openai:gemini); names are trimmed and
+                                           lower-cased, duplicates are removed
+                        OPTS (same as above, applied to every provider): TIMEOUT, MAXCMD,
+                          CTXDEPTH, CTXTICK, FEEDBACK, MAXCTX, DRYRUN, HISTORY, SAVE
+                        ASKMULTI is analysis only (like ASKAI): no command is executed, so
+                          MAXCMD, FEEDBACK and DRYRUN have no effect on what it does
+                        PROVIDER, MODEL, APIKEY and BASEURL are not supported (they
+                          would be the same for every provider) and are ignored
                         """.format(
                         cmd, mode
                     )
@@ -84209,6 +84320,7 @@ Examples:
     - Notify CMD_ASKMULTI event {2:1} to query multiple LLM providers in parallel
         # {0:1} {1:1} "CMD_ASKMULTI:Analyze this event#PROVIDERS:claude:gemini"
         # {0:1} {1:1} "CMD_ASKMULTI:Diagnose CPU spike#PROVIDERS:claude:openai:gemini"
+        # {0:1} {1:1} "CMD_ASKMULTI:Diagnose CPU spike#PROVIDERS:claude:openai,TIMEOUT:30,CTXTICK:3,DRYRUN"
 
     - Notify CMD_WEBHOOK event {2:1} to POST a JSON snapshot to an external endpoint
         # {0:1} {1:1} "CMD_WEBHOOK:https://ops.example.com/alert"
@@ -84217,6 +84329,10 @@ Examples:
     - Notify CMD_SNAPSHOT event {2:1} to save a system snapshot JSON to the output directory
         # {0:1} {1:1} CMD_SNAPSHOT
         # {0:1} {1:1} CMD_SNAPSHOT:hmi_overload
+
+    - Notify CMD_DUMPLOG event {2:1} to save the past kernel log or the tail of a file (a file needs ALLOWRUN)
+        # {0:1} {1:1} CMD_DUMPLOG:KMSG:200
+        # {0:1} {1:1} CMD_DUMPLOG:FILE:/var/log/syslog:65536
 
     - Notify CMD_CORR event {2:1} to set an event correlation window for a group
         # {0:1} {1:1} "CMD_CORR:hmi_overload:5"
@@ -84425,11 +84541,11 @@ Examples:
 
     - Query LLM function schemas and call functions via TCP (top/ctop + TCPSERVER)
         # {0:1} {1:1} "funcschema" -q TCPSERVER:55555
-        # {0:1} {1:1} 'funcall|{{"name":"get_system_stats","arguments":{{}}}}' -q TCPSERVER:55555
-        # {0:1} {1:1} 'funcall|{{"name":"get_top_processes","arguments":{{"n":5,"sort":"cpu"}}}}' -q TCPSERVER:55555
-        # {0:1} {1:1} 'funcall|{{"name":"get_process_info","arguments":{{"pid":1}}}}' -q TCPSERVER:55555
-        # {0:1} {1:1} 'funcall|{{"name":"find_anomalies","arguments":{{"cpu_thr":80.0,"mem_thr":500.0}}}}' -q TCPSERVER:55555
-        # {0:1} {1:1} 'funcall|{{"name":"kill_process","arguments":{{"pid":1234,"sig":15}}}}' -q TCPSERVER:55555
+        # {0:1} {1:1} 'funcall|{{"name":"get_system_stats"\,"arguments":{{}}}}' -q TCPSERVER:55555
+        # {0:1} {1:1} 'funcall|{{"name":"get_top_processes"\,"arguments":{{"n":5\,"sort":"cpu"}}}}' -q TCPSERVER:55555
+        # {0:1} {1:1} 'funcall|{{"name":"get_process_info"\,"arguments":{{"pid":1}}}}' -q TCPSERVER:55555
+        # {0:1} {1:1} 'funcall|{{"name":"find_anomalies"\,"arguments":{{"cpu_thr":80.0\,"mem_thr":500.0}}}}' -q TCPSERVER:55555
+        # {0:1} {1:1} 'funcall|{{"name":"kill_process"\,"arguments":{{"pid":1234\,"sig":15}}}}' -q TCPSERVER:55555
                     """.format(
                         cmd, mode, "Request remote commands"
                     )
@@ -84666,25 +84782,16 @@ Key Value List:
 
         try:
             kernel = os.uname()[2]
-            if not number and kernel:
+
+            # cache the raw release string (e.g. 5.15.0-69-generic): callers
+            # build "/boot/config-<release>" from it #
+            if not number:
+                SysMgr.kernelVersion = kernel
                 return kernel
 
             kernelList = kernel.split(".")
 
-            if number:
-                return (long(kernelList[0]), long(kernelList[1]))
-
-            kernelVersion = ".".join(kernelList[0:2])
-
-            if len(kernel) > 2:
-                kernelVersion = "%s.%s" % (
-                    kernelVersion,
-                    kernelList[2].split("-")[0],
-                )
-
-            SysMgr.kernelVersion = kernelVersion
-
-            return kernelVersion
+            return (long(kernelList[0]), long(kernelList[1]))
         except SystemExit:
             sys.exit(0)
         except:
@@ -84858,9 +84965,10 @@ Key Value List:
             if not flags:
                 flags = ["FAN_CLOEXEC", "FAN_CLASS_NOTIF"]
 
+            kernelVersion = SysMgr.getKernelVersion(number=True)
+
             if reportTid:
-                kernelVersion = SysMgr.getKernelVersion(number=True)
-                if kernelVersion < (4, 2):
+                if kernelVersion and kernelVersion < (4, 2):
                     SysMgr.printErr(
                         (
                             "failed to report TID "
@@ -84943,7 +85051,7 @@ Key Value List:
                     "FAN_EVENT_ON_CHILD",
                 ]
 
-            if SysMgr.getKernelVersion(number=True) < (5, 1):
+            if kernelVersion < (5, 1):
                 common = set(mask) & set(
                     [
                         "FAN_CREATE",
@@ -87923,12 +88031,9 @@ Key Value List:
                             % (cliProc, cmd)
                         )
 
-                        # kill tracked descendants BEFORE removing the
-                        # output dir (previously done in the opposite
-                        # order, unlinking the dir while children were
-                        # still writing to it); killOpenFds catches any
-                        # orphan left behind by a parent that was already
-                        # reparented to init before this snapshot #
+                        """ kill tracked descendants BEFORE removing the output dir (previously done in the opposite
+                        order, unlinking the dir while children were still writing to it); killOpenFds catches any
+                        orphan left behind by a parent that was already reparented to init before this snapshot """
                         SysMgr.killChildren(descendants=True, wait=True)
 
                         if mainCmd in ("bugrec", "bugrep"):
@@ -88098,13 +88203,10 @@ Key Value List:
                     targetFile = "tmp"
 
                     SysMgr.printFd = MemoryFile(name="buf")
-                    # printIntervalUsage() no-ops under jsonEnable (its
-                    # JSON-mode output is handled elsewhere), but jsonEnable
-                    # is a daemon-lifetime flag that a prior resmon/getpkglist
-                    # command on this same connection loop may have left set
-                    # to True -- save/restore around this call so dump's own
-                    # in-memory summary always gets populated regardless of
-                    # what ran before it on this daemon #
+                    """ printIntervalUsage() no-ops under jsonEnable (its JSON-mode output is handled elsewhere), but
+                    jsonEnable is a daemon-lifetime flag that a prior resmon/getpkglist command on this same connection
+                    loop may have left set to True -- save/restore around this call so dump's own in-memory summary
+                    always gets populated regardless of what ran before it on this daemon """
                     origJsonEnable = SysMgr.jsonEnable
                     SysMgr.jsonEnable = False
                     try:
@@ -88317,7 +88419,11 @@ Key Value List:
                     _printErr("wrong path '%s'" % path)
                     sys.exit(-1)
 
-                SysMgr.updateThreshold(path)
+                if not SysMgr.updateThreshold(path):
+                    _printErr(
+                        "failed to update the configuration from '%s'" % path
+                    )
+                    sys.exit(-1)
 
                 _printInfo("updated the configuration from '%s'" % path)
 
@@ -88335,23 +88441,15 @@ Key Value List:
                         sys.argv[2] = andcmd_val
                 try:
                     AndroidMgr.checkAndCmd()
-                    # same GETPKGLISTINFO/GETPROCLIST/MEMTOP carve-out as
-                    # the CLI andcmd dispatch site -- all three are only
-                    # ever actually handled in doPerfetto()'s heapProf=
-                    # True-only Perfetto section (GETPKGLISTINFO reads the
-                    # packages_list data source, GETPROCLIST the
-                    # linux.process_stats one, MEMTOP calls
-                    # AndroidMgr.saveMemDump() in a loop a few hundred
-                    # lines further down the same section), unlike every
-                    # other andcmd quick option, which doPerfetto()
-                    # handles without perfetto below its own heapProf=
-                    # False early-return/"andcmd mode: never fall
-                    # through" guard. Without this, andcmd:getpkglistinfo/
-                    # getproclist/memtop over TCP/UDS always hit that
-                    # early-return (silently, for GETPROCLIST/MEMTOP --
-                    # they have no explicit "no support yet" guard of
-                    # their own) even though the identical command works
-                    # from the CLI #
+                    """ same GETPKGLISTINFO/GETPROCLIST/MEMTOP carve-out as the CLI andcmd dispatch site -- all three
+                    are only ever actually handled in doPerfetto()'s heapProf= True-only Perfetto section
+                    (GETPKGLISTINFO reads the packages_list data source, GETPROCLIST the linux.process_stats one, MEMTOP
+                    calls AndroidMgr.saveMemDump() in a loop a few hundred lines further down the same section), unlike
+                    every other andcmd quick option, which doPerfetto() handles without perfetto below its own heapProf=
+                    False early-return/"andcmd mode: never fall through" guard. Without this, andcmd:getpkglistinfo/
+                    getproclist/memtop over TCP/UDS always hit that early-return (silently, for GETPROCLIST/MEMTOP --
+                    they have no explicit "no support yet" guard of their own) even though the identical command works
+                    from the CLI """
                     AndroidMgr.doPerfetto(
                         SysMgr.hasEnvironVar(
                             ["GETPKGLISTINFO", "GETPROCLIST", "MEMTOP"]
@@ -88414,12 +88512,10 @@ Key Value List:
                     if not any(a.startswith("-o") for a in args[1:]):
                         args.extend(["-o", _drawdir])
 
-                # for the 3 drawflame commands, the flag is checked in BPF
-                # polling loops (<0.5s via _tcpStopSleep) → loop breaks,
-                # drawFlameSample() + drawFile JSON sent. For the rest, this
-                # thread still drains the socket so a leftover unread STOP
-                # (or any other stray bytes) can't fool _monitorConn's
-                # MSG_PEEK-based disconnect check into never firing.
+                """ for the 3 drawflame commands, the flag is checked in BPF polling loops (<0.5s via _tcpStopSleep) →
+                loop breaks, drawFlameSample() + drawFile JSON sent. For the rest, this thread still drains the socket
+                so a leftover unread STOP (or any other stray bytes) can't fool _monitorConn's MSG_PEEK-based disconnect
+                check into never firing. """
                 if _isDrawflame:
                     # store draw dir as class attr so BPF cmd can
                     # use it after main() resets SysMgr.outPath via init
@@ -88833,18 +88929,13 @@ Key Value List:
 
                 pid, pipe = ret
 
-                # drawflame/drawflamediff write their JSON summary to a report
-                # file instead of stdout (see printPipe's file-output branch),
-                # so an empty stdout pipe from the child doesn't mean it
-                # failed - the relay loop below falls back to reading that
-                # file. It writes its own SVG at baseReportPath itself (see
-                # Debugger.drawFlame() -> UtilMgr.getDrawOutputPath, which
-                # reuses SysMgr.outPath), but the JSON *summary* naming this
-                # SVG's path lands at a sibling file with the child's pid
-                # spliced in before the extension (confirmed on-device) -
-                # e.g. "..._drawflame_<ts>.out" (the SVG) alongside
-                # "..._drawflame_<ts>_<pid>.out" (the JSON) - so it's this
-                # pid-suffixed sibling we need to read, not baseReportPath.
+                """ drawflame/drawflamediff write their JSON summary to a report file instead of stdout (see printPipe's
+                file-output branch), so an empty stdout pipe from the child doesn't mean it failed - the relay loop
+                below falls back to reading that file. It writes its own SVG at baseReportPath itself (see
+                Debugger.drawFlame() -> UtilMgr.getDrawOutputPath, which reuses SysMgr.outPath), but the JSON *summary*
+                naming this SVG's path lands at a sibling file with the child's pid spliced in before the extension
+                (confirmed on-device) - e.g. "..._drawflame_<ts>.out" (the SVG) alongside "..._drawflame_<ts>_<pid>.out"
+                (the JSON) - so it's this pid-suffixed sibling we need to read, not baseReportPath. """
                 if isDrawMode:
                     _base, _ext = os.path.splitext(baseReportPath)
                     expectedReportPath = "%s_%s%s" % (_base, pid, _ext)
@@ -88890,9 +88981,8 @@ Key Value List:
                                 res = pipeObj.read()
                                 if res:
                                     connObj.write(res.encode())
-                                    # For recording/streaming commands keep the connection
-                                    # open so the client can send STOP later.
-                                    # Close only when the child exits (EOF below).
+                                    """ For recording/streaming commands keep the connection open so the client can send
+                                    STOP later. Close only when the child exits (EOF below). """
                                     if mainCmd not in (
                                         "scrrec",
                                         "bugrec",
@@ -88909,21 +88999,16 @@ Key Value List:
                                     connObj.close()
                                     raise ValueError()
                                 else:
-                                    # EOF with no data: grandchild exited without
-                                    # output on stdout. For isDrawMode commands
-                                    # (drawflame/drawflamediff) this doesn't mean
-                                    # failure - their JSON summary went to the
-                                    # report file instead of stdout, so relay
-                                    # that file's content if it was produced.
+                                    """EOF with no data: grandchild exited without output on stdout. For isDrawMode
+                                    commands (drawflame/drawflamediff) this doesn't mean failure - their JSON summary
+                                    went to the report file instead of stdout, so relay that file's content if it was
+                                    produced."""
                                     if expectedReportPath:
-                                        # the stdout pipe closing (what got us
-                                        # here) doesn't guarantee the child has
-                                        # finished flushing/closing its other
-                                        # fds (the report file) yet - wait for
-                                        # it to fully exit first. A SIGCHLD
-                                        # handler elsewhere may reap it first,
-                                        # which is fine (it also proves the
-                                        # child is gone) - either way is enough.
+                                        """the stdout pipe closing (what got us here) doesn't guarantee the child has
+                                        finished flushing/closing its other fds (the report file) yet - wait for it to
+                                        fully exit first. A SIGCHLD handler elsewhere may reap it first, which is fine
+                                        (it also proves the child is gone) - either way is enough.
+                                        """
                                         try:
                                             os.waitpid(pid, 0)
                                         except SystemExit:
@@ -89084,28 +89169,17 @@ Key Value List:
 
                 def _procInfo(pid):
                     inst = SysMgr.topInstance
-                    uptimeDiff = SysMgr.uptimeDiff or 0.01
+                    # procData is keyed by the pid as a string #
+                    pid = str(pid)
                     val = inst.procData.get(pid)
                     if val is None:
-                        return {"error": "pid %d not found" % pid}
-                    try:
-                        cpu_pct = round(
-                            val.get("ttimeDiff", 0) * 100.0 / uptimeDiff, 1
-                        )
-                        return {
-                            "pid": pid,
-                            "comm": val.get("comm", ""),
-                            "cpu_pct": cpu_pct,
-                            "rss_mb": val.get("rss", 0) >> 20,
-                            "io_read_mb": val.get("ioReadDiff", 0) >> 20,
-                            "io_write_mb": val.get("ioWriteDiff", 0) >> 20,
-                            "ppid": val.get("ppid", 0),
-                            "nr_threads": val.get("nrthread", 0),
-                        }
-                    except SystemExit:
-                        sys.exit(0)
-                    except Exception as e:
-                        return {"error": str(e)}
+                        return {"error": "pid %s not found" % pid}
+
+                    SysMgr.fillProcCpu(inst, [pid])
+                    ret = SysMgr.procEntry(
+                        inst, pid, val, SysMgr.uptimeDiff or 0.01
+                    )
+                    return ret or {"error": "failed to read pid %s" % pid}
 
                 def _cgroupStats():
                     inst = SysMgr.topInstance
@@ -89154,11 +89228,14 @@ Key Value List:
                     uptimeDiff = SysMgr.uptimeDiff or 0.01
                     result = []
                     try:
-                        for pid, val in inst.procData.items():
+                        # "ttimeDiff" does not exist on Linux until this #
+                        SysMgr.fillProcCpu(inst)
+                        for pid, val in dict(inst.procData).items():
                             cpu_pct = (
                                 val.get("ttimeDiff", 0) * 100.0 / uptimeDiff
                             )
-                            rss_mb = val.get("rss", 0) >> 20
+                            # "rss" is already in MB #
+                            rss_mb = val.get("rss", 0)
                             if cpu_pct >= cpu_thr or rss_mb >= mem_thr:
                                 result.append(
                                     {
@@ -89182,22 +89259,29 @@ Key Value List:
                     os.kill(pid, sig)
                     return {"killed": pid, "sig": sig}
 
+                def _arg(args, key, default, conv=int):
+                    # a value that cannot be converted is reported by its
+                    # name instead of the text of the Python exception #
+                    val = args.get(key, default)
+                    try:
+                        return conv(val)
+                    except (ValueError, TypeError):
+                        raise ValueError("invalid %s '%s'" % (key, val))
+
                 _FUNCS = {
                     "get_system_stats": lambda a: _sysStats(),
                     "get_top_processes": lambda a: _topProcs(
-                        int(a.get("n", 10)), str(a.get("sort", "cpu"))
+                        _arg(a, "n", 10), str(a.get("sort", "cpu"))
                     ),
-                    "get_process_info": lambda a: _procInfo(
-                        int(a.get("pid", 0))
-                    ),
+                    "get_process_info": lambda a: _procInfo(_arg(a, "pid", 0)),
                     "get_cgroup_stats": lambda a: _cgroupStats(),
                     "get_memory_stats": lambda a: _memStats(),
                     "find_anomalies": lambda a: _findAnomalies(
-                        float(a.get("cpu_thr", 80.0)),
-                        float(a.get("mem_thr", 80.0)),
+                        _arg(a, "cpu_thr", 80.0, float),
+                        _arg(a, "mem_thr", 80.0, float),
                     ),
                     "kill_process": lambda a: _killProc(
-                        int(a.get("pid", 0)), int(a.get("sig", 15))
+                        _arg(a, "pid", 0), _arg(a, "sig", 15)
                     ),
                 }
 
@@ -90069,9 +90153,10 @@ Key Value List:
         """Return [(fpath, fname, size, mtime), ...] for regular files under
         targetDir, for the free*()/LIMIT* family below.
 
-        Flat (default): targetDir's own files only, sorted by filename -
-        matches guider's own zero-padded/timestamped report naming, so
-        "oldest first" falls out of a plain name sort.
+        Flat (default): targetDir's own files only, sorted by filename with
+        the numbers in it compared as numbers - matches guider's own
+        report naming, so "oldest first" falls out of the name sort even
+        when the run number grows past the five digits of the format.
 
         Recursive (RECURSEDIR): walks the whole subtree and sorts by real
         mtime instead, since arbitrary nested files have no naming
@@ -90086,7 +90171,8 @@ Key Value List:
                     filter(
                         lambda x: os.path.isfile(os.path.join(targetDir, x)),
                         os.listdir(targetDir),
-                    )
+                    ),
+                    key=UtilMgr.getNaturalKey,
                 )
             except SystemExit:
                 sys.exit(0)
@@ -90276,12 +90362,10 @@ Key Value List:
 
             nrCandNew = 0
             for cand in candidate:
-                # SysMgr.outPath (cleanupDirs()'s caller) can still be None
-                # here - e.g. no "-o" given yet - and os.path.isdir(None)
-                # raises TypeError, which used to abort this whole function
-                # (and everything cleanupDirs() calls after it) with a
-                # misleading "failed to get lock to free files" warning,
-                # silently skipping LIMITDIRCNT enforcement entirely #
+                """SysMgr.outPath (cleanupDirs()'s caller) can still be None here - e.g. no "-o" given yet - and
+                os.path.isdir(None) raises TypeError, which used to abort this whole function (and everything
+                cleanupDirs() calls after it) with a misleading "failed to get lock to free files" warning, silently
+                skipping LIMITDIRCNT enforcement entirely"""
                 if not cand:
                     continue
                 if not os.path.isdir(cand):
@@ -92484,21 +92568,205 @@ Key Value List:
 
     @staticmethod
     def buildReportFilename(
-        nrReport, uptime, event, cmd, timeinfo, nrRun=None
+        nrReport, uptime, event, cmd, timeinfo, nrRun=None, ext="out", pid=None
     ):
-        """Shared guider_<nrRun>_<nrReport>_<uptime>_<event>_<cmd>_<timeinfo>.out
-        naming formula, used by both setReportPath (SAVE-family reports) and
-        TaskAnalyzer._writeLLMReport (ASKAI/ASKRUN #SAVE reports) so the two
-        report kinds stay structurally identical instead of duplicating the
-        format string in two places."""
-        return "guider_%05d_%05d_%s_%s_%s_%s.out" % (
+        """Shared guider_<nrRun>_<nrReport>_<uptime>_<event>_<cmd>_<timeinfo>[_<pid>].<ext>
+        naming formula, used by setReportPath (SAVE-family reports),
+        TaskAnalyzer._writeLLMReport (ASKAI/ASKRUN #SAVE reports) and
+        buildEventFilePath (SNAPSHOT/DUMPLOG files) so every file made
+        during monitoring stays structurally identical instead of
+        duplicating the format string, and matches SysMgr.reportFormat so
+        the LIMITREPDIR/updateNrRun/bugrep logic sees all of them.
+        pid is put after the time, where the SAVE report gets its own
+        (fileSuffix), for the callers that do not add it afterwards."""
+        return "guider_%05d_%05d_%s_%s_%s_%s%s.%s" % (
             SysMgr.nrRun if nrRun is None else nrRun,
             nrReport,
             uptime,
             event or "CUSTOM",
             cmd,
             timeinfo,
+            "" if pid is None else "_%s" % pid,
+            ext,
         )
+
+    @staticmethod
+    def buildEventFilePath(event, cmd, ext):
+        """Return the output path of a file made by an event command
+        (SNAPSHOT/DUMPLOG) in the guider report naming format.
+
+        The report number is claimed under the same lock and counter as
+        SAVE and ASKAI/ASKRUN #SAVE reports, so the files of one event get
+        adjacent numbers and two files made in the same second cannot
+        overwrite each other #
+        """
+
+        # event and cmd go into the filename: drop separators and colons
+        # so the path cannot escape the output directory #
+        def _clean(val):
+            val = str(val).replace("/", "_").replace("\\", "_")
+            return val.replace(":", "-")
+
+        uptime = SysMgr.getUptime(conv=True).replace(":", "")
+        timeinfo = UtilMgr.getTime("UTCTIME" in SysMgr.environList) or long(
+            SysMgr.uptime
+        )
+
+        with SysMgr._nrReportLock:
+            SysMgr.nrReport += 1
+            nrReport = SysMgr.nrReport
+
+        # same directory rule as setReportPath() and freeReportDir(): the
+        # -o directory, its parent for a file, /tmp for /dev/null, else "." #
+        outPath = SysMgr.outPath
+        if not outPath:
+            outDir = "."
+        elif outPath == SysMgr.nullPath:
+            outDir = SysMgr.tmpPath
+        elif os.path.isdir(outPath):
+            outDir = outPath
+        else:
+            outDir = os.path.dirname(outPath) or "."
+
+        # clean up before writing, as SAVE does, so the new file is never
+        # the one removed. Skipped without a limit: cleanupDirs() takes a
+        # global file lock #
+        if (
+            SysMgr.limitRepDirSize
+            or SysMgr.limitDirList
+            or SysMgr.limitDirCntList
+        ):
+            SysMgr.cleanupDirs()
+
+        # compressed output gets the same .gz suffix as the SAVE report #
+        if SysMgr.compressEnable and not ext.endswith(".gz"):
+            ext += ".gz"
+
+        return os.path.join(
+            outDir,
+            SysMgr.buildReportFilename(
+                nrReport,
+                uptime,
+                _clean(event),
+                _clean(cmd),
+                timeinfo,
+                ext=ext,
+                # same as the SAVE report, NOPIDSUFFIX leaves it out #
+                pid=(
+                    None
+                    if "NOPIDSUFFIX" in SysMgr.environList
+                    else os.getpid()
+                ),
+            ),
+        )
+
+    @staticmethod
+    def writeEventFile(path, text):
+        """Write a file made by an event command (SNAPSHOT/DUMPLOG) and
+        apply the same output options as the SAVE report: ZIP compression
+        (-e C), OUTFILEPERM, OUTFILEUSER, DUPOUTPATH, and MVREPDIR/CPREPDIR.
+
+        No .old backup is made because buildEventFilePath() gives every
+        file a unique name. SysMgr.lastReportPath is left alone since it
+        belongs to the SAVE report of the same process, and DUPOUTPATH is
+        only read here because the SAVE report consumes it at exit.
+        Returns True on success #
+        """
+        try:
+            dirpath = os.path.dirname(path)
+            if dirpath:
+                SysMgr.mkdirs(dirpath)
+
+            if path.endswith(".gz"):
+                gzip = SysMgr.getPkg("gzip", False)
+                if not gzip:
+                    raise IOError("no gzip module")
+
+                try:
+                    with gzip.open(path, "wb") as fd:
+                        fd.write(text.encode("utf-8"))
+                except BaseException:
+                    # do not leave a truncated archive behind #
+                    try:
+                        os.remove(path)
+                    except OSError:
+                        pass
+                    raise
+            elif not SysMgr.writeFile(path, text, verb=False):
+                raise IOError("failed to write '%s'" % path)
+        except SystemExit:
+            sys.exit(0)
+        except Exception as ex:
+            SysMgr.printErr("failed to write '%s': %s" % (path, str(ex)))
+            return False
+
+        # permission #
+        fmod = SysMgr.environList.get("OUTFILEPERM")
+        if fmod:
+            try:
+                os.chmod(path, long(fmod[0], 8))
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printWarn(
+                    "failed to change the perm of '%s' to %s" % (path, fmod),
+                    reason=True,
+                )
+
+        # owner #
+        fusers = SysMgr.environList.get("OUTFILEUSER")
+        if fusers:
+            try:
+                fusers = fusers[0].split(":", 1)
+                fuser = fusers[0]
+                fgroup = fusers[1] if len(fusers) > 1 else None
+
+                if not SysMgr.sysInstance:
+                    SysMgr(onlyInstance=True)
+                SysMgr.sysInstance.saveUserInfo()
+
+                fuser = long(SysMgr.sysInstance.getUserId(fuser))
+                if fgroup:
+                    fgroup = long(SysMgr.sysInstance.getUserId(fgroup))
+
+                os.chown(path, fuser, fgroup)
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printWarn(
+                    "failed to change the owner of '%s' to %s"
+                    % (path, ":".join(SysMgr.environList["OUTFILEUSER"][:1])),
+                    reason=True,
+                )
+
+        # duplicate (read only, see above) #
+        try:
+            dups = list(SysMgr.environList.get("DUPOUTPATH", []))
+            dups += [p for p in SysMgr.outPathList if p not in dups]
+            for dup in dups:
+                if os.path.isdir(dup):
+                    dup = os.path.join(dup, os.path.basename(path))
+                dup = os.path.realpath(dup)
+
+                if SysMgr.copyFile(path, dup, verb=False):
+                    SysMgr.printInfo(
+                        "duplicated '%s'%s to '%s'%s successfully"
+                        % (
+                            path,
+                            UtilMgr.getFileSizeStr(path),
+                            dup,
+                            UtilMgr.getFileSizeStr(dup),
+                        )
+                    )
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printErr("failed to duplicate '%s'" % path, True)
+
+        # move or copy to MVREPDIR / CPREPDIR #
+        SysMgr.manageFile(path, SysMgr.printInfo)
+
+        return True
 
     @staticmethod
     def setReportPath(outPath, cmd, event=None):
@@ -93404,8 +93672,15 @@ Key Value List:
         elif len(repeatParams) in (2, 3):
             try:
                 interval = SysMgr.getOption("i")
+                realInterval = 0
                 if interval:
-                    interval = long(interval)
+                    if "FLOATINTERVAL" in SysMgr.environList:
+                        realInterval = float(interval)
+                        interval = long(realInterval)
+                        if realInterval > interval:
+                            interval += 1
+                    else:
+                        interval = long(interval)
                 else:
                     interval = convTime(repeatParams[0])
 
@@ -93419,7 +93694,9 @@ Key Value List:
                 elif cnt.isdigit():
                     SysMgr.repeatCnt = long(cnt)
                 else:
-                    SysMgr.repeatCnt = long(convTime(cnt) / interval)
+                    SysMgr.repeatCnt = long(
+                        convTime(cnt) / (realInterval or interval)
+                    )
             except SystemExit:
                 sys.exit(0)
             except:
@@ -93438,7 +93715,12 @@ Key Value List:
                 if SysMgr.isTopMode():
                     ival = SysMgr.getOption("i")
                     if ival:
-                        ival = long(ival)
+                        if "FLOATINTERVAL" in SysMgr.environList:
+                            ival = float(ival)
+                            if ival < 0.01:
+                                raise Exception("interval is too small")
+                        else:
+                            ival = long(ival)
                         interval = long(interval / ival)
                         SysMgr.repeatCnt = interval
                         SysMgr.repeatInterval = interval
@@ -93634,35 +93916,23 @@ Key Value List:
                 args = SysMgr.environList["WATCHLOGCMD"]
                 SysMgr.executeCommand(args)
 
-            # check exit condition: terminate directly via os._exit() rather
-            # than via SIGINT+signal.pause() — SysMgr.stopHandler() (bound
-            # to SIGINT in this mode) treats a single SIGINT as an
-            # interactive "show a checkpoint, keep running" request and
-            # only actually calls os._exit() on a LATER signal, so a lone
-            # self-delivered SIGINT here reliably failed to terminate the
-            # process at all (device-verified: the watcher kept running and
-            # re-firing this same command on every later matching event
-            # instead of exiting once, as "oneshot"-style callers of
-            # WATCHLOGEXIT expect). Deliberately skip SysMgr.doExit() here:
-            # it calls killChildren(), which defaults to SIGKILL-ing every
-            # child of this process — including the "GUIDER event ..."
-            # notifier just spawned (and already awaited) a few lines above
-            # by executeCommand()/os.wait(). That wait() call isn't scoped
-            # to the specific notifier pid, so on a system with any other
-            # short-lived child in flight it can return as soon as ANY
-            # child exits; a subsequent doExit() then has a real chance of
-            # SIGKILLing the still-starting notifier before it sends its
-            # event, silently dropping the very notification this watcher
-            # exists to deliver (device-verified: this raced away the
-            # "GUIDER event" UDP send often enough that the parent ctop
-            # process never saw the event or ran the configured SAVE
-            # command). The OS reclaims this process's fds (including any
-            # BPF program/map/perf_event fds) on exit regardless of which
-            # exit path is used, so no extra cleanup is needed for those --
-            # but os._exit() also skips atexit, so anything registered via
-            # SysMgr.addExitFunc() (e.g. enableAtrace()'s prop/async-trace
-            # restore, used by attop/bpfmarktop/bpfsnoop) needs an explicit
-            # call here or it leaks past this process's lifetime #
+            """ check exit condition: terminate directly via os._exit() rather than via SIGINT+signal.pause() —
+            SysMgr.stopHandler() (bound to SIGINT in this mode) treats a single SIGINT as an interactive "show a
+            checkpoint, keep running" request and only actually calls os._exit() on a LATER signal, so a lone
+            self-delivered SIGINT here reliably failed to terminate the process at all (device-verified: the watcher
+            kept running and re-firing this same command on every later matching event instead of exiting once, as
+            "oneshot"-style callers of WATCHLOGEXIT expect). Deliberately skip SysMgr.doExit() here: it calls
+            killChildren(), which defaults to SIGKILL-ing every child of this process — including the "GUIDER event ..."
+            notifier just spawned (and already awaited) a few lines above by executeCommand()/os.wait(). That wait()
+            call isn't scoped to the specific notifier pid, so on a system with any other short-lived child in flight it
+            can return as soon as ANY child exits; a subsequent doExit() then has a real chance of SIGKILLing the
+            still-starting notifier before it sends its event, silently dropping the very notification this watcher
+            exists to deliver (device-verified: this raced away the "GUIDER event" UDP send often enough that the parent
+            ctop process never saw the event or ran the configured SAVE command). The OS reclaims this process's fds
+            (including any BPF program/map/perf_event fds) on exit regardless of which exit path is used, so no extra
+            cleanup is needed for those -- but os._exit() also skips atexit, so anything registered via
+            SysMgr.addExitFunc() (e.g. enableAtrace()'s prop/async-trace restore, used by attop/bpfmarktop/bpfsnoop)
+            needs an explicit call here or it leaks past this process's lifetime """
             if "WATCHLOGEXIT" in SysMgr.environList:
                 SysMgr.disableAtrace()
                 os._exit(0)
@@ -94333,14 +94603,11 @@ Key Value List:
             ("KEEPREPDIRFILECNT", SysMgr.keepRepDirFileList, long),
         ):
             for dirInfo in SysMgr.environList.get(env, []):
-                # optional per-target ":RECURSE" suffix - only meaningful
-                # for LIMITDIR/LIMITDIRCNT (each keyed by a real directory
-                # path); KEEPREPDIRFILECNT's "path" is actually a filename
-                # match pattern for freeReportDir(), not a directory, so
-                # it never takes this suffix. Stripped from a copy of the
-                # original (case-preserved) string before the unchanged
-                # path/num split below, so input without the suffix parses
-                # byte-for-byte as before #
+                """optional per-target ":RECURSE" suffix - only meaningful for LIMITDIR/LIMITDIRCNT (each keyed by a
+                real directory path); KEEPREPDIRFILECNT's "path" is actually a filename match pattern for
+                freeReportDir(), not a directory, so it never takes this suffix. Stripped from a copy of the original
+                (case-preserved) string before the unchanged path/num split below, so input without the suffix parses
+                byte-for-byte as before"""
                 recurseTarget = False
                 if env in (
                     "LIMITDIR",
@@ -94588,6 +94855,10 @@ Key Value List:
                     SysMgr.topInstance.handleEventCmd(
                         cmd, "SIGNAL", "SIGNAL", False
                     )
+
+                    # this child has no monitoring loop: if the command
+                    # started an ASKRUN worker, run what it asks for #
+                    SysMgr.topInstance.serveLLMCmdQueue()
                     sys.exit(0)
                 except SystemExit:
                     sys.exit(0)
@@ -94720,7 +94991,7 @@ Key Value List:
         else:
             optionList = None
 
-        for item in SysMgr.optionList:
+        for idx, item in enumerate(SysMgr.optionList):
             if not item:
                 continue
 
@@ -94731,13 +95002,40 @@ Key Value List:
 
             if option == "i":
                 if not value:
+                    # a negative number is split into another option by
+                    # parseOption() so "-i -1" arrives as "i" and "1" #
+                    nextOpt = SysMgr.optionList[idx + 1 :][:1]
+                    if nextOpt and UtilMgr.isFloat(nextOpt[0]):
+                        SysMgr.printErr(
+                            "wrong value '-%s' for interval, "
+                            "input number bigger than 0" % nextOpt[0]
+                        )
+                        sys.exit(-1)
+
                     SysMgr.intervalEnable = 1
                     continue
 
                 errStr = "wrong value '%s' for interval, " % value
 
                 try:
-                    SysMgr.intervalEnable = long(value)
+                    # allow fractional seconds only on request because most
+                    # of timers (signal.alarm, xrange, ...) need an integer #
+                    if "FLOATINTERVAL" in SysMgr.environList:
+                        fval = float(value)
+                        if fval < 0.0001:
+                            SysMgr.printErr(
+                                "%sinput number bigger than or equal to 0.01"
+                                % errStr
+                            )
+                            sys.exit(0)
+
+                        # keep intervalEnable integer for the legacy timers #
+                        SysMgr.intervalEnable = long(fval)
+                        if fval > SysMgr.intervalEnable:
+                            SysMgr.intervalEnable += 1
+                            SysMgr.intervalFloat = fval
+                    else:
+                        SysMgr.intervalEnable = long(value)
 
                     if SysMgr.intervalEnable <= 0:
                         SysMgr.printErr(
@@ -94747,9 +95045,14 @@ Key Value List:
                 except SystemExit:
                     sys.exit(0)
                 except:
-                    SysMgr.printErr(
-                        "%sinput number in integer format" % errStr
-                    )
+                    if UtilMgr.isFloat(value):
+                        errStr += (
+                            "input number in integer format, "
+                            "or add '-q FLOATINTERVAL' for fractional seconds"
+                        )
+                    else:
+                        errStr += "input number in integer format"
+                    SysMgr.printErr(errStr)
                     sys.exit(-1)
 
             elif SysMgr.isCommonOption(option):
@@ -96242,14 +96545,10 @@ Key Value List:
 
         elif SysMgr.checkMode("andcmd"):
             AndroidMgr.checkAndCmd()
-            # GETPKGLISTINFO/GETPROCLIST/MEMTOP all need an actual
-            # perfetto trace -- they're only ever handled inside
-            # doPerfetto()'s heapProf=True-only Perfetto section
-            # (packages_list / linux.process_stats data sources, and
-            # AndroidMgr.saveMemDump() respectively), unlike the other
-            # andcmd quick options which are handled without perfetto
-            # below the heapProf=False early-return/"andcmd mode: never
-            # fall through" guard in doPerfetto() #
+            """ GETPKGLISTINFO/GETPROCLIST/MEMTOP all need an actual perfetto trace -- they're only ever handled inside
+            doPerfetto()'s heapProf=True-only Perfetto section (packages_list / linux.process_stats data sources, and
+            AndroidMgr.saveMemDump() respectively), unlike the other andcmd quick options which are handled without
+            perfetto below the heapProf=False early-return/"andcmd mode: never fall through" guard in doPerfetto() """
             AndroidMgr.doPerfetto(
                 SysMgr.hasEnvironVar(
                     ["GETPKGLISTINFO", "GETPROCLIST", "MEMTOP"]
@@ -97847,19 +98146,14 @@ Key Value List:
                 SysMgr.getUdpList([])
                 addr = "%s:%s" % (ip, port)
                 if not any([addr in v for v in SysMgr.udpListCache.values()]):
-                    # SysMgr.udpListCache is a compute-once-per-process cache
-                    # (see getUdpList()) that can be permanently poisoned by
-                    # an earlier, unrelated scan taken before this process's
-                    # own local NOTIFY socket existed -- e.g. ctop's startup
-                    # checkBgProcs()/getBgProcList() enumerates other running
-                    # "guider" processes' sockets (via getProcSocketObjs() ->
-                    # getSocketAddrList() -> getUdpList()) well before
-                    # setServerNetwork()/applyThreshold() bind our own socket,
-                    # and any watcher child fork()'d afterward inherits that
-                    # already-populated, stale snapshot forever. Flush and
-                    # rescan once here (same "flush socket caches" idiom used
-                    # elsewhere, e.g. the per-tick "sock" report refresh)
-                    # before concluding the target genuinely doesn't exist #
+                    """SysMgr.udpListCache is a compute-once-per-process cache (see getUdpList()) that can be
+                    permanently poisoned by an earlier, unrelated scan taken before this process's own local NOTIFY
+                    socket existed -- e.g. ctop's startup checkBgProcs()/getBgProcList() enumerates other running
+                    "guider" processes' sockets (via getProcSocketObjs() -> getSocketAddrList() -> getUdpList()) well
+                    before setServerNetwork()/applyThreshold() bind our own socket, and any watcher child fork()'d
+                    afterward inherits that already-populated, stale snapshot forever. Flush and rescan once here (same
+                    "flush socket caches" idiom used elsewhere, e.g. the per-tick "sock" report refresh) before
+                    concluding the target genuinely doesn't exist"""
                     SysMgr.udpListCache = {}
                     SysMgr.getUdpList([])
                     if not any(
@@ -99291,7 +99585,10 @@ Key Value List:
 
         SysMgr.printWarn(
             "The following environment variables will be used%s\n%s"
-            % (cmdstr, UtilMgr.convDict2Str(dict(env), pretty=True)),
+            % (
+                cmdstr,
+                UtilMgr.convDict2Str(UtilMgr.maskSecretEnv(env), pretty=True),
+            ),
             True,
         )
 
@@ -99728,15 +100025,11 @@ Key Value List:
                             break
                         continue
 
-                    # a blank line is skipped, never stored (the returned
-                    # list keeps its shape), but it must not be taken for
-                    # EOF: after the child has exited, the old code read
-                    # one more line and stopped when that was blank too,
-                    # so two or more consecutive blank lines silently
-                    # dropped the rest of the output (device-measured:
-                    # "dumpsys activity activities" lost its tail, i.e.
-                    # Keyguard/LockTask/TaskOrganizer, in ~7% of runs and
-                    # far more often under load) #
+                    """ a blank line is skipped, never stored (the returned list keeps its shape), but it must not be
+                    taken for EOF: after the child has exited, the old code read one more line and stopped when that was
+                    blank too, so two or more consecutive blank lines silently dropped the rest of the output
+                    (device-measured: "dumpsys activity activities" lost its tail, i.e. Keyguard/LockTask/TaskOrganizer,
+                    in ~7% of runs and far more often under load) """
                     ret = raw.rstrip("\n")
                     if ret:
                         output.append(ret)
@@ -99986,6 +100279,8 @@ Key Value List:
 
                 SysMgr.initSharedResource(mute)
 
+                SysMgr.resetInheritedState()
+
                 return 0
 
             cmd = UtilMgr.parseCommand(cmd)
@@ -100029,6 +100324,27 @@ Key Value List:
                 "failed to redirect %s to '%s'" % (fileno, path), True
             )
             sys.exit(-1)
+
+    @staticmethod
+    def resetInheritedState():
+        """Forget what a forked child inherited but does not own.
+
+        The governor records belong to the process that applied them: a
+        child that kept them would undo the parent's AUTO* changes at its
+        own exit (restoreAllGovState). The queued ASKRUN requests are
+        served by the parent and there are no worker threads here, so they
+        are dropped and the locks a dead thread may have held are replaced.
+        The queue stays open: a child that starts its own ASKRUN worker
+        serves it itself #"""
+        lock = SysMgr.getPkg("threading").Lock
+
+        SysMgr.govStateMap = {}
+
+        del SysMgr.llmCmdQueue[:]
+        SysMgr.llmAiThreads = []
+        SysMgr.llmEventPending = {}
+        SysMgr._nrReportLock = lock()
+        SysMgr._llmCostLock = lock()
 
     @staticmethod
     def initSharedResource(mute, net=True):
@@ -101010,9 +101326,10 @@ Key Value List:
             SysMgr.printInfo("connected to %s" % cliProc)
 
             if uds:
-                # UDS peer PID is already known from getUdsIds() above, so
-                # reuse authorizeTcpConn's per-attribute checks directly
-                # instead of its (TCP-only) PID-resolution path #
+                """UDS peer PID is already known from getUdsIds() above, so reuse authorizeTcpConn's per-attribute
+                checks directly instead of its (TCP-only) PID-resolution path
+                """
+
                 def _checkProc(attr, pid):
                     if attr == "cmdline":
                         name = "AUTHCMDLINE"
@@ -102028,14 +102345,7 @@ Key Value List:
         SysMgr.setRemoteEnv()
 
         if not SysMgr.stdlog:
-            try:
-                datetime = SysMgr.getPkg("datetime", False)
-                now = datetime.datetime.utcfromtimestamp(time.time())
-                now = now.strftime("%y%m%dT%H%M%S")
-            except SystemExit:
-                sys.exit(0)
-            except:
-                now = long(time.time())
+            now = time.strftime("%y%m%dT%H%M%S", time.gmtime())
 
             value = os.path.join(
                 SysMgr.tmpPath, "guider_server_%s_%s.log" % (SysMgr.pid, now)
@@ -102656,12 +102966,11 @@ Key Value List:
                 xtickLabel = ax.get_xticks().tolist()
 
                 try:
-                    datetime = SysMgr.getPkg("datetime")
-
                     for idx, item in enumerate(xtickLabel):
                         ms = item % 1000
-                        value = datetime.datetime.utcfromtimestamp(item / 1000)
-                        xtickLabel[idx] = value.strftime("%H:%M:%S")
+                        xtickLabel[idx] = time.strftime(
+                            "%H:%M:%S", time.gmtime(item / 1000)
+                        )
                         xtickLabel[idx] = "%s.%0.3d" % (xtickLabel[idx], ms)
                 except SystemExit:
                     sys.exit(0)
@@ -106221,9 +106530,8 @@ Key Value List:
             def _alarmHandler(signum, frame):
                 _printSummary(SysMgr.fileWatchList, SysMgr.procWatchList)
 
-                # -R sets a repeat count, but this handler previously
-                # re-armed unconditionally regardless of it, so fetop
-                # ran forever even with -R set #
+                """ -R sets a repeat count, but this handler previously re-armed unconditionally regardless of it, so
+                fetop ran forever even with -R set """
                 SysMgr.progressCnt += 1
                 if 0 < SysMgr.repeatCnt <= SysMgr.progressCnt:
                     SysMgr.printWarn("terminated by timer\n", True)
@@ -106662,11 +106970,9 @@ Key Value List:
                     curStat = curCoreStat[node][name]
 
                     if curStat["hit"] == prevStat["hit"]:
-                        # this core made no new progress on 'name' this
-                        # tick. Only drop the placeholder entry if no
-                        # other core has already added real hits into
-                        # the shared aggregate this tick; never wipe out
-                        # another core's contribution.
+                        """this core made no new progress on 'name' this tick. Only drop the placeholder entry if no
+                        other core has already added real hits into the shared aggregate this tick; never wipe out
+                        another core's contribution."""
                         if totalStat[tname]["hit"] == 0:
                             totalStat.pop(tname, None)
                         continue
@@ -107224,10 +107530,9 @@ Key Value List:
                 else:
                     rmode = "pybreak"
 
-                # attach=False: let trace() call attach() itself so the PTRACE_ATTACH
-                # SIGSTOP is received via waitpid() before resuming. Otherwise the
-                # default self.attached=True skips attach(), leaving the target stopped
-                # with no tracer and waitpid() never seeing a SIGTRAP.
+                """ attach=False: let trace() call attach() itself so the PTRACE_ATTACH SIGSTOP is received via
+                waitpid() before resuming. Otherwise the default self.attached=True skips attach(), leaving the target
+                stopped with no tracer and waitpid() never seeing a SIGTRAP. """
                 Debugger(pid=pid, execCmd=execCmd, attach=False).trace(
                     mode=rmode,
                     wait=wait,
@@ -112276,11 +112581,9 @@ Key Value List:
                         if pid == 0:
                             errCnt = _task(reqs, repeat, delay, cache)
 
-                            # doExit() is registered via atexit and
-                            # always terminates with os._exit(), so
-                            # the intended code has to be handed to
-                            # it explicitly instead of relying on
-                            # this sys.exit() argument alone #
+                            """ doExit() is registered via atexit and always terminates with os._exit(), so the intended
+                            code has to be handed to it explicitly instead of relying on this sys.exit() argument alone
+                            """
                             SysMgr.exitCode = 0 if not errCnt else 1
                             sys.exit(SysMgr.exitCode)
 
@@ -114648,14 +114951,11 @@ Key Value List:
                 )
                 os.chmod(outfile, 0o666)
 
-                # optional DEFLATE level (0-9); unset keeps the library
-                # default (6). It must be passed to writestr() -- the
-                # ZipFile constructor's level is ignored when the entry is
-                # added through a ZipInfo with its own compress_type, which
-                # is how every file is added below (device-verified).
-                # writestr(compresslevel=) exists only on python 3.7+ #
-                # verb=True prints the error for a non-numeric value instead
-                # of silently falling back to the default level #
+                """ optional DEFLATE level (0-9); unset keeps the library default (6). It must be passed to writestr()
+                -- the ZipFile constructor's level is ignored when the entry is added through a ZipInfo with its own
+                compress_type, which is how every file is added below (device-verified). writestr(compresslevel=) exists
+                only on python 3.7+ # verb=True prints the error for a non-numeric value instead of silently falling
+                back to the default level """
                 zipLevel = (
                     UtilMgr.getEnvironNum(
                         "COMPLEVEL", False, None, True, isInt=True
@@ -114948,11 +115248,9 @@ Key Value List:
                 inputDir = inputDir if inputDir else "."
                 outfile = os.path.join(outDirFinal, subDir, inputDir, outfile)
 
-                # treat -o as the exact output file path instead of a
-                # directory, only for a single non-multi-member file and
-                # only when explicitly requested (opt-in, no effect on
-                # multiproc worker dispatch or the recursive re-decompress
-                # call site which always pass a real directory) #
+                """ treat -o as the exact output file path instead of a directory, only for a single non-multi-member
+                file and only when explicitly requested (opt-in, no effect on multiproc worker dispatch or the recursive
+                re-decompress call site which always pass a real directory) """
                 if (
                     "EXACTOUT" in SysMgr.environList
                     and not isMulti
@@ -115842,14 +116140,10 @@ Key Value List:
                                         pathSet.add(rpath)
                         except Exception:
                             pass
-                    # also try "pm path" (Android) -- getPkgList()'s
-                    # own "path" field is the package's DATA directory
-                    # (packages.list's 4th field, e.g.
-                    # "/data/user/0/<pkg>"), never a .apk file, so it
-                    # can never satisfy os.path.isfile() below; "pm
-                    # path" is AOSP's actual package-name -> APK-path
-                    # lookup, and can print more than one "package:"
-                    # line for a split-APK package #
+                    """ also try "pm path" (Android) -- getPkgList()'s own "path" field is the package's DATA directory
+                    (packages.list's 4th field, e.g. "/data/user/0/<pkg>"), never a .apk file, so it can never satisfy
+                    os.path.isfile() below; "pm path" is AOSP's actual package-name -> APK-path lookup, and can print
+                    more than one "package:" line for a split-APK package """
                     if not pathSet:
                         try:
                             ret = SysMgr.executeCmdSync(["pm", "path", target])
@@ -115930,11 +116224,13 @@ Key Value List:
         else:
             isThread = False
 
+        interval = SysMgr.intervalFloat or SysMgr.intervalEnable
+
         while 1:
             SysMgr.sendSignalArgs(list(argList), isThread=isThread)
 
-            if SysMgr.intervalEnable:
-                time.sleep(SysMgr.intervalEnable)
+            if interval:
+                time.sleep(interval)
             else:
                 break
 
@@ -117046,13 +117342,10 @@ Key Value List:
         except SystemExit:
             sys.exit(0)
         except:
-            # log and return like the sibling setPriority() does - an
-            # unconditional sys.exit(-1) here used to propagate all the
-            # way up (SystemExit is deliberately re-raised by every
-            # `except SystemExit: sys.exit(0)` frame above this one) and
-            # kill the entire guider process on a single bad ioprio value
-            # (e.g. AUTOIONICE:be:99 - the kernel rejects priorities >=8
-            # for BE/RT classes) #
+            """log and return like the sibling setPriority() does - an unconditional sys.exit(-1) here used to
+            propagate all the way up (SystemExit is deliberately re-raised by every `except SystemExit: sys.exit(0)`
+            frame above this one) and kill the entire guider process on a single bad ioprio value (e.g. AUTOIONICE:be:99
+            - the kernel rejects priorities >=8 for BE/RT classes)"""
             SysMgr.printWarn(
                 (
                     "failed to set the I/O schedling priority "
@@ -117853,6 +118146,17 @@ Key Value List:
         blockDir = "/sys/class/block"
 
         SysMgr.updateDiskStats()
+
+        newMountData = SysMgr.getMountData()
+        if self.mountData == newMountData:
+            self.mountUpdated = False
+        else:
+            self.mountUpdated = True
+            self.mountData = newMountData
+
+            # drop cached node paths to pick up newly attached devices #
+            self.devNodeInfo = {}
+
         self.updateNodeInfo()
 
         # refresh only the 'next' diskstats snapshot once a 'prev' one exists #
@@ -117863,15 +118167,27 @@ Key Value List:
             self.diskData["next"] = SysMgr.diskStats
             self.updateDiskInfo("next", SysMgr.diskStats)
 
-        newMountData = SysMgr.getMountData()
-        if self.mountData == newMountData:
-            self.mountUpdated = False
-        else:
-            self.mountUpdated = True
-            self.mountData = newMountData
+            # seed the baseline of devices attached after start so that
+            # they are not filtered out and their deltas start from zero,
+            # and drop the one of detached devices so that a re-attached
+            # device does not inherit stale counters #
+            prevInfo = self.diskInfo["prev"]
+            nextInfo = self.diskInfo["next"]
+            for name in list(prevInfo):
+                if name not in nextInfo:
+                    del prevInfo[name]
+            for name, attr in nextInfo.items():
+                if name not in prevInfo:
+                    prevInfo[name] = dict(attr)
 
-        if not isGeneral:
+        # rescan block devices only at init or when the mount table changes
+        # after the first scan #
+        if not isGeneral and not (self.mountUpdated and self.blockScanned):
             return
+
+        self.blockScanned = True
+        self.partitionInfo = {}
+        self.devArchInfo = {}
 
         for dirnames in os.walk(blockDir):
             for subdirname in dirnames[1]:
@@ -117951,9 +118267,8 @@ Key Value List:
             if "FATFSINFO" not in SysMgr.environList:
                 return {}
 
-            # FATFSINFO enabled: run statvfs in a child with a pipe to pass back
-            # the result, and a 1s SIGALRM guard so the parent never enters D-state.
-            # FAT mounts are typically very few (1-2), so fork overhead is minimal #
+            """ FATFSINFO enabled: run statvfs in a child with a pipe to pass back the result, and a 1s SIGALRM guard so
+            the parent never enters D-state. FAT mounts are typically very few (1-2), so fork overhead is minimal """
             rfd, wfd = os.pipe()
             pid = SysMgr.createProcess(keepPrintFd=True)
             if pid > 0:
@@ -122090,6 +122405,9 @@ Key Value List:
         if self.mountUpdated:
             rootdevPath = SysMgr.getRootDevice()
 
+            # drop entries of unmounted devices #
+            self.mountInfo = {}
+
             for l in self.mountData:
                 ret = SysMgr.parseMountLine(l, rootdevPath, self)
                 if not ret:
@@ -125620,11 +125938,10 @@ class FuncPerfMgr(object):
                 15,
             )
         elif mach in ("aarch64", "arm64"):
-            # x0-x30 (bits 0-30) + SP (bit 31) + PC (bit 32) = 33 regs
-            # DWARF: x0-x30=0-30, SP=31, RA column=30 (LR/x30)
-            # PC (perf index 32) is mapped to DWARF slot 30, overwriting LR so the
-            # first frame's IP is the actual PC; subsequent frames recover saved LR
-            # from the stack via DWARF CFI rules for register 30.
+            """x0-x30 (bits 0-30) + SP (bit 31) + PC (bit 32) = 33 regs DWARF: x0-x30=0-30, SP=31, RA column=30
+            (LR/x30) PC (perf index 32) is mapped to DWARF slot 30, overwriting LR so the first frame's IP is the actual
+            PC; subsequent frames recover saved LR from the stack via DWARF CFI rules for register 30.
+            """
             FuncPerfMgr._PERF_REGS_MASK = 0x1FFFFFFFF
             FuncPerfMgr._PERF_N_REGS = 33
             FuncPerfMgr._PERF_SP_IDX = 31
@@ -125638,10 +125955,9 @@ class FuncPerfMgr(object):
             # x0-x30 → DWARF 0-30, SP → 31, PC → slot 30 (overwrites LR entry)
             FuncPerfMgr._PERF_TO_DWARF = tuple(range(31)) + (31, 30)
         elif mach.startswith("arm"):
-            # ARM 32-bit: r0-r15 (bits 0-15) = 16 regs
-            # DWARF: r0-r15=0-15, RA column=14 (LR/r14)
-            # PC (r15, perf index 15) is mapped to DWARF slot 14, overwriting LR so
-            # the first frame's IP is PC; DWARF rules recover saved LR from the stack.
+            """ARM 32-bit: r0-r15 (bits 0-15) = 16 regs DWARF: r0-r15=0-15, RA column=14 (LR/r14) PC (r15, perf index
+            15) is mapped to DWARF slot 14, overwriting LR so the first frame's IP is PC; DWARF rules recover saved LR
+            from the stack."""
             FuncPerfMgr._PERF_REGS_MASK = 0xFFFF
             FuncPerfMgr._PERF_N_REGS = 16
             FuncPerfMgr._PERF_SP_IDX = 13
@@ -125655,9 +125971,8 @@ class FuncPerfMgr(object):
             # r0-r14 → DWARF 0-14, PC (r15) → DWARF 14 (overwrites LR entry)
             FuncPerfMgr._PERF_TO_DWARF = tuple(range(15)) + (14,)
         elif mach.startswith("riscv"):
-            # RISC-V 64-bit: PC(0) + x1-x31 = 32 perf regs
-            # DWARF: x0-x31 map directly to DWARF regs 0-31
-            # PERF_REG_RISCV_PC=0, SP=x2=2, RA=x1=1, FP=x8/s0=8
+            """RISC-V 64-bit: PC(0) + x1-x31 = 32 perf regs DWARF: x0-x31 map directly to DWARF regs 0-31
+            PERF_REG_RISCV_PC=0, SP=x2=2, RA=x1=1, FP=x8/s0=8"""
             FuncPerfMgr._PERF_REGS_MASK = 0xFFFFFFFF  # bits 0-31
             FuncPerfMgr._PERF_N_REGS = 32
             FuncPerfMgr._PERF_SP_IDX = 2  # PERF_REG_RISCV_SP (x2)
@@ -127073,14 +127388,13 @@ class FuncPerfMgr(object):
                 FuncPerfMgr.PERF_RECORD_MMAP2,
             ):
                 try:
-                    # struct: u32 pid, u32 tid, u64 addr, u64 len, u64 pgoff,
-                    # char filename[] (MMAP2 adds maj/min/ino/... before the
-                    # filename, but the leading pid/tid fields are identical)
+                    """struct: u32 pid, u32 tid, u64 addr, u64 len, u64 pgoff, char filename[] (MMAP2 adds
+                    maj/min/ino/... before the filename, but the leading pid/tid fields are identical)
+                    """
                     body = _rb_read(tail + 8, 4)
                     (s_pid,) = struct.unpack_from("<I", body, 0)
-                    # a new executable mapping invalidates the cached
-                    # /proc/PID/maps snapshot so the next _loadMaps() call
-                    # picks up the newly mmap'd library
+                    """ a new executable mapping invalidates the cached /proc/PID/maps snapshot so the next _loadMaps()
+                    call picks up the newly mmap'd library """
                     FuncPerfMgr._maps_cache.pop(s_pid, None)
                 except Exception:
                     pass
@@ -127229,11 +127543,9 @@ class FuncPerfMgr(object):
                         else:
                             # merge: pick up methods JIT-compiled during recording
                             FuncPerfMgr._mergeJITSymbols(_p)
-                # the zygote's boot-classpath JIT cache (jit-zygote-cache) is
-                # shared by every app process; once _getJITMaster() has lazily
-                # loaded it, refresh it every batch just like a per-pid master
-                # above, or methods the zygote JIT-compiles afterward never
-                # get picked up for the rest of the session.
+                """ the zygote's boot-classpath JIT cache (jit-zygote-cache) is shared by every app process; once
+                _getJITMaster() has lazily loaded it, refresh it every batch just like a per-pid master above, or
+                methods the zygote JIT-compiles afterward never get picked up for the rest of the session. """
                 _zpid = FuncPerfMgr._getZygotePid()
                 if _zpid and _zpid > 0 and _zpid in FuncPerfMgr._jit_sym_elfs:
                     FuncPerfMgr._mergeJITSymbols(_zpid)
@@ -127541,9 +127853,8 @@ class FuncPerfMgr(object):
                     return struct.unpack_from("<Q", stack_bytes, off)[0]
                 except Exception:
                     pass
-            # Address outside the 32KB perf snapshot – fall back to /proc/PID/mem.
-            # The process is still running, so upper (long-lived) stack frames are
-            # typically unchanged since the sample was taken.
+            """ Address outside the 32KB perf snapshot – fall back to /proc/PID/mem. The process is still running, so
+            upper (long-lived) stack frames are typically unchanged since the sample was taken. """
             if pid and pid > 0:
                 try:
                     if _mem_fd[0] < 0:
@@ -127605,10 +127916,9 @@ class FuncPerfMgr(object):
                 e_type = fobj.attr.get("elfHeader", {}).get("type", "")
                 lookup_key = ip if e_type == "Executable" else foffset
             else:
-                # anonymous / pseudo mapping (e.g. [memfd:jit-cache],
-                # [anon:dalvik-jit-code-cache]).
-                # FP is the primary unwinder for JIT (ART preserves FP).
-                # JIT DWARF CFI is used only when fully available (debug builds).
+                """anonymous / pseudo mapping (e.g. [memfd:jit-cache], [anon:dalvik-jit-code-cache]). FP is the primary
+                unwinder for JIT (ART preserves FP). JIT DWARF CFI is used only when fully available (debug builds).
+                """
                 fobj = None
                 jit_master = FuncPerfMgr._getJITMaster(pid, fname)
                 if jit_master:
@@ -128297,9 +128607,8 @@ class FuncPerfMgr(object):
                 name = sym.decode("utf-8", errors="replace")
                 demangled = ElfAnalyzer.demangleSymbol(name)
                 return (demangled if demangled else name), dso
-            # dwfl_module_addrname returned NULL — binary may be stripped or
-            # address is in a gap; return None so _lookupUserSym falls through
-            # to the ElfAnalyzer path which reads .symtab directly.
+            """ dwfl_module_addrname returned NULL — binary may be stripped or address is in a gap; return None so
+            _lookupUserSym falls through to the ElfAnalyzer path which reads .symtab directly. """
             return None
         except Exception:
             pass
@@ -128336,9 +128645,9 @@ class FuncPerfMgr(object):
             if lo <= ip < hi:
                 is_memfd = path and "memfd:" in path
                 if not path or path.startswith("[") or is_memfd:
-                    # anonymous or pseudo-mapping ([stack], [heap], [vdso], ...)
-                    # also covers /memfd:jit-cache style paths from newer kernels
-                    # strip brackets so the DSO name doesn't break dat-file parsing
+                    """anonymous or pseudo-mapping ([stack], [heap], [vdso], ...) also covers /memfd:jit-cache style
+                    paths from newer kernels strip brackets so the DSO name doesn't break dat-file parsing
+                    """
                     anon_name = (
                         path.strip("[]").lstrip("/") if path else "anon"
                     )
@@ -129163,10 +129472,9 @@ class BpfMgr(object):
         """Resolve (interval, total_time) from -i/-R CLI options"""
         _r_cnt = max(int(SysMgr.repeatCnt or 1), 1)
         if SysMgr.isTopMode():
-            # top-mode -R (e.g. pytop) encodes the repeat COUNT into both
-            # repeatCnt and repeatInterval (see parseRuntimeOption); the
-            # real per-iteration cadence always lives in intervalEnable,
-            # so repeatInterval*_r_cnt would double-count the iterations.
+            """top-mode -R (e.g. pytop) encodes the repeat COUNT into both repeatCnt and repeatInterval (see
+            parseRuntimeOption); the real per-iteration cadence always lives in intervalEnable, so repeatInterval*_r_cnt
+            would double-count the iterations."""
             interval = max(int(SysMgr.intervalEnable or 1), 1)
             total_time = interval * _r_cnt if SysMgr.repeatInterval else 0
             return interval, total_time
@@ -129764,12 +130072,10 @@ class BpfMgr(object):
                     "failed to read event id from %s: %s" % (id_path, e)
                 )
 
-            # Open perf event and attach BPF program.
-            # tp_event->prog_array is shared across all per-CPU fds for the same
-            # event_id. Call PERF_EVENT_IOC_SET_BPF once (on the first CPU fd) to
-            # register the BPF program globally for the uprobe. Subsequent calls
-            # with the same prog fail with EEXIST (bpf_prog_array_copy rejects
-            # duplicates). ENABLE every CPU fd so the perf events stay alive.
+            """ Open perf event and attach BPF program. tp_event->prog_array is shared across all per-CPU fds for the
+            same event_id. Call PERF_EVENT_IOC_SET_BPF once (on the first CPU fd) to register the BPF program globally
+            for the uprobe. Subsequent calls with the same prog fail with EEXIST (bpf_prog_array_copy rejects
+            duplicates). ENABLE every CPU fd so the perf events stay alive. """
             PERF_TYPE_TRACEPOINT = 2
             perfEvents = SysMgr.getPerfEventList()
             libc = SysMgr.libcObj
@@ -130632,7 +130938,7 @@ class BpfMgr(object):
         if not (
             SysMgr.environList.get("LLMPROVIDER")
             or os.getenv("LLM_PROVIDER")
-            or os.getenv("ANTHROPIC_API_KEY")
+            or LLMMgr._getClaudeKeyFromEnv()
             or os.getenv("OPENAI_API_KEY")
             or os.getenv("GEMINI_API_KEY")
             or os.getenv("GOOGLE_API_KEY")
@@ -130681,16 +130987,28 @@ class BpfMgr(object):
                     "Analyze %s data and identify performance issues:"
                     % cmd_name
                 )
+                # global -q defaults, callers' opts win. LLMMAXCTX trims the
+                # longest list of the payload (e.g. bpftop functions) #
+                _aiOpts = LLMMgr._buildLLMOptsFromEnv(opts)
                 full_prompt = (
                     (prompt or default_prompt)
                     + "\n\n"
-                    + UtilMgr.convDict2Str(data_json)
+                    + TaskAnalyzer._fitLLMContext(
+                        data_json,
+                        _aiOpts.get(
+                            "maxCtxChars", TaskAnalyzer._LLM_CTX_MAXCHARS
+                        ),
+                    )
                 )
                 provider, llm_kwargs = LLMMgr._resolveAskProvider(
                     opts, configSettings
                 )
                 llm = LLMMgr.getLLM(provider, **llm_kwargs)
-                resp = llm.chat(full_prompt)
+                # the cached instance is shared by all triggers: keep their
+                # data out of the history #
+                resp = TaskAnalyzer._chatEvent(
+                    llm, full_prompt, _aiOpts.get("keepHistory", False)
+                )
                 TaskAnalyzer._recordLlmCost(
                     provider,
                     resp.model if resp else None,
@@ -130721,10 +131039,9 @@ class BpfMgr(object):
         try:
             t.start()
         except Exception as ex:
-            # see the identical guard/reasoning in TaskAnalyzer.
-            # _runLLMAskThread - without this, an unguarded thread-
-            # creation failure here propagates into doBpftopCmd's single
-            # outer except, killing the ENTIRE bpftop monitoring session #
+            """see the identical guard/reasoning in TaskAnalyzer. _runLLMAskThread - without this, an unguarded thread-
+            creation failure here propagates into doBpftopCmd's single outer except, killing the ENTIRE bpftop
+            monitoring session"""
             SysMgr.llmEventPending.pop(event, None)
             SysMgr.printWarn(
                 "[AI/%s] failed to start worker thread: %s"
@@ -130805,11 +131122,10 @@ class BpfMgr(object):
     def _emitFlameSVG(flame_data, title, suffix):
         _tcp_dir = getattr(BpfMgr, "_tcp_drawdir", None)
         if _tcp_dir and not os.path.isdir(_tcp_dir):
-            # _tcp_drawdir is the TCP-relay client's requested output dir
-            # (origOutPath or "/data/local/tmp", stashed at connection
-            # accept time); create it here instead of silently discarding
-            # it below and falling back to CWD, matching the mkdirs-then-
-            # use convention used elsewhere for outPath (see line ~41654) #
+            """_tcp_drawdir is the TCP-relay client's requested output dir (origOutPath or "/data/local/tmp", stashed
+            at connection accept time); create it here instead of silently discarding it below and falling back to CWD,
+            matching the mkdirs-then- use convention used elsewhere for outPath (see line ~41654)
+            """
             SysMgr.mkdirs(_tcp_dir)
         _out_dir = _tcp_dir if _tcp_dir and os.path.isdir(_tcp_dir) else None
         _svg = Debugger.drawFlameSample(
@@ -131063,14 +131379,11 @@ class BpfMgr(object):
 
             _is_negated = any(p[:1] == "!" or p[:2] == "\\!" for p in _pats)
             if _is_negated:
-                # negation mixes with positives via the same AND/OR
-                # semantics BpfMgr._patOk() already implements -- can't
-                # just OR each positive pattern's own _findTgidsByComm()
-                # call together like the fast path below, since that
-                # can't express "AND NOT" against the full process list.
-                # Enumerate every live TGID once (a one-time /proc scan
-                # at command startup, NOT a per-event hot path like
-                # bpfsyscallsnoop's PROCCOMMFILTER) and let _patOk decide #
+                """negation mixes with positives via the same AND/OR semantics BpfMgr._patOk() already implements --
+                can't just OR each positive pattern's own _findTgidsByComm() call together like the fast path below,
+                since that can't express "AND NOT" against the full process list. Enumerate every live TGID once (a
+                one-time /proc scan at command startup, NOT a per-event hot path like bpfsyscallsnoop's PROCCOMMFILTER)
+                and let _patOk decide"""
                 for tgid in BpfMgr._findTgidsByComm("*"):
                     if BpfMgr._patOk(SysMgr.getComm(tgid, default=""), _pats):
                         add_tgid_threads(tgid)
@@ -131491,10 +131804,9 @@ class BpfMgr(object):
             else:
                 u_block_n = 0
 
-            # R0=0 after k_incr: ensures R0 is SCALAR at the convergence point.
-            # Needed for USE_USTACK (converge at USTACK block) OR USE_HIST
-            # (converge at hist_insns) — k_init path leaves R0=SCALAR while
-            # k_incr path leaves R0=PTR_TO_MAP_VALUE, causing BPF verifier reject.
+            """ R0=0 after k_incr: ensures R0 is SCALAR at the convergence point. Needed for USE_USTACK (converge at
+            USTACK block) OR USE_HIST (converge at hist_insns) — k_init path leaves R0=SCALAR while k_incr path leaves
+            R0=PTR_TO_MAP_VALUE, causing BPF verifier reject. """
             if USE_USTACK or USE_HIST:
                 k_incr_extra = bi(0xB7, R0, 0, 0, 0)  # R0 = 0 (scalar)
                 k_incr_extra_n = 1
@@ -131959,11 +132271,10 @@ class BpfMgr(object):
                 _STR_AREA + 16 + KS + US
             )  # payload[88] (only when TS>0)
         else:
-            # Compute DATA_TOTAL for ARGnDATA:SIZE — raw buffer dump after main payload.
-            # DATA area layout: [actual_size:u64][data:SIZE bytes padded to 8B] per slot.
-            # DATA area occupies fp-DATA_TOTAL..fp-1 (HIGH end of combined payload).
-            # Main payload shifts DOWN by DATA_TOTAL to maintain same Python raw offsets.
-            # DATA is NOT supported with USE_STRINGS (BPF stack would exceed 512B).
+            """Compute DATA_TOTAL for ARGnDATA:SIZE — raw buffer dump after main payload. DATA area layout:
+            [actual_size:u64][data:SIZE bytes padded to 8B] per slot. DATA area occupies fp-DATA_TOTAL..fp-1 (HIGH end
+            of combined payload). Main payload shifts DOWN by DATA_TOTAL to maintain same Python raw offsets. DATA is
+            NOT supported with USE_STRINGS (BPF stack would exceed 512B)."""
             _data_slot_list = []  # [(arg_idx_0b, size, slot_byte_start)]
             _DATA_TOTAL = 0
             if data_arg_specs and not USE_STRINGS:
@@ -133499,9 +133810,9 @@ class BpfMgr(object):
         insns += bi(0x85, 0, 0, 0, FID["map_update_elem"])
 
         if comm_map_fd >= 0:
-            # next_comm sits at ctx+40, 16 bytes -- copy via two 8-byte
-            # loads/stores (fp-48/-40 scratch, unused by any other part of
-            # this function) into comm_map[next_pid] (key still at fp-8) #
+            """next_comm sits at ctx+40, 16 bytes -- copy via two 8-byte loads/stores (fp-48/-40 scratch, unused by any
+            other part of this function) into comm_map[next_pid] (key still at fp-8)
+            """
             insns += bi(BPF_LDX_MEM_DW, R8, R6, 40, 0)
             insns += bi(BPF_STX_MEM_DW, R10, R8, -48, 0)
             insns += bi(BPF_LDX_MEM_DW, R8, R6, 48, 0)
@@ -134171,10 +134482,9 @@ class BpfMgr(object):
             insns += bi(0x07, R2, 0, 0, -8)
             insns += bi(0x85, 0, 0, 0, FID.get("map_delete_elem", 3))
 
-            # delta = now - sleep_start_ts (fresh ktime_get_ns() call --
-            # simpler than trusting R8's "now" from above to survive
-            # two intervening helper calls, and the extra handful of ns
-            # is irrelevant at millisecond display resolution) #
+            """ delta = now - sleep_start_ts (fresh ktime_get_ns() call -- simpler than trusting R8's "now" from above
+            to survive two intervening helper calls, and the extra handful of ns is irrelevant at millisecond display
+            resolution) """
             insns += bi(0x85, 0, 0, 0, FID["ktime_get_ns"])
             insns += bi(0x1F, R0, R7, 0, 0)  # R0 -= sleep_start_ts
             insns += bi(BPF_STX_MEM_DW, R10, R0, -24, 0)  # fp-24 = delta
@@ -134512,15 +134822,11 @@ class BpfMgr(object):
             insns += bi(0x07, R9, 0, 0, 1)
             insns += bi(0x7B, R8, R9, 0, 0)
 
-            # preempt_count (offset 8) += 1, only if prev_state & 0xFF == 0
-            # (the sched_switch tracepoint's own "still runnable" / "R"
-            # encoding -- see the PREV-side preemption re-arm block above
-            # for the device-verified derivation of this mask; a prior
-            # version of this check used "prev_state & 0x100" instead,
-            # which measured 0 on every real preemption during a live
-            # 6-busy-loop/4-core contention test, permanently pinning
-            # preempt_count -- and this whole AMDAHL contention signal --
-            # at 0 regardless of load) #
+            """ preempt_count (offset 8) += 1, only if prev_state & 0xFF == 0 (the sched_switch tracepoint's own "still
+            runnable" / "R" encoding -- see the PREV-side preemption re-arm block above for the device-verified
+            derivation of this mask; a prior version of this check used "prev_state & 0x100" instead, which measured 0
+            on every real preemption during a live 6-busy-loop/4-core contention test, permanently pinning preempt_count
+            -- and this whole AMDAHL contention signal -- at 0 regardless of load) """
             insns += bi(0x57, R7, 0, 0, 0xFF)  # R7 &= 0xFF
             nr_run_skip_pos = len(insns) // 8
             insns += bi(0x55, R7, 0, 0, 0)  # JNE 0 → was blocked, skip (patch)
@@ -139771,6 +140077,148 @@ class BpfMgr(object):
             )
         return insns
 
+    @staticmethod
+    def genUdpDnsSendmsgProg(
+        perf_map_fd, n_cpus, nr_sendmsg=-1, nr_sendmmsg=-1
+    ):
+        """
+        Tracepoint syscalls/sys_enter_{sendmsg,sendmmsg}: emit DNS-like events.
+        nr_sendmsg != -1: raw_syscalls/sys_enter NR filter (sendmsg/sendmmsg).
+        Same 96B payload layout as genUdpDnsSnoopProg, but the buffer is found
+        through msghdr->msg_iov[0] (for sendmmsg, only the first message).
+        Events are emitted only when dest port is 53 or the payload looks like
+        a DNS query header, because sendmsg is also used by high-rate sockets.
+        """
+        bi = BpfMgr.buildInsn
+        LM = BpfMgr.buildLoadMapFd
+        R0, R1, R2, R3, R4, R5, R6, R7, R8, R10 = 0, 1, 2, 3, 4, 5, 6, 7, 8, 10
+        FID = ConfigMgr.BPF_FUNC_ID
+
+        insns = b""
+        labels = {}
+        jmps = []  # (pos, code, dst, imm, label) #
+
+        def _jmp(code, dst, imm, label):
+            jmps.append((len(insns) // 8, code, dst, imm, label))
+            return bi(code, dst, 0, 0, imm)
+
+        insns += bi(0xBF, R8, R1, 0, 0)  # R8 = ctx (callee-saved)
+
+        if nr_sendmsg != -1:
+            insns += bi(0x79, R7, R8, 8, 0)
+            insns += _jmp(0x15, R7, nr_sendmsg, "body")  # JEQ sendmsg
+            insns += _jmp(0x55, R7, nr_sendmmsg, "exit")  # JNE sendmmsg
+        labels["body"] = len(insns) // 8
+
+        # Pre-zero fp-144..fp-1 (18 x ST_DW 0): event + scratch #
+        for _off in range(-144, 0, 8):
+            insns += bi(0x7A, R10, 0, _off, 0)
+
+        # pid_tgid at fp-96 (u64)
+        insns += bi(0x85, 0, 0, 0, FID["get_current_pid_tgid"])
+        insns += bi(0x7B, R10, R0, -96, 0)
+
+        # comm at fp-88 (16B)
+        insns += bi(0xBF, R1, R10, 0, 0)
+        insns += bi(0x07, R1, 0, 0, -88)
+        insns += bi(0xB7, R2, 0, 0, 16)
+        insns += bi(0x85, 0, 0, 0, FID["get_current_comm"])
+
+        # sockfd at fp-68 (u32) = ctx+16
+        insns += bi(0x61, R7, R8, 16, 0)
+        insns += bi(0x63, R10, R7, -68, 0)
+
+        # ktime at fp-64 (u64)
+        insns += bi(0x85, 0, 0, 0, FID["ktime_get_ns"])
+        insns += bi(0x7B, R10, R0, -64, 0)
+
+        # R6 = msghdr pointer (ctx+24), copy 32B of msghdr to fp-128 #
+        insns += bi(0x79, R6, R8, 24, 0)
+        insns += bi(0x67, R6, 0, 0, 8)  # untag HWASAN top byte
+        insns += bi(0x77, R6, 0, 0, 8)
+        insns += _jmp(0x15, R6, 0, "exit")
+        insns += bi(0xBF, R1, R10, 0, 0)
+        insns += bi(0x07, R1, 0, 0, -128)
+        insns += bi(0xB7, R2, 0, 0, 32)
+        insns += bi(0xBF, R3, R6, 0, 0)
+        insns += bi(0x85, 0, 0, 0, FID["probe_read_user"])
+        insns += _jmp(0x55, R0, 0, "exit")
+
+        # dest port from msg_name (fp-128) -> sin_port at fp-56 #
+        insns += bi(0x79, R7, R10, -128, 0)
+        insns += bi(0x67, R7, 0, 0, 8)
+        insns += bi(0x77, R7, 0, 0, 8)
+        insns += _jmp(0x15, R7, 0, "noport")
+        insns += bi(0xBF, R3, R7, 0, 0)
+        insns += bi(0x07, R3, 0, 0, 2)
+        insns += bi(0xBF, R1, R10, 0, 0)
+        insns += bi(0x07, R1, 0, 0, -56)
+        insns += bi(0xB7, R2, 0, 0, 2)
+        insns += bi(0x85, 0, 0, 0, FID["probe_read_user"])
+        labels["noport"] = len(insns) // 8
+
+        # R6 = msg_iov (fp-112), copy iovec[0] (16B) to fp-144 #
+        insns += bi(0x79, R6, R10, -112, 0)
+        insns += bi(0x67, R6, 0, 0, 8)
+        insns += bi(0x77, R6, 0, 0, 8)
+        insns += _jmp(0x15, R6, 0, "exit")
+        insns += bi(0xBF, R1, R10, 0, 0)
+        insns += bi(0x07, R1, 0, 0, -144)
+        insns += bi(0xB7, R2, 0, 0, 16)
+        insns += bi(0xBF, R3, R6, 0, 0)
+        insns += bi(0x85, 0, 0, 0, FID["probe_read_user"])
+        insns += _jmp(0x55, R0, 0, "exit")
+
+        # len at fp-72 (u32) = iov_len (fp-136) #
+        insns += bi(0x61, R7, R10, -136, 0)
+        insns += bi(0x63, R10, R7, -72, 0)
+
+        # R6 = iov_base (fp-144), copy first 48B of payload to fp-48 #
+        insns += bi(0x79, R6, R10, -144, 0)
+        insns += bi(0x67, R6, 0, 0, 8)
+        insns += bi(0x77, R6, 0, 0, 8)
+        insns += _jmp(0x15, R6, 0, "exit")
+        insns += bi(0xBF, R1, R10, 0, 0)
+        insns += bi(0x07, R1, 0, 0, -48)
+        insns += bi(0xB7, R2, 0, 0, 48)
+        insns += bi(0xBF, R3, R6, 0, 0)
+        insns += bi(0x85, 0, 0, 0, FID["probe_read_user"])
+        insns += _jmp(0x55, R0, 0, "exit")
+
+        # DNS filter: port 53 (stored big-endian -> LE u16 0x3500) or
+        # header with OPCODE=0, QDCOUNT=1 (bytes 2, 4, 5 of the payload) #
+        insns += bi(0x69, R7, R10, -56, 0)
+        insns += _jmp(0x15, R7, 0x3500, "emit")
+        insns += bi(0x71, R7, R10, -46, 0)
+        insns += bi(0x57, R7, 0, 0, 0xF8)
+        insns += _jmp(0x55, R7, 0, "exit")
+        insns += bi(0x71, R7, R10, -44, 0)
+        insns += _jmp(0x55, R7, 0, "exit")
+        insns += bi(0x71, R7, R10, -43, 0)
+        insns += _jmp(0x55, R7, 1, "exit")
+        labels["emit"] = len(insns) // 8
+
+        # perf_event_output(ctx, perf_map, BPF_F_CURRENT_CPU, fp-96, 96)
+        insns += bi(0xBF, R1, R8, 0, 0)
+        insns += LM(R2, perf_map_fd)
+        insns += bi(0xB4, R3, 0, 0, -1)
+        insns += bi(0xBF, R4, R10, 0, 0)
+        insns += bi(0x07, R4, 0, 0, -96)
+        insns += bi(0xB7, R5, 0, 0, 96)
+        insns += bi(0x85, 0, 0, 0, FID["perf_event_output"])
+
+        labels["exit"] = len(insns) // 8
+        insns += bi(0xB7, R0, 0, 0, 0)
+        insns += bi(0x95, 0, 0, 0, 0)
+
+        # patch the jump offsets #
+        buf = bytearray(insns)
+        for pos, code, dst, imm, label in jmps:
+            buf[pos * 8 : (pos + 1) * 8] = bi(
+                code, dst, 0, labels[label] - (pos + 1), imm
+            )
+        return bytes(buf)
+
     # -----------------------------------------------------------------------
     # Output helpers
     # -----------------------------------------------------------------------
@@ -140542,11 +140990,9 @@ class BpfMgr(object):
             for k, v in BpfMgr.iterMap(_fd, 4, 16):
                 tid = struct.unpack_from("<I", k, 0)[0]
                 _seen.append(k)
-                # every per-CPU idle task ("swapper/N") reports tid=0, so
-                # this one slot aggregates N concurrent, unrelated
-                # timelines and its delta math is meaningless (can go
-                # negative) -- exclude it, same as this codebase already
-                # special-cases swapper by core elsewhere #
+                """ every per-CPU idle task ("swapper/N") reports tid=0, so this one slot aggregates N concurrent,
+                unrelated timelines and its delta math is meaningless (can go negative) -- exclude it, same as this
+                codebase already special-cases swapper by core elsewhere """
                 if tid == 0:
                     continue
                 total_ns, cnt = struct.unpack_from("<QQ", v, 0)
@@ -140606,18 +141052,13 @@ class BpfMgr(object):
             r["iowait_avg"] = (
                 (r["iowait_ns"] // r["iowait_cnt"]) if r["iowait_cnt"] else 0
             )
-            # floor at 0: a tick boundary can straddle one in-flight
-            # ts_map entry (armed just before this tick started by the
-            # preemption re-arm or a wakeup, consumed just after this
-            # tick began) whose FULL delta -- including the slice that
-            # actually belongs to the previous tick -- lands entirely in
-            # rq_ns here, occasionally over-attributing this tick by up
-            # to about one sample's worth (observed on a real device:
-            # ~150ms overshoot in a 1s tick under heavy contention,
-            # self-corrects on every subsequent tick). A negative
-            # residual only ever means measurement/attribution noise,
-            # never a real negative wait, so it's clamped rather than
-            # displayed as-is #
+            """ floor at 0: a tick boundary can straddle one in-flight ts_map entry (armed just before this tick started
+            by the preemption re-arm or a wakeup, consumed just after this tick began) whose FULL delta -- including the
+            slice that actually belongs to the previous tick -- lands entirely in rq_ns here, occasionally
+            over-attributing this tick by up to about one sample's worth (observed on a real device: ~150ms overshoot in
+            a 1s tick under heavy contention, self-corrects on every subsequent tick). A negative residual only ever
+            means measurement/attribution noise, never a real negative wait, so it's clamped rather than displayed as-is
+            """
             r["other_wait"] = max(
                 0,
                 (interval_ns - r["cpu_ns"])
@@ -140937,20 +141378,14 @@ class BpfMgr(object):
                     _jr["tcomm"] = r["tcomm"]
                 _jrows.append(_jr)
 
-            # -q JSONEACH: opt-in one-JSON-object-per-row-per-line mode,
-            # for draw-family commands (drawscatter, and the new
-            # bpfrestop draw integration) that expect true JSONL --
-            # "one line = one event" -- rather than this function's
-            # default combined-envelope shape above (one line per tick,
-            # resourceTop rows nested inside). The default shape stays
-            # completely unchanged for any existing consumer (e.g. the
-            # MCP bpfTrace tool) that doesn't opt into JSONEACH. Uses
-            # json.dumps() directly (not UtilMgr.convDict2Str(), whose
-            # single-vs-multi-line output depends on SysMgr.encodeEnable
-            # even with pretty=False, found via real-device verification
-            # producing multi-line "JSONL" that broke the one-line-per-
-            # event contract) so every row is guaranteed exactly one
-            # line regardless of that setting #
+            """ -q JSONEACH: opt-in one-JSON-object-per-row-per-line mode, for draw-family commands (drawscatter, and
+            the new bpfrestop draw integration) that expect true JSONL -- "one line = one event" -- rather than this
+            function's default combined-envelope shape above (one line per tick, resourceTop rows nested inside). The
+            default shape stays completely unchanged for any existing consumer (e.g. the MCP bpfTrace tool) that doesn't
+            opt into JSONEACH. Uses json.dumps() directly (not UtilMgr.convDict2Str(), whose single-vs-multi-line output
+            depends on SysMgr.encodeEnable even with pretty=False, found via real-device verification producing
+            multi-line "JSONL" that broke the one-line-per- event contract) so every row is guaranteed exactly one line
+            regardless of that setting """
             if "JSONEACH" in SysMgr.environList:
                 _json_mod = SysMgr.getPkg("json")
                 for _jr in _jrows:
@@ -141081,22 +141516,15 @@ class BpfMgr(object):
             return
 
         for r in rows:
-            # Pre-pad the plain (uncolored) text to _cpu_width BEFORE
-            # handing it to convCpuColor, instead of relying on
-            # convCpuColor's own `size=` padding: UtilMgr.convColor()
-            # skips its padding step entirely whenever SysMgr.outPath is
-            # set (guider.py's "elif SysMgr.outPath or (...): return
-            # str(string)" branch, which disables color for saved files
-            # but -- as a side effect -- returns the raw, un-padded
-            # string too), so with -o the CPU% cell came back 3+ chars
-            # short of _cpu_width and desynced every column after it
-            # from the header (found via real-device verification: the
-            # header/twoLine were exactly SysMgr.lineLength wide but
-            # every data row was 3 chars short). Pre-padding here makes
-            # the fix correct either way: when color IS applied (no -o),
-            # convColor's own re-pad to the same width is a no-op on an
-            # already-width-correct string, so the colored path is
-            # unaffected #
+            """Pre-pad the plain (uncolored) text to _cpu_width BEFORE handing it to convCpuColor, instead of relying
+            on convCpuColor's own `size=` padding: UtilMgr.convColor() skips its padding step entirely whenever
+            SysMgr.outPath is set (guider.py's "elif SysMgr.outPath or (...): return str(string)" branch, which disables
+            color for saved files but -- as a side effect -- returns the raw, un-padded string too), so with -o the CPU%
+            cell came back 3+ chars short of _cpu_width and desynced every column after it from the header (found via
+            real-device verification: the header/twoLine were exactly SysMgr.lineLength wide but every data row was 3
+            chars short). Pre-padding here makes the fix correct either way: when color IS applied (no -o), convColor's
+            own re-pad to the same width is a no-op on an already-width-correct string, so the colored path is
+            unaffected"""
             cpu_str = UtilMgr.convCpuColor(
                 r["cpu_pct"],
                 "%*s"
@@ -141235,18 +141663,12 @@ class BpfMgr(object):
                 sort_key = vtot
                 cells = [_fmt(v) for v in vals]
 
-            # skip tasks whose DISPLAYED total (Tot, or Sum(RD)+
-            # Sum(WR) for the RD_KB/WR_KB table) is 0 across the
-            # whole run -- a task that never meaningfully touched
-            # this metric is just noise in a metric-specific table
-            # (per user request). Rounds sort_key the same way the
-            # summary cell itself is rounded (_fmt(vtot)/_fmt(tot))
-            # before comparing to 0 -- comparing the raw unrounded
-            # sum directly let rows with e.g. a 0.2ms total (every
-            # per-tick value individually rounds to "0" for display,
-            # but the true sum is a small nonzero fraction) slip
-            # through and still show as a misleading "0/0/0/0" row
-            # (found via real-device report) #
+            """ skip tasks whose DISPLAYED total (Tot, or Sum(RD)+ Sum(WR) for the RD_KB/WR_KB table) is 0 across the
+            whole run -- a task that never meaningfully touched this metric is just noise in a metric-specific table
+            (per user request). Rounds sort_key the same way the summary cell itself is rounded (_fmt(vtot)/_fmt(tot))
+            before comparing to 0 -- comparing the raw unrounded sum directly let rows with e.g. a 0.2ms total (every
+            per-tick value individually rounds to "0" for display, but the true sum is a small nonzero fraction) slip
+            through and still show as a misleading "0/0/0/0" row (found via real-device report) """
             if round(sort_key) == 0:
                 continue
 
@@ -141757,16 +142179,14 @@ class BpfMgr(object):
             cls_idx, _proto_idx, nm_idx = struct.unpack_from(
                 "<HHI", data, base
             )
-            # Only include methods whose declaring class is defined in this DEX.
-            # Cross-DEX stubs (class defined in another DEX file) are excluded
-            # to avoid false positives from different methods at the same midx.
+            """ Only include methods whose declaring class is defined in this DEX. Cross-DEX stubs (class defined in
+            another DEX file) are excluded to avoid false positives from different methods at the same midx. """
             if cls_idx not in _defined_classes:
                 continue
             mname = _str(nm_idx)
             cname = _simple(_desc(cls_idx))
-            # Also keep the simple (unqualified) class name for pattern matching.
-            # This lets users use either "TcpSocketDataSource" or
-            # "com.example.app.data.datasource.TcpSocketDataSource" as patterns.
+            """ Also keep the simple (unqualified) class name for pattern matching. This lets users use either
+            "TcpSocketDataSource" or "com.example.app.data.datasource.TcpSocketDataSource" as patterns. """
             _cname_simple = cname.split(".")[-1] if "." in cname else cname
             display = "%s->%s" % (cname, mname)
             for pat in patterns:
@@ -141945,9 +142365,8 @@ class BpfMgr(object):
                 )
                 sys.exit(-1)
 
-            # Resolve each arg: kernel functions expand wildcards;
-            # user-space probes (lib:func) are resolved via ELF symbol lookup.
-            # _resolved_args: list of (mode, display_name, attach_target, attach_offset)
+            """ Resolve each arg: kernel functions expand wildcards; user-space probes (lib:func) are resolved via ELF
+            symbol lookup. _resolved_args: list of (mode, display_name, attach_target, attach_offset) """
             _raw_args = [
                 f.strip() for f in SysMgr.getMainArg().split(",") if f.strip()
             ]
@@ -142118,9 +142537,8 @@ class BpfMgr(object):
 
             show_cmdline = "CMDLINE" in SysMgr.environList
             add_thread_info = "ADDTHREADSTACK" in SysMgr.environList
-            # user-space PROCCOMMFILTER fallback (applied when BPF kernel filter
-            # has no map — e.g. no matching process existed at startup);
-            # supports "!"-prefixed negation via the shared BpfMgr._patOk() #
+            """ user-space PROCCOMMFILTER fallback (applied when BPF kernel filter has no map — e.g. no matching process
+            existed at startup); supports "!"-prefixed negation via the shared BpfMgr._patOk() """
             _proccomm_pats = BpfMgr._collectPats("PROCCOMMFILTER")
 
             _dbgObj = BpfMgr._initDbgObj()
@@ -142209,11 +142627,9 @@ class BpfMgr(object):
                             if not BpfMgr._patOk(_tproc, _proccomm_pats):
                                 continue
                         counts[pid] = counts.get(pid, 0) + delta
-                    # snapshot this tick's filtered counts for the ASKAI
-                    # aggregator below -- entry[2] is about to be overwritten
-                    # with cur_raw, so re-deriving deltas from raw maps there
-                    # would diff cur_raw against itself (always ~0) and skip
-                    # the -g/PROCCOMMFILTER checks applied to `counts` above #
+                    """ snapshot this tick's filtered counts for the ASKAI aggregator below -- entry[2] is about to be
+                    overwritten with cur_raw, so re-deriving deltas from raw maps there would diff cur_raw against
+                    itself (always ~0) and skip the -g/PROCCOMMFILTER checks applied to `counts` above """
                     _bpf_ai_counts[fn] = counts
                     entry[2] = cur_raw  # update prev_raw for next round
                     if not _cond_met:
@@ -142247,21 +142663,18 @@ class BpfMgr(object):
                     valid_pid_tgids = set()
                     if show_kstack and stk_cnt_fd >= 0:
                         pid_stacks = {}
-                        # valid_pid_tgids: full 64-bit pid_tgid values that
-                        # were active this interval (positive delta in cur_raw)
-                        # AND whose TID passed the -g/PROCCOMMFILTER checks
-                        # used to build `counts` above -- prevents stale
-                        # entries from dead/reused PIDs, and filtered-out
-                        # processes, from leaking into stack_summary/DRAWFLAME
+                        """ valid_pid_tgids: full 64-bit pid_tgid values that were active this interval (positive delta
+                        in cur_raw) AND whose TID passed the -g/PROCCOMMFILTER checks used to build `counts` above --
+                        prevents stale entries from dead/reused PIDs, and filtered-out processes, from leaking into
+                        stack_summary/DRAWFLAME """
                         valid_pid_tgids = {
                             pt
                             for pt, cur in cur_raw.items()
                             if cur - prev_raw.get(pt, 0) > 0
                             and (int(pt) & 0xFFFFFFFF) in counts
                         }
-                        # Phase 1: snapshot stk_cnt_map with NO I/O (BPF syscalls only)
-                        # so that resolveKernelStack (reads /proc/kallsyms via vfs_read)
-                        # cannot contaminate the snapshot with extra call counts
+                        """ Phase 1: snapshot stk_cnt_map with NO I/O (BPF syscalls only) so that resolveKernelStack
+                        (reads /proc/kallsyms via vfs_read) cannot contaminate the snapshot with extra call counts """
                         stk_snapshot = list(BpfMgr.iterMap(stk_cnt_fd, 12, 8))
                         # Phase 2: resolve any new stack_ids (I/O allowed now)
                         new_sids = {
@@ -142437,9 +142850,9 @@ class BpfMgr(object):
                                 "comm": comms.get(_pid, "?"),
                             }
                     else:
-                        # ARGnHIST: print arg value distribution histogram first
-                        # Count actual newlines so bufferRows reflects histogram
-                        # height; subsequent _printBpftopTop auto-cuts at screen edge
+                        """ARGnHIST: print arg value distribution histogram first Count actual newlines so bufferRows
+                        reflects histogram height; subsequent _printBpftopTop auto-cuts at screen edge
+                        """
                         if hist_arg_n is not None and arg_hist_map_fd >= 0:
                             _hist_lines = [0]
 
@@ -142457,9 +142870,8 @@ class BpfMgr(object):
                                     _bc = struct.unpack("<Q", _bval)[0]
                                     if _bc > 0:
                                         _ahist[_b] = _bc
-                                        # reset bucket so next interval
-                                        # reads a delta, not the running
-                                        # cumulative total #
+                                        """ reset bucket so next interval reads a delta, not the running cumulative
+                                        total """
                                         BpfMgr.mapUpdate(
                                             arg_hist_map_fd,
                                             _bkey,
@@ -142522,13 +142934,10 @@ class BpfMgr(object):
                     else:
                         SysMgr.printPipe(_json_str)
 
-                # ASKAI / AIPERIODIC trigger — aggregate all functions.
-                # Uses _bpf_ai_counts (this tick's already -g/PROCCOMMFILTER-
-                # filtered per-function counts, snapshotted above) instead of
-                # re-reading the raw BPF maps: entry[2] has already been
-                # overwritten with cur_raw by this point, so recomputing a
-                # delta against it here would diff cur_raw against itself
-                # (always ~0) and would also bypass the filters #
+                """ ASKAI / AIPERIODIC trigger — aggregate all functions. Uses _bpf_ai_counts (this tick's already
+                -g/PROCCOMMFILTER- filtered per-function counts, snapshotted above) instead of re-reading the raw BPF
+                maps: entry[2] has already been overwritten with cur_raw by this point, so recomputing a delta against
+                it here would diff cur_raw against itself (always ~0) and would also bypass the filters """
                 if _ask_active or _ai_periodic_sec > 0:
                     _top_callers = []
                     for _fn, _fn_counts in _bpf_ai_counts.items():
@@ -142668,20 +143077,14 @@ class BpfMgr(object):
             BpfMgr.checkAvailable()
             BpfMgr.initFilters()
 
-            # PROCCOMMFILTER (and a fuller TIDFILTER+PIDFILTER combination)
-            # needs a TID allowlist built via a /proc scan, which
-            # initFilters() deliberately does NOT do (it only handles bare
-            # TIDFILTER numerically). Reuse the already-negation-aware,
-            # dynamically-sized BpfMgr._initRqFilters() -- built for
-            # bpfrunqtop/bpfcachetop's identical "TID allowlist from
-            # TIDFILTER/PIDFILTER/PROCCOMMFILTER" need -- and feed its
-            # result into the SAME _tid_filter_fd global that
-            # genFilterPrologue() (already embedded in genEntryTimeProg()
-            # below, previously a dormant no-op for this command since
-            # nothing populated it beyond bare TIDFILTER) already knows
-            # how to gate on. Only invoked when PIDFILTER/PROCCOMMFILTER is
-            # actually given, so the common case (bare TIDFILTER only, or
-            # no filter) is completely unaffected #
+            """ PROCCOMMFILTER (and a fuller TIDFILTER+PIDFILTER combination) needs a TID allowlist built via a /proc
+            scan, which initFilters() deliberately does NOT do (it only handles bare TIDFILTER numerically). Reuse the
+            already-negation-aware, dynamically-sized BpfMgr._initRqFilters() -- built for bpfrunqtop/bpfcachetop's
+            identical "TID allowlist from TIDFILTER/PIDFILTER/PROCCOMMFILTER" need -- and feed its result into the SAME
+            _tid_filter_fd global that genFilterPrologue() (already embedded in genEntryTimeProg() below, previously a
+            dormant no-op for this command since nothing populated it beyond bare TIDFILTER) already knows how to gate
+            on. Only invoked when PIDFILTER/PROCCOMMFILTER is actually given, so the common case (bare TIDFILTER only,
+            or no filter) is completely unaffected """
             if (
                 "PIDFILTER" in SysMgr.environList
                 or "PROCCOMMFILTER" in SysMgr.environList
@@ -142690,10 +143093,9 @@ class BpfMgr(object):
                 _tid_flt_fd = BpfMgr._initRqFilters()
                 if _tid_flt_fd >= 0:
                     if _old_tid_fd >= 0 and _old_tid_fd != _tid_flt_fd:
-                        # initFilters() already built a narrower
-                        # TIDFILTER-only map; _initRqFilters()'s map
-                        # supersedes it (it re-reads TIDFILTER too) --
-                        # close the now-orphaned one to avoid an fd leak #
+                        """initFilters() already built a narrower TIDFILTER-only map; _initRqFilters()'s map supersedes
+                        it (it re-reads TIDFILTER too) -- close the now-orphaned one to avoid an fd leak
+                        """
                         os.close(_old_tid_fd)
                     BpfMgr._tid_filter_fd = _tid_flt_fd
 
@@ -142867,9 +143269,8 @@ class BpfMgr(object):
                         break
                     continue
 
-                # Fold this tick's histograms into the cross-tick Summary
-                # only for ticks that pass the SAMPCOND gate -- a suppressed
-                # tick must not contribute to the exit-time Summary either #
+                """ Fold this tick's histograms into the cross-tick Summary only for ticks that pass the SAMPCOND gate
+                -- a suppressed tick must not contribute to the exit-time Summary either """
                 for fn, (hist, total_cnt) in _loop_hists.items():
                     if hist and total_cnt > 0:
                         for b, c in hist.items():
@@ -142901,7 +143302,7 @@ class BpfMgr(object):
                     )
                 else:
                     SysMgr.addPrint(
-                        "[bpftopLAT] [total: %s] %s "
+                        "[bpftopLAT] [total: %s] %s\n"
                         % (UtilMgr.convNum(_total_events), _sysStatStr)
                     )
                     printed = False
@@ -143419,10 +143820,8 @@ class BpfMgr(object):
                                         _apk_path, _art_pats
                                     )
                                     if _hits:
-                                        # tag each hit with its source
-                                        # "apk!dex" so cross-dex-file
-                                        # dex_method_index_ collisions can
-                                        # be detected below
+                                        """tag each hit with its source "apk!dex" so cross-dex-file dex_method_index_
+                                        collisions can be detected below"""
                                         _apk_base = os.path.basename(_apk_path)
                                         _art_java.extend(
                                             (
@@ -143458,17 +143857,13 @@ class BpfMgr(object):
                                                 _art_lib,
                                                 _art_off,
                                             )
-                                            # Key is dex_method_index_ (ArtMethod+12),
-                                            # which matches the per-DEX method_ids index
-                                            # parsed from the APK and is stable across
-                                            # all ArtMethod copies (Nterp, vtable, etc).
-                                            # It is only unique WITHIN a single dex
-                                            # file though, so in a multidex APK two
-                                            # matched methods from different dex
-                                            # files can share the same dex_method_index_.
-                                            # Detect that here and drop the ambiguous
-                                            # entries instead of silently letting one
-                                            # overwrite the other in the dispatch map.
+                                            """ Key is dex_method_index_ (ArtMethod+12), which matches the per-DEX
+                                            method_ids index parsed from the APK and is stable across all ArtMethod
+                                            copies (Nterp, vtable, etc). It is only unique WITHIN a single dex file
+                                            though, so in a multidex APK two matched methods from different dex files
+                                            can share the same dex_method_index_. Detect that here and drop the
+                                            ambiguous entries instead of silently letting one overwrite the other in the
+                                            dispatch map. """
                                             _art_by_midx = {}
                                             for (
                                                 _midx,
@@ -143511,9 +143906,8 @@ class BpfMgr(object):
                                                         always=True,
                                                     )
                                                     continue
-                                                # same dex source: patterns
-                                                # overlapped on one method,
-                                                # dedupe to a single entry
+                                                """ same dex source: patterns overlapped on one method, dedupe to a
+                                                single entry """
                                                 _art_kept.append(
                                                     (_midx, _entries[0][0])
                                                 )
@@ -143562,17 +143956,13 @@ class BpfMgr(object):
                 SysMgr.printErr("bpfsnoop: no functions to trace")
                 sys.exit(-1)
 
-            # tracing_mark_write only fires when userspace atrace tags are
-            # enabled (debug.atrace.tags.enableflags); unlike attop/bpfmarktop
-            # (which go through SysMgr.enableEvents() -> enableAtrace()),
-            # bpfsnoop attaches kprobes directly and never enabled atrace
-            # itself, so tracing tracing_mark_write silently saw ~0 events
-            # unless something else (e.g. a separate attop) already had
-            # atrace turned on. Mirror attop/bpfmarktop here: auto-enable
-            # when the traced target is tracing_mark_write, or when the
-            # user explicitly asks via -q ATRACE. enableAtrace() itself
-            # no-ops unless "ATRACE" is in environList, and always restores
-            # the prior property values via SysMgr.addExitFunc() #
+            """ tracing_mark_write only fires when userspace atrace tags are enabled (debug.atrace.tags.enableflags);
+            unlike attop/bpfmarktop (which go through SysMgr.enableEvents() -> enableAtrace()), bpfsnoop attaches
+            kprobes directly and never enabled atrace itself, so tracing tracing_mark_write silently saw ~0 events
+            unless something else (e.g. a separate attop) already had atrace turned on. Mirror attop/bpfmarktop here:
+            auto-enable when the traced target is tracing_mark_write, or when the user explicitly asks via -q ATRACE.
+            enableAtrace() itself no-ops unless "ATRACE" is in environList, and always restores the prior property
+            values via SysMgr.addExitFunc() """
             if any(
                 r[0] == "kernel" and r[1] == "tracing_mark_write"
                 for r in _resolved_args_snoop
@@ -143613,11 +144003,10 @@ class BpfMgr(object):
                 if ts_map_fd < 0:
                     sys.exit(-1)
 
-            # ARTINTERP dispatch map: dex_method_index_ u32 → func_idx (u32)
-            # Key is dex_method_index_ from ArtMethod+12: the per-DEX method_ids
-            # table index.  This is stable across all ArtMethod copies (Nterp
-            # dispatch table, vtable copies, interface stubs) and matches exactly
-            # what _parseSingleDex reads from the APK DEX method_ids table.
+            """ ARTINTERP dispatch map: dex_method_index_ u32 → func_idx (u32) Key is dex_method_index_ from
+            ArtMethod+12: the per-DEX method_ids table index. This is stable across all ArtMethod copies (Nterp dispatch
+            table, vtable copies, interface stubs) and matches exactly what _parseSingleDex reads from the APK DEX
+            method_ids table. """
             _art_dispatch_map_fd = -1
             if _art_dispatch_entries:
                 _art_dispatch_map_fd = BpfMgr.createMap(
@@ -143641,17 +144030,13 @@ class BpfMgr(object):
                             struct.pack("<I", _fidx),
                         )
 
-            # SYSCALLFILTER kernel-side acceleration: only meaningful in TRACEPOINT
-            # mode attached to a raw_syscalls tracepoint (the syscall nr is always
-            # the first field there, at a fixed ctx+8, u64 — same field/offset
-            # already proven elsewhere in this file, e.g. genMmapEntryProg's NR
-            # filter). Builds a small allowlist map so genSnoopProg's filter
-            # prologue can drop non-matching syscalls before perf_event_output,
-            # instead of every syscall system-wide reaching the ring buffer and
-            # being decoded in Python just to be discarded by the existing
-            # SYSCALLFILTER check below. That Python-side check stays as-is (cheap
-            # once the kernel filter is doing the heavy lifting, and a correctness
-            # backstop if the two ever diverge) #
+            """ SYSCALLFILTER kernel-side acceleration: only meaningful in TRACEPOINT mode attached to a raw_syscalls
+            tracepoint (the syscall nr is always the first field there, at a fixed ctx+8, u64 — same field/offset
+            already proven elsewhere in this file, e.g. genMmapEntryProg's NR filter). Builds a small allowlist map so
+            genSnoopProg's filter prologue can drop non-matching syscalls before perf_event_output, instead of every
+            syscall system-wide reaching the ring buffer and being decoded in Python just to be discarded by the
+            existing SYSCALLFILTER check below. That Python-side check stays as-is (cheap once the kernel filter is
+            doing the heavy lifting, and a correctness backstop if the two ever diverge) """
             _syscallfilter_map_fd = -1
             _syscallfilter_nr_ctx_off = None
             if (
@@ -143897,10 +144282,9 @@ class BpfMgr(object):
                     SysMgr.printWarn(
                         "ARTINTERP: Nterp uprobe failed: %s" % _ae, always=True
                     )
-                # --- Nterp fast-path uprobes (nterp_to_nterp_* labels) ---
-                # These labels are direct branch targets from Nterp invoke opcode
-                # handlers, bypassing Execute() entirely.  x0=ArtMethod* at all
-                # of them, so genNterpSnoopProg works unchanged.
+                """ --- Nterp fast-path uprobes (nterp_to_nterp_* labels) --- These labels are direct branch targets
+                from Nterp invoke opcode handlers, bypassing Execute() entirely. x0=ArtMethod* at all of them, so
+                genNterpSnoopProg works unchanged. """
                 try:
                     _fp_paths = BpfMgr._findArtNterpFastPaths(_art_lib_path)
                     if _fp_paths:
@@ -144030,10 +144414,8 @@ class BpfMgr(object):
                 SysMgr.printPipe(" ".join(_hdr), trim=False)
                 SysMgr.printPipe(twoLine)
 
-            # Parse ARG filters from -q options
-            # Formats: ARGn:VAL (==), ARGnGT:VAL (>), ARGnLT:VAL (<), ARGnNE:VAL (!=)
-            # Values support hex (0x...) and decimal.
-            # environList is a dict: key → [value_str, ...]
+            """ Parse ARG filters from -q options Formats: ARGn:VAL (==), ARGnGT:VAL (>), ARGnLT:VAL (<), ARGnNE:VAL
+            (!=) Values support hex (0x...) and decimal. environList is a dict: key → [value_str, ...] """
             arg_filters = []  # [(arg_idx 0-based, op_str, value), ...]
             for _i in range(1, 6):
                 for _sfx, _op in [
@@ -144050,10 +144432,9 @@ class BpfMgr(object):
             # ARGnFMT:HEX|DEC|BIN|SDEC - per-arg text-mode display format #
             arg_fmts = BpfMgr._resolveArgFmts(5)
 
-            # Cache entry event args for SHOWRET+ELAPFILTER/RETFILTER:
-            # When entry events are suppressed by a filter, cache their
-            # arg representations keyed by pid_tgid so they can be shown
-            # on the matching exit event. Max 65536 entries (matches ts_map).
+            """ Cache entry event args for SHOWRET+ELAPFILTER/RETFILTER: When entry events are suppressed by a filter,
+            cache their arg representations keyed by pid_tgid so they can be shown on the matching exit event. Max 65536
+            entries (matches ts_map). """
             _ENTRY_ARG_CACHE_MAX = 65536
             _entry_arg_cache = {}  # {pid_tgid: ["0x...", ...] or ["str", ...]}
 
@@ -144133,10 +144514,10 @@ class BpfMgr(object):
                             )
                             if show_entry and _filter_active:
                                 if is_entry:
-                                    # Cache entry arg values + resolved strings so exit
-                                    # event can display them. Parse strings here (before
-                                    # filter skip) so ARGnFDPATH/ARGnSTR work with
-                                    # ELAPFILTER/RETFILTER. Max size matches BPF ts_map.
+                                    """Cache entry arg values + resolved strings so exit event can display them. Parse
+                                    strings here (before filter skip) so ARGnFDPATH/ARGnSTR work with
+                                    ELAPFILTER/RETFILTER. Max size matches BPF ts_map.
+                                    """
                                     _cached_strs = [None] * 5
                                     if (
                                         (
@@ -144394,17 +144775,12 @@ class BpfMgr(object):
                                 if func_idx < len(func_names)
                                 else str(func_idx)
                             )
-                            # -g / PROCCOMMFILTER filter -- PROCCOMMFILTER
-                            # resolves the PROCESS's (tgid's) own comm, not
-                            # the calling thread's comm 'comm' already holds
-                            # (see _get_proc_comm's definition above for why
-                            # these differ for multi-threaded targets); the
-                            # two are AND-ed when both are specified, matching
-                            # this option's documented behavior elsewhere.
-                            # Uses the shared BpfMgr._patOk() helper (same as
-                            # ARGnSTR/ARGnFDPATH/ARGnDATAFILTER/etc) so
-                            # "!"-prefixed patterns exclude instead of include
-                            # (e.g. PROCCOMMFILTER:!system_server) #
+                            """ -g / PROCCOMMFILTER filter -- PROCCOMMFILTER resolves the PROCESS's (tgid's) own comm,
+                            not the calling thread's comm 'comm' already holds (see _get_proc_comm's definition above
+                            for why these differ for multi-threaded targets); the two are AND-ed when both are
+                            specified, matching this option's documented behavior elsewhere. Uses the shared
+                            BpfMgr._patOk() helper (same as ARGnSTR/ARGnFDPATH/ARGnDATAFILTER/etc) so "!"-prefixed
+                            patterns exclude instead of include (e.g. PROCCOMMFILTER:!system_server) """
                             show = BpfMgr._matchesFilter(pid, tgid, comm)
                             if show and _proccomm_pats:
                                 _sweep_proccomm_cache()
@@ -144463,15 +144839,12 @@ class BpfMgr(object):
                                     == _target_lib
                                 ):
                                     show = False
-                            # ARGnFDPATH/ARGnSTR/ARGnUSTR/ARGnDATAFILTER/FDCNTFILTER:
-                            # evaluated here (before the show gate) so Summary/RATE/flame
-                            # accumulation reflect ALL configured filters, not just the
-                            # events a MUTE'd run still prints -- same "count regardless
-                            # of MUTE" invariant PROCCOMMFILTER/ARGn/SYSCALLFILTER already
-                            # follow above. _fdno_paths/_fdcount are resolved once here
-                            # and reused by the print path below (see "already evaluated
-                            # above" comment there) to avoid a duplicate os.readlink()/
-                            # fd-count lookup per event. #
+                            """ ARGnFDPATH/ARGnSTR/ARGnUSTR/ARGnDATAFILTER/FDCNTFILTER: evaluated here (before the show
+                            gate) so Summary/RATE/flame accumulation reflect ALL configured filters, not just the events
+                            a MUTE'd run still prints -- same "count regardless of MUTE" invariant
+                            PROCCOMMFILTER/ARGn/SYSCALLFILTER already follow above. _fdno_paths/_fdcount are resolved
+                            once here and reused by the print path below (see "already evaluated above" comment there)
+                            to avoid a duplicate os.readlink()/ fd-count lookup per event. """
                             _is_exit = show_entry and not is_entry
                             _fdno_paths = {}
                             if show and not _is_exit:
@@ -144526,9 +144899,8 @@ class BpfMgr(object):
                                 ):
                                     show = False
                             if show:
-                                # count regardless of MUTE -- RATE should
-                                # reflect events that passed all filters,
-                                # not just the ones actually printed #
+                                """count regardless of MUTE -- RATE should reflect events that passed all filters, not
+                                just the ones actually printed"""
                                 if rate_enable:
                                     _rate_count[0] += 1
                                 # accumulate summary (by tgid if PROCSUMMARY); count entry events only #
@@ -144623,19 +144995,17 @@ class BpfMgr(object):
                                             else "?"
                                         )
                                         _line.append("%-20s" % _dso_disp)
-                                    # ARGnFDPATH/ARGnSTR/ARGnUSTR/ARGnDATAFILTER/FDCNTFILTER
-                                    # were already evaluated (and folded into `show`) before
-                                    # the accumulation block above, so an event only reaches
-                                    # here once it has passed them; _fdno_paths/_fdcount
-                                    # computed there are reused as-is below instead of
-                                    # re-resolving (avoids a duplicate os.readlink()/
-                                    # fd-count lookup per event). #
+                                    """ ARGnFDPATH/ARGnSTR/ARGnUSTR/ARGnDATAFILTER/FDCNTFILTER were already evaluated
+                                    (and folded into `show`) before the accumulation block above, so an event only
+                                    reaches here once it has passed them; _fdno_paths/_fdcount computed there are reused
+                                    as-is below instead of re-resolving (avoids a duplicate os.readlink()/ fd-count
+                                    lookup per event). """
                                     _skip_event = False
                                     if not _skip_event:
-                                        # WATCHLOGCMD/WATCHLOGEXIT: relay a matching event to a
-                                        # watcher (e.g. the parent guider process via "GUIDER
-                                        # event ..."), same execution primitives log-family
-                                        # commands already use (SysMgr.checkLogCond, ~line 90093) #
+                                        """WATCHLOGCMD/WATCHLOGEXIT: relay a matching event to a watcher (e.g. the
+                                        parent guider process via "GUIDER event ..."), same execution primitives
+                                        log-family commands already use (SysMgr.checkLogCond, ~line 90093)
+                                        """
                                         if "WATCHLOGCMD" in SysMgr.environList:
                                             SysMgr.executeCommand(
                                                 SysMgr.environList[
@@ -144646,25 +145016,14 @@ class BpfMgr(object):
                                             "WATCHLOGEXIT"
                                             in SysMgr.environList
                                         ):
-                                            # terminate directly via
-                                            # os._exit() rather than via
-                                            # SIGINT+signal.pause() or
-                                            # SysMgr.doExit(); see the
-                                            # matching comment in
-                                            # checkLogCond() for why: a lone
-                                            # self-delivered SIGINT reliably
-                                            # fails to actually stop this
-                                            # process (SysMgr.stopHandler
-                                            # treats a single SIGINT as an
-                                            # interactive checkpoint, not a
-                                            # real exit request), and
-                                            # doExit()'s killChildren()
-                                            # (default SIGKILL) can race
-                                            # with and kill the "GUIDER
-                                            # event ..." notifier just
-                                            # spawned above before it sends
-                                            # its event, silently dropping
-                                            # the notification #
+                                            """terminate directly via os._exit() rather than via SIGINT+signal.pause()
+                                            or SysMgr.doExit(); see the matching comment in checkLogCond() for why: a
+                                            lone self-delivered SIGINT reliably fails to actually stop this process
+                                            (SysMgr.stopHandler treats a single SIGINT as an interactive checkpoint, not
+                                            a real exit request), and doExit()'s killChildren() (default SIGKILL) can
+                                            race with and kill the "GUIDER event ..." notifier just spawned above before
+                                            it sends its event, silently dropping the notification
+                                            """
                                             SysMgr.disableAtrace()
                                             os._exit(0)
                                         # FDCOUNT column #
@@ -144720,12 +145079,11 @@ class BpfMgr(object):
                                                     & 0xFFFFFFFFFFFFFFFF
                                                 )
                                                 _line.append("%16s" % _ret_s)
-                                        # ARGS: collect → "/" join → trim trailing zero-valued args.
-                                        # _arg_zero_flags tracks, per position, whether the
-                                        # displayed part is a raw-zero numeric value (as opposed to
-                                        # a string/fd-path/"-" placeholder) -- trimming must key off
-                                        # this instead of the rendered string, since ARGnFMT can
-                                        # make a zero value render as "0" or "0b0" instead of "0x0" #
+                                        """ ARGS: collect → "/" join → trim trailing zero-valued args. _arg_zero_flags
+                                        tracks, per position, whether the displayed part is a raw-zero numeric value (as
+                                        opposed to a string/fd-path/"-" placeholder) -- trimming must key off this
+                                        instead of the rendered string, since ARGnFMT can make a zero value render as
+                                        "0" or "0b0" instead of "0x0" """
                                         _arg_parts = []
                                         _arg_zero_flags = []
                                         for _ai, _av in enumerate(args):
@@ -145052,9 +145410,9 @@ class BpfMgr(object):
                             _seen.add(_tg)
                             _proc_comms[_tg] = BpfMgr._readProcComm(_tg)
                     if use_proc_summary or use_only_proc:
-                        # compact TGID|Count|PROC layout #
-                        # PROCSUMMARY: counts keyed by tgid → _proc_comms[tgid] direct
-                        # ONLYPROC:    counts keyed by tid  → remap to tid→proc_comm
+                        """compact TGID|Count|PROC layout # PROCSUMMARY: counts keyed by tgid → _proc_comms[tgid]
+                        direct ONLYPROC: counts keyed by tid → remap to tid→proc_comm
+                        """
                         if use_only_proc and not use_proc_summary:
                             _pc = {
                                 _t: _proc_comms.get(_d[1], "?")
@@ -145115,10 +145473,9 @@ class BpfMgr(object):
                 9: "RCU",
             }
 
-            # ts_map:   ARRAY key=u32(irq_num), val=u64(entry_ts) #
-            # hist_map: ARRAY key=u32(irq*64+bucket), val=u64(count) #
-            # Both hard and softirq use the same BPF program structure:
-            # ctx+8 holds irq number (hard IRQ) or vec (softirq) as u32 #
+            """ ts_map: ARRAY key=u32(irq_num), val=u64(entry_ts) # hist_map: ARRAY key=u32(irq*64+bucket),
+            val=u64(count) # Both hard and softirq use the same BPF program structure: ctx+8 holds irq number (hard IRQ)
+            or vec (softirq) as u32 """
             ts_map_fd = BpfMgr.createMap(
                 ConfigMgr.BPF_MAP_ARRAY_IDX, 4, 8, 1024, "irq_ts"
             )
@@ -145207,9 +145564,8 @@ class BpfMgr(object):
                     if total_cnt > 0:
                         irq_hists[irq] = (hist, total_cnt)
 
-                # apply CONDCNTBT/CONDCNTLT/-g filters once, before any
-                # consumer (Summary accumulator, JSON, ASKAI, text display)
-                # sees irq_hists, so none of them can bypass the others #
+                """ apply CONDCNTBT/CONDCNTLT/-g filters once, before any consumer (Summary accumulator, JSON, ASKAI,
+                text display) sees irq_hists, so none of them can bypass the others """
                 if irq_hists:
                     _filtered_irq_hists = {}
                     for irq, (hist, total_cnt) in irq_hists.items():
@@ -145279,9 +145635,8 @@ class BpfMgr(object):
                         if SysMgr.terminalOver:
                             break
                         irq_label = irq_names.get(irq, "")
-                        # Pre-check: printHist uses multi-line strings so
-                        # bufferRows undercounts. Estimate actual display rows:
-                        # title(2) + colhdr(2) + N_buckets + footer(7) = N+11
+                        """ Pre-check: printHist uses multi-line strings so bufferRows undercounts. Estimate actual
+                        display rows: title(2) + colhdr(2) + N_buckets + footer(7) = N+11 """
                         _n_buckets = len(hist)
                         _est_rows = _n_buckets + 11
                         if (
@@ -145474,17 +145829,12 @@ class BpfMgr(object):
                 if cpu_sw_fd < 0:
                     show_load = False
 
-            # nr_run_map: ARRAY key=u32(cpu_id), val=16B{u64 total_switch,
-            # u64 preempt} — same 256-entry cardinality as cpu_sw_map, and
-            # likewise a pair of monotonic per-cpu counters (read via delta
-            # against nr_run_prev), not a gauge: total_switch counts every
-            # sched_switch on that cpu, preempt counts only the subset
-            # where the outgoing task was preempted while still runnable
-            # (direct run-queue contention signal). Classified by RATIO
-            # against a fixed, empirically-anchored low threshold — see
-            # _classifyRunqTick's docstring for why a bare nonzero check,
-            # a fixed 50% ratio bar, and a same-run adaptive baseline all
-            # failed live-device verification before this #
+            """ nr_run_map: ARRAY key=u32(cpu_id), val=16B{u64 total_switch, u64 preempt} — same 256-entry cardinality
+            as cpu_sw_map, and likewise a pair of monotonic per-cpu counters (read via delta against nr_run_prev), not a
+            gauge: total_switch counts every sched_switch on that cpu, preempt counts only the subset where the outgoing
+            task was preempted while still runnable (direct run-queue contention signal). Classified by RATIO against a
+            fixed, empirically-anchored low threshold — see _classifyRunqTick's docstring for why a bare nonzero check,
+            a fixed 50% ratio bar, and a same-run adaptive baseline all failed live-device verification before this """
             if show_amdahl:
                 nr_run_fd = BpfMgr.createMap(
                     ConfigMgr.BPF_MAP_ARRAY_IDX, 4, 16, 256, "nr_run"
@@ -145584,9 +145934,8 @@ class BpfMgr(object):
             if _samp_cond:
                 _samp_idle = SysMgr.getIdleTime()
                 _samp_nr_cores = SysMgr.getNrCore() or 1
-            # BPF hist_map counters are cumulative (never reset in-kernel),
-            # so every interval's display value must be the delta from the
-            # last read, not the raw cumulative snapshot #
+            """ BPF hist_map counters are cumulative (never reset in-kernel), so every interval's display value must be
+            the delta from the last read, not the raw cumulative snapshot """
             _prev_hist = {}
 
             _t_last = time.monotonic()
@@ -145614,12 +145963,9 @@ class BpfMgr(object):
                 }
                 _prev_hist = dict(hist)
 
-                # AMDAHL bookkeeping: nr_run_map's per-cpu {total_switch,
-                # preempt} counters must be read and folded into
-                # nr_run_prev every tick regardless of SAMPCOND, exactly
-                # like _prev_hist above - otherwise the next *included*
-                # tick's delta would be computed against a stale baseline
-                # spanning skipped ticks too #
+                """ AMDAHL bookkeeping: nr_run_map's per-cpu {total_switch, preempt} counters must be read and folded
+                into nr_run_prev every tick regardless of SAMPCOND, exactly like _prev_hist above - otherwise the next
+                *included* tick's delta would be computed against a stale baseline spanning skipped ticks too """
                 _preempt_delta_tick = 0
                 _switch_delta_tick = 0
                 if show_amdahl and nr_run_fd >= 0:
@@ -145640,9 +145986,8 @@ class BpfMgr(object):
                                 _preempt_cc,
                             )
 
-                # conditional sampling: skip display/accumulation on
-                # suppressed ticks (the snapshot above is still updated
-                # every iteration regardless) #
+                """ conditional sampling: skip display/accumulation on suppressed ticks (the snapshot above is still
+                updated every iteration regardless) """
                 if _samp_cond:
                     _cond_met, _samp_idle = BpfMgr._evalSampCond(
                         _samp_cond, _samp_idle, _samp_nr_cores, _actual
@@ -145653,17 +145998,12 @@ class BpfMgr(object):
                             break
                         continue
 
-                # AMDAHL: classify this tick's newly-completed runqueue
-                # latency as core_bound/other by comparing the
-                # preempt/switch ratio against a fixed, empirically-
-                # anchored low threshold (see _classifyRunqTick's
-                # docstring for why a bare nonzero check, a fixed 50%
-                # ratio bar, and a same-run adaptive baseline all failed
-                # live-device verification before this), and cross-check
-                # against cgroup CPU bandwidth throttling for the
-                # filtered pid (if any). Gated by the same SAMPCOND check
-                # above as total_hist's own accumulation just below, so a
-                # suppressed tick contributes to neither #
+                """ AMDAHL: classify this tick's newly-completed runqueue latency as core_bound/other by comparing the
+                preempt/switch ratio against a fixed, empirically- anchored low threshold (see _classifyRunqTick's
+                docstring for why a bare nonzero check, a fixed 50% ratio bar, and a same-run adaptive baseline all
+                failed live-device verification before this), and cross-check against cgroup CPU bandwidth throttling
+                for the filtered pid (if any). Gated by the same SAMPCOND check above as total_hist's own accumulation
+                just below, so a suppressed tick contributes to neither """
                 if show_amdahl and nr_run_fd >= 0:
                     _tick_ns = sum(
                         _cnt * (1 << _bucket)
@@ -145716,9 +146056,8 @@ class BpfMgr(object):
                         )
                     }
 
-                # accumulate for summary (post-ELAPFILTER, so the final
-                # "Runqueue Latency Summary" only ever contains buckets
-                # that were actually shown this run) #
+                """ accumulate for summary (post-ELAPFILTER, so the final "Runqueue Latency Summary" only ever contains
+                buckets that were actually shown this run) """
                 for b, c in display_hist.items():
                     total_hist[b] = total_hist.get(b, 0) + c
 
@@ -145748,7 +146087,7 @@ class BpfMgr(object):
                         flush=True,
                     )
                 else:
-                    SysMgr.addPrint("[bpfrunqtop] %s " % _sysStatStr)
+                    SysMgr.addPrint("[bpfrunqtop] %s\n" % _sysStatStr)
                     if display_hist:
                         UtilMgr.printHist(
                             BpfMgr._makeHistTable(display_hist),
@@ -145816,10 +146155,8 @@ class BpfMgr(object):
                                     break
                             SysMgr.addPrint(_sl_one + "\n")
 
-                # AMDAHL: periodic core-bound/other classification recap,
-                # mirroring the finally-block's one-time summary line so
-                # text-mode users get feedback every tick instead of only
-                # at exit #
+                """ AMDAHL: periodic core-bound/other classification recap, mirroring the finally-block's one-time
+                summary line so text-mode users get feedback every tick instead of only at exit """
                 if show_amdahl and raw_ns_total > 0 and not SysMgr.jsonEnable:
                     SysMgr.addPrint(
                         "\n[AMDAHL] core_bound=%s(%.1f%%) other=%s(%.1f%%) "
@@ -146135,19 +146472,14 @@ class BpfMgr(object):
         Info]/... launch dump, not just the [Top Summary Info]/per-task
         Summary tables below."""
         try:
-            # -o cumulative Summary tables (bpftop-style: plain dict
-            # accumulated tick-by-tick, printed once in the finally block
-            # below) -- defined this early (before anything that could
-            # raise) so the finally block can always safely reference
-            # them, even on an early failure before the main loop starts.
-            # Single source of truth for both the per-tick accumulation
-            # loop and the 9 printed tables, so adding/renaming a
-            # tracked metric only ever needs one edit (found via review:
-            # keeping two hand-written parallel lists in sync was a real
-            # risk). (series_key, rows-dict key, display label or None,
-            # unit, paired series_key or None) -- RD_KB/WR_KB is the one
-            # exception that packs two series into a single table,
-            # mirroring printBlkInterval's "blkrd/blkwr" convention #
+            """-o cumulative Summary tables (bpftop-style: plain dict accumulated tick-by-tick, printed once in the
+            finally block below) -- defined this early (before anything that could raise) so the finally block can
+            always safely reference them, even on an early failure before the main loop starts. Single source of truth
+            for both the per-tick accumulation loop and the 9 printed tables, so adding/renaming a tracked metric only
+            ever needs one edit (found via review: keeping two hand-written parallel lists in sync was a real risk).
+            (series_key, rows-dict key, display label or None, unit, paired series_key or None) -- RD_KB/WR_KB is the
+            one exception that packs two series into a single table, mirroring printBlkInterval's "blkrd/blkwr"
+            convention"""
             _METRICS = (
                 ("nr_threads", "nr_threads", "NR_THR", "count", None),
                 ("cpu", "cpu_pct", "CPU", "%", None),
@@ -146166,43 +146498,30 @@ class BpfMgr(object):
 
             BpfMgr.checkAvailable()
 
-            # -Q: print all rows in a stream, no ---more--- paging (same
-            # flag/meaning top itself documents). Left at its False
-            # default otherwise, matching top's own convention: as long
-            # as streamEnable stays False, SysMgr.checkCutCond() (invoked
-            # by every SysMgr.addPrint() call, including _printResourceTop's
-            # per-row prints below) automatically emits "---more---" and
-            # stops once the terminal's row budget is filled #
+            """ -Q: print all rows in a stream, no ---more--- paging (same flag/meaning top itself documents). Left at
+            its False default otherwise, matching top's own convention: as long as streamEnable stays False,
+            SysMgr.checkCutCond() (invoked by every SysMgr.addPrint() call, including _printResourceTop's per-row prints
+            below) automatically emits "---more---" and stops once the terminal's row budget is filled """
             SysMgr.streamEnable = SysMgr.findOption("Q")
 
-            # match top's own -a gating for per-core CPU stats exactly:
-            # top's parseAnalOption() only runs this "-a off by default"
-            # check inside its own "if SysMgr.isTopMode():" branch, which
-            # bpfrestop never enters (it's not in SysMgr.isTopMode()'s
-            # command list -- adding it there breaks dispatch entirely,
-            # see doBpfrestopCmd's own -Q comment/history). cpuEnable
-            # defaults to True class-wide, so without this, bpfrestop's
-            # reused TaskAnalyzer.printSystemStat() header always showed
-            # every Core/N line even without -a (found via user report).
-            # top's own else-branch only clears cpuEnable, not gpuEnable
-            # (gpuEnable keeps its True default either way) -- mirrored
-            # here exactly, not "cleaned up" into disabling both #
+            """ match top's own -a gating for per-core CPU stats exactly: top's parseAnalOption() only runs this "-a off
+            by default" check inside its own "if SysMgr.isTopMode():" branch, which bpfrestop never enters (it's not in
+            SysMgr.isTopMode()'s command list -- adding it there breaks dispatch entirely, see doBpfrestopCmd's own -Q
+            comment/history). cpuEnable defaults to True class-wide, so without this, bpfrestop's reused
+            TaskAnalyzer.printSystemStat() header always showed every Core/N line even without -a (found via user
+            report). top's own else-branch only clears cpuEnable, not gpuEnable (gpuEnable keeps its True default either
+            way) -- mirrored here exactly, not "cleaned up" into disabling both """
             if not SysMgr.showAll:
                 SysMgr.cpuEnable = False
 
-            # -o: force on the same system-stat flags top's own "atop"
-            # mode does (guider.py's "elif SysMgr.checkMode('atop'):"
-            # branch -- diskEnable/irqEnable/memEnable/networkEnable,
-            # plus blockEnable/perfEnable when root), so the reused
-            # TaskAnalyzer.printSystemStat() header saved into the -o
-            # file includes Memory/VM/LMK/IRQ/Perf/Disk/Network too, not
-            # just the subset (Default/Slab/Buddy/KSM/Zone/Dmabuf/PSI/
-            # CPU) that prints even with these flags at their normal
-            # False default (per user request: "-o 적용 시 top -o output
-            # 상단처럼 system stat들을 모두 저장" -- reusing top's own
-            # atop flag combination exactly rather than inventing a new
-            # one). Scoped to -o only, matching that request, so plain
-            # interactive/live bpfrestop stays as lightweight as before #
+            """ -o: force on the same system-stat flags top's own "atop" mode does (guider.py's "elif
+            SysMgr.checkMode('atop'):" branch -- diskEnable/irqEnable/memEnable/networkEnable, plus
+            blockEnable/perfEnable when root), so the reused TaskAnalyzer.printSystemStat() header saved into the -o
+            file includes Memory/VM/LMK/IRQ/Perf/Disk/Network too, not just the subset
+            (Default/Slab/Buddy/KSM/Zone/Dmabuf/PSI/ CPU) that prints even with these flags at their normal False
+            default (per user request: "-o 적용 시 top -o output 상단처럼 system stat들을 모두 저장" -- reusing top's own atop flag
+            combination exactly rather than inventing a new one). Scoped to -o only, matching that request, so plain
+            interactive/live bpfrestop stays as lightweight as before """
             if SysMgr.outPath:
                 SysMgr.diskEnable = True
                 SysMgr.irqEnable = True
@@ -146215,12 +146534,10 @@ class BpfMgr(object):
             per_thread = "t" in (SysMgr.getOption("e") or "")
             use_cmdline = "L" in (SysMgr.getOption("e") or "")
 
-            # unified TID allowlist from TIDFILTER/PIDFILTER/PROCCOMMFILTER/
-            # -g, shared by the CPU/RQ/BLK programs below (same helper
-            # bpfrunqtop uses). VFS read/write have no tid_flt_fd param
-            # (same limitation as bpfiotop itself); those rows still get
-            # PROCCOMMFILTER/-g applied in Python by
-            # _aggregateResourceTick's tgid-level check #
+            """ unified TID allowlist from TIDFILTER/PIDFILTER/PROCCOMMFILTER/ -g, shared by the CPU/RQ/BLK programs
+            below (same helper bpfrunqtop uses). VFS read/write have no tid_flt_fd param (same limitation as bpfiotop
+            itself); those rows still get PROCCOMMFILTER/-g applied in Python by _aggregateResourceTick's tgid-level
+            check """
             tid_flt_fd = BpfMgr._initRqFilters()
 
             # CPU%: on-CPU accumulation via sched_switch #
@@ -146231,20 +146548,16 @@ class BpfMgr(object):
                 ConfigMgr.BPF_MAP_HASH_IDX, 4, 16, 65536, "re_oncpu"
             )
 
-            # per-tid comm cache, captured in-kernel straight from
-            # sched_switch's own next_comm ctx field (no extra helper call
-            # needed) -- lets short-lived threads that have already exited
-            # by the time _aggregateResourceTick() runs still resolve a
-            # real name instead of "?" (found via user report on a busy
-            # local machine where many threads live shorter than one
-            # bpfrestop tick) #
+            """ per-tid comm cache, captured in-kernel straight from sched_switch's own next_comm ctx field (no extra
+            helper call needed) -- lets short-lived threads that have already exited by the time
+            _aggregateResourceTick() runs still resolve a real name instead of "?" (found via user report on a busy
+            local machine where many threads live shorter than one bpfrestop tick) """
             comm_map_fd = BpfMgr.createMap(
                 ConfigMgr.BPF_MAP_HASH_IDX, 4, 16, 65536, "re_comm"
             )
 
-            # RQ: runqueue latency via sched_wakeup + sched_switch -- own
-            # ts_map/hist_map/perpid_fd/nr_run_fd, independent of
-            # bpfrunqtop's own maps (a second, separate attach) #
+            """ RQ: runqueue latency via sched_wakeup + sched_switch -- own ts_map/hist_map/perpid_fd/nr_run_fd,
+            independent of bpfrunqtop's own maps (a second, separate attach) """
             rq_ts_fd = BpfMgr.createMap(
                 ConfigMgr.BPF_MAP_HASH_IDX, 4, 8, 65536, "re_rq_ts"
             )
@@ -146258,10 +146571,9 @@ class BpfMgr(object):
                 ConfigMgr.BPF_MAP_ARRAY_IDX, 4, 16, 256, "re_rq_nrrun"
             )
 
-            # SLEEP: genuine voluntary/involuntary block duration, kept
-            # entirely separate from RQ_TOTAL's wakeup-to-running handoff
-            # delay (see genRunqlatWakeupProg/genRunqlatSwitchProg's own
-            # docstrings for why these need to be two different numbers) #
+            """ SLEEP: genuine voluntary/involuntary block duration, kept entirely separate from RQ_TOTAL's
+            wakeup-to-running handoff delay (see genRunqlatWakeupProg/genRunqlatSwitchProg's own docstrings for why
+            these need to be two different numbers) """
             sleep_ts_fd = BpfMgr.createMap(
                 ConfigMgr.BPF_MAP_HASH_IDX, 4, 8, 65536, "re_sleep_ts"
             )
@@ -146437,30 +146749,22 @@ class BpfMgr(object):
                 % ("thread" if per_thread else "process", interval)
             )
 
-            # doPs()'s own instantiation order precedent (guider.py:108726-
-            # 108735): SysMgr(onlyInstance=True) sets SysMgr.sysInstance,
-            # which printSystemUsage()'s -J/report-mode branch dereferences
-            # directly (SysMgr.sysInstance.uname) -- without this call it
-            # stays at the class-level None default and bpfrestop -J
-            # crashes with "'NoneType' object has no attribute 'uname'"
-            # the first time printSystemStat() reaches that branch (found
-            # via user-directed full-option device verification) #
+            """ doPs()'s own instantiation order precedent (guider.py:108726- 108735): SysMgr(onlyInstance=True) sets
+            SysMgr.sysInstance, which printSystemUsage()'s -J/report-mode branch dereferences directly
+            (SysMgr.sysInstance.uname) -- without this call it stays at the class-level None default and bpfrestop -J
+            crashes with "'NoneType' object has no attribute 'uname'" the first time printSystemStat() reaches that
+            branch (found via user-directed full-option device verification) """
             SysMgr(onlyInstance=True)
             obj = TaskAnalyzer(onlyInstance=True)
             nr_run_prev = {}
 
-            # prime cpuData/prevCpuData once before the loop starts, so
-            # the very first real tick already has a valid baseline to
-            # diff against -- top's own main loop instead skips printing
-            # the header entirely on tick 1 (its "if self.prevCpuData:"
-            # guard), but that would desync bpfrestop's header from its
-            # resource table (the table has no such gap-tick concept and
-            # would print every tick regardless), producing a visibly
-            # inconsistent first tick: rows with no header above them.
-            # Priming here keeps header+table appearing together on
-            # every tick including the first one (found via real-device
-            # inspection after the "skip tick 1's header" fix above left
-            # tick 1 looking broken in a different way) #
+            """ prime cpuData/prevCpuData once before the loop starts, so the very first real tick already has a valid
+            baseline to diff against -- top's own main loop instead skips printing the header entirely on tick 1 (its
+            "if self.prevCpuData:" guard), but that would desync bpfrestop's header from its resource table (the table
+            has no such gap-tick concept and would print every tick regardless), producing a visibly inconsistent first
+            tick: rows with no header above them. Priming here keeps header+table appearing together on every tick
+            including the first one (found via real-device inspection after the "skip tick 1's header" fix above left
+            tick 1 looking broken in a different way) """
             obj.saveSystemStat(saveProc=False)
             obj.reinitStats()
 
@@ -146471,17 +146775,13 @@ class BpfMgr(object):
                 elapsed += _actual
                 interval_ns = long(_actual * 1e9)
 
-                # system-wide header only (Time/Date/PSI/IRQ/Mem/Swap) --
-                # targetList=[] skips top's own task/cgroup table, since
-                # bpfrestop draws its own via _printResourceTop below.
-                # saveSystemStat() itself calls SysMgr.updateUptime() --
-                # don't call it again just before this, or uptimeDiff (the
-                # displayed [Inter: ...] field) gets computed against the
-                # near-zero gap between the two calls instead of the real
-                # tick interval, making every tick's header show a bogus
-                # "[Inter: 0.0]" even though the actual tick cadence (the
-                # BPF-side interval_ns used for CPU%/etc, and [Time: ...]'s
-                # own delta) is correct (found via real-device inspection) #
+                """ system-wide header only (Time/Date/PSI/IRQ/Mem/Swap) -- targetList=[] skips top's own task/cgroup
+                table, since bpfrestop draws its own via _printResourceTop below. saveSystemStat() itself calls
+                SysMgr.updateUptime() -- don't call it again just before this, or uptimeDiff (the displayed [Inter: ...]
+                field) gets computed against the near-zero gap between the two calls instead of the real tick interval,
+                making every tick's header show a bogus "[Inter: 0.0]" even though the actual tick cadence (the BPF-side
+                interval_ns used for CPU%/etc, and [Time: ...]'s own delta) is correct (found via real-device
+                inspection) """
                 obj.saveSystemStat(saveProc=False)
 
                 # merge header+table into a single flush, matching top's
@@ -146511,24 +146811,16 @@ class BpfMgr(object):
                 finally:
                     SysMgr.printTopStats = _real_printTopStats
 
-                # system-wide scheduling summary: same nr_run_map delta
-                # bpfrunqtop's AMDAHL feature uses, but shown as the raw
-                # ratio (and paired with procs_running/procs_blocked and
-                # a same-tick RQ summary from the rows below) instead of
-                # a binary "[Hint] ..." message gated by a fixed 3.5%
-                # threshold -- that threshold was calibrated on one real
-                # device's background-chatter volume and fired even
-                # under light load elsewhere (found via user report), so
-                # the raw numbers are shown instead and left for the
-                # user to judge, matching this tick's own task rows just
-                # below it. Computed and printed BEFORE the resource
-                # table (not after): the table can run to 100+ rows on a
-                # real device, tripping SysMgr.addPrint's terminal-row-
-                # cut guard (checkCutCond) in plain-text mode -- once
-                # that guard trips, every later addPrint call that tick
-                # is silently dropped, so this summary must be emitted
-                # while the tick's print budget is still fresh (found
-                # via real-device verification) #
+                """ system-wide scheduling summary: same nr_run_map delta bpfrunqtop's AMDAHL feature uses, but shown as
+                the raw ratio (and paired with procs_running/procs_blocked and a same-tick RQ summary from the rows
+                below) instead of a binary "[Hint] ..." message gated by a fixed 3.5% threshold -- that threshold was
+                calibrated on one real device's background-chatter volume and fired even under light load elsewhere
+                (found via user report), so the raw numbers are shown instead and left for the user to judge, matching
+                this tick's own task rows just below it. Computed and printed BEFORE the resource table (not after): the
+                table can run to 100+ rows on a real device, tripping SysMgr.addPrint's terminal-row- cut guard
+                (checkCutCond) in plain-text mode -- once that guard trips, every later addPrint call that tick is
+                silently dropped, so this summary must be emitted while the tick's print budget is still fresh (found
+                via real-device verification) """
                 _preempt_delta_tick = 0
                 _switch_delta_tick = 0
                 for _cpu_id in BpfMgr._getOnlineCpus():
@@ -146560,15 +146852,11 @@ class BpfMgr(object):
                     sleep_perpid_fd=sleep_perpid_fd,
                 )
 
-                # accumulate this tick's per-task values into the -o
-                # cumulative Summary tables (finally block below) --
-                # purely local dict/list bookkeeping, no TaskAnalyzer
-                # involvement. New tasks get their earlier ticks
-                # backfilled with 0 (top's own convention for a task
-                # that didn't exist yet); tasks absent this tick get 0
-                # appended below once every row has been visited, so
-                # every series stays exactly `_tick_idx` long and the
-                # Nth column always means the same tick in every table #
+                """ accumulate this tick's per-task values into the -o cumulative Summary tables (finally block below)
+                -- purely local dict/list bookkeeping, no TaskAnalyzer involvement. New tasks get their earlier ticks
+                backfilled with 0 (top's own convention for a task that didn't exist yet); tasks absent this tick get 0
+                appended below once every row has been visited, so every series stays exactly `_tick_idx` long and the
+                Nth column always means the same tick in every table """
                 _tick_idx += 1
                 for _r in rows:
                     _pid_key = _r["tid"] if per_thread else _r["tgid"]
@@ -146596,14 +146884,10 @@ class BpfMgr(object):
                         while len(_entry[_key]) < _tick_idx:
                             _entry[_key].append(0)
 
-                # procs_running/procs_blocked: already parsed from
-                # /proc/stat by printSystemUsage() (called above via
-                # printSystemStat) into obj.cpuData -- previously only
-                # ever reached SysMgr.reportData for -J/report mode,
-                # never bpfrestop's own plain-text display, even though
-                # "how many tasks want a CPU right now" is a standard,
-                # zero-extra-cost Linux contention signal (found while
-                # researching this section's design) #
+                """ procs_running/procs_blocked: already parsed from /proc/stat by printSystemUsage() (called above via
+                printSystemStat) into obj.cpuData -- previously only ever reached SysMgr.reportData for -J/report mode,
+                never bpfrestop's own plain-text display, even though "how many tasks want a CPU right now" is a
+                standard, zero-extra-cost Linux contention signal (found while researching this section's design) """
                 try:
                     _runnable = obj.cpuData["procs_running"]["procs_running"]
                 except Exception:
@@ -146626,14 +146910,11 @@ class BpfMgr(object):
 
                 BpfMgr._flushBuf()
 
-                # rotate cpuData -> prevCpuData (top's own main loop does
-                # this every tick too, see checkTopMode's reinitStats()
-                # call) -- without it, self.cpuData["all"] only gets
-                # populated once (saveSystemStat never overwrites an
-                # already-set entry) and prevCpuData stays permanently
-                # empty, so every later tick's printSystemUsage() hits its
-                # "failed to get system CPU stat" fallback (found via
-                # real-device verification) #
+                """ rotate cpuData -> prevCpuData (top's own main loop does this every tick too, see checkTopMode's
+                reinitStats() call) -- without it, self.cpuData["all"] only gets populated once (saveSystemStat never
+                overwrites an already-set entry) and prevCpuData stays permanently empty, so every later tick's
+                printSystemUsage() hits its "failed to get system CPU stat" fallback (found via real-device
+                verification) """
                 obj.reinitStats()
 
                 if BpfMgr._checkLoopExit(total_time, elapsed):
@@ -146645,77 +146926,51 @@ class BpfMgr(object):
         except:
             SysMgr.printErr("bpfrestop failed", reason=True)
         finally:
-            # -o support: every tick's output only ever accumulated into
-            # SysMgr.procBuffer (see _flushBuf's SysMgr.outPath branch,
-            # which calls addProcBuffer() instead of doPrint()) -- nothing
-            # actually reaches the output file until SysMgr.printProcBuffer()
-            # runs. Every other doXxxCmd() in this file calls it here, in
-            # its own finally block, for exactly this reason; bpfrestop had
-            # been missing it, so "-o <file>" silently produced an empty/
-            # nonexistent file while the run itself looked completely
-            # normal on stdout (found via user-directed full-option device
-            # verification) #
-            # jsonEnable excluded: these are plain-text tables and would
-            # corrupt a -J JSON/JSONEACH output file if appended to it
-            # (found via real-device verification: -J -q JSONEACH -o
-            # produced a JSONL file with these text tables tacked onto
-            # the end, breaking the one-JSON-object-per-line contract) #
+            """-o support: every tick's output only ever accumulated into SysMgr.procBuffer (see _flushBuf's
+            SysMgr.outPath branch, which calls addProcBuffer() instead of doPrint()) -- nothing actually reaches the
+            output file until SysMgr.printProcBuffer() runs. Every other doXxxCmd() in this file calls it here, in its
+            own finally block, for exactly this reason; bpfrestop had been missing it, so "-o <file>" silently produced
+            an empty/ nonexistent file while the run itself looked completely normal on stdout (found via user-directed
+            full-option device verification) # jsonEnable excluded: these are plain-text tables and would corrupt a -J
+            JSON/JSONEACH output file if appended to it (found via real-device verification: -J -q JSONEACH -o produced
+            a JSONL file with these text tables tacked onto the end, breaking the one-JSON-object-per-line contract)
+            """
             if (
                 SysMgr.outPath
                 and not SysMgr.jsonEnable
                 and "NOSUMMARY" not in SysMgr.environList
             ):
-                # top's own ASCII banner + one-time launch dump
-                # ([System General Info], [System OS Info], ... ~25
-                # sections), in that exact order -- genuine reuse of
-                # SysMgr.printLogo()/SysMgr.saveSysStats(), not a
-                # reimplementation. This is EXACTLY what real top's own
-                # SysMgr.stopHandler() does at end-of-run, under this
-                # exact same condition (guider.py's stopHandler, the
-                # "elif SysMgr.outPath and 'NOSUMMARY' not in
-                # SysMgr.environList:" branch: "SysMgr.printLogo(
-                # absolute=True, big=True)" then "SysMgr.saveSysStats(
-                # True)") -- NOT unconditional, and NOT called at the
-                # start of the run (an earlier version of this code did
-                # both of those wrong: calling it unconditionally
-                # double-printed the banner when -o wasn't set, since
-                # SysMgr.initEnvironment()'s own separate early flash
-                # already shows it live once; found via user report).
-                # bpfrestop has no equivalent shutdown hook of its own
-                # (its loop/cleanup never reaches stopHandler()), so
-                # this reuses the exact same two calls, in the exact
-                # same place in its own control flow (a finally: block
-                # gated on this exact condition) that stopHandler uses
-                # them in #
+                """top's own ASCII banner + one-time launch dump ([System General Info], [System OS Info], ... ~25
+                sections), in that exact order -- genuine reuse of SysMgr.printLogo()/SysMgr.saveSysStats(), not a
+                reimplementation. This is EXACTLY what real top's own SysMgr.stopHandler() does at end-of-run, under
+                this exact same condition (guider.py's stopHandler, the "elif SysMgr.outPath and 'NOSUMMARY' not in
+                SysMgr.environList:" branch: "SysMgr.printLogo( absolute=True, big=True)" then "SysMgr.saveSysStats(
+                True)") -- NOT unconditional, and NOT called at the start of the run (an earlier version of this code
+                did both of those wrong: calling it unconditionally double-printed the banner when -o wasn't set, since
+                SysMgr.initEnvironment()'s own separate early flash already shows it live once; found via user report).
+                bpfrestop has no equivalent shutdown hook of its own (its loop/cleanup never reaches stopHandler()), so
+                this reuses the exact same two calls, in the exact same place in its own control flow (a finally: block
+                gated on this exact condition) that stopHandler uses them in"""
                 SysMgr.printLogo(absolute=True, big=True)
                 SysMgr.saveSysStats(True)
 
-                # Part A-0: system-wide [Top Summary Info] overview --
-                # genuine reuse of top's own, completely unmodified
-                # functions, not a reimplementation. bpfrestop already
-                # writes byte-identical system-header/Total lines to
-                # SysMgr.procBuffer every tick (via obj.printSystemStat()
-                # above, the exact function classic top calls for its
-                # own header), so summarizeInterval()'s text re-parsing
-                # picks them up correctly. ONLYTOTAL (an existing option,
-                # already used elsewhere for report-merge summaries) is
-                # set defensively so parseProcLine() never even attempts
-                # to match bpfrestop's own differently-shaped per-task/
-                # Scheduling-Summary lines against classic top's per-task
-                # regex -- today's exact column layout happens not to
-                # collide with any of parseProcLine's other branches, but
-                # this makes that non-collision a guarantee rather than a
-                # coincidence. Must run before SysMgr.clearProcBuffer()
-                # below wipes the buffer this reads #
+                """ Part A-0: system-wide [Top Summary Info] overview -- genuine reuse of top's own, completely
+                unmodified functions, not a reimplementation. bpfrestop already writes byte-identical
+                system-header/Total lines to SysMgr.procBuffer every tick (via obj.printSystemStat() above, the exact
+                function classic top calls for its own header), so summarizeInterval()'s text re-parsing picks them up
+                correctly. ONLYTOTAL (an existing option, already used elsewhere for report-merge summaries) is set
+                defensively so parseProcLine() never even attempts to match bpfrestop's own differently-shaped per-task/
+                Scheduling-Summary lines against classic top's per-task regex -- today's exact column layout happens not
+                to collide with any of parseProcLine's other branches, but this makes that non-collision a guarantee
+                rather than a coincidence. Must run before SysMgr.clearProcBuffer() below wipes the buffer this reads
+                """
                 SysMgr.environList["ONLYTOTAL"] = True
                 TaskAnalyzer.summarizeInterval()
                 TaskAnalyzer.printTimeline()
 
-                # Part A: bpfrestop's own per-task "task x interval"
-                # Summary tables, one per tracked metric -- completely
-                # independent of TaskAnalyzer/procIntData/procTotData,
-                # built from _summary_series (accumulated above, in the
-                # main loop) #
+                """ Part A: bpfrestop's own per-task "task x interval" Summary tables, one per tracked metric --
+                completely independent of TaskAnalyzer/procIntData/procTotData, built from _summary_series (accumulated
+                above, in the main loop) """
                 if _summary_series:
                     for _key, _src, _lbl, _unit, _pair in _METRICS:
                         if _lbl is None:
@@ -147469,9 +147724,8 @@ class BpfMgr(object):
                 else 127
             )
 
-            # ts_map:   HASH key=u64(pid_tgid), val=16B [u64 ktime][u32 kstack_id][u32 ustack_id] #
-            # (24B when show_uaddr: val gains a trailing u64 uaddr - see #
-            # genPidTsEntryProg's uaddr_arg_off) #
+            """ ts_map: HASH key=u64(pid_tgid), val=16B [u64 ktime][u32 kstack_id][u32 ustack_id] # (24B when
+            show_uaddr: val gains a trailing u64 uaddr - see # genPidTsEntryProg's uaddr_arg_off) """
             ts_map_fd = BpfMgr.createMap(
                 ConfigMgr.BPF_MAP_HASH_IDX,
                 8,
@@ -147882,11 +148136,10 @@ class BpfMgr(object):
             oneLine = "-" * SysMgr.lineLength
             maxlen = SysMgr.lineLength
             comm_mode = BpfMgr._getCommMode()
-            # -g <PID|COMM> and PROCCOMMFILTER are Python-level, process-scoped
-            # filters (see _bpf_g_opt help text: "filter by process name or
-            # PID"); ml_alloc's val already carries the allocating task's
-            # pid_tgid, so filtering here mirrors the same pattern every
-            # sibling bpf*top command uses (e.g. _aggregateLatencySamples) #
+            """ -g <PID|COMM> and PROCCOMMFILTER are Python-level, process-scoped filters (see _bpf_g_opt help text:
+            "filter by process name or PID"); ml_alloc's val already carries the allocating task's pid_tgid, so
+            filtering here mirrors the same pattern every sibling bpf*top command uses (e.g. _aggregateLatencySamples)
+            """
             _proccomm_pats = BpfMgr._collectPats("PROCCOMMFILTER")
 
             def _print_alloc_top(
@@ -148233,9 +148486,8 @@ class BpfMgr(object):
                 ts_map_fd, kstack_map_fd, ustack_map_fd
             )
             if _filter:
-                # genPidTsEntryProg's first insn is "R6 = R1 (ctx)".
-                # genFilterPrologue clobbers R1, so save ctx to R6 first,
-                # then skip the now-redundant first insn of entry_body.
+                """genPidTsEntryProg's first insn is "R6 = R1 (ctx)". genFilterPrologue clobbers R1, so save ctx to R6
+                first, then skip the now-redundant first insn of entry_body."""
                 _save_ctx = BpfMgr.buildInsn(0xBF, 6, 1, 0, 0)  # R6 = ctx
                 entry_insns = _save_ctx + _filter + _entry_body[8:]
             else:
@@ -150357,7 +150609,7 @@ class BpfMgr(object):
                         )
                     )
                 else:
-                    SysMgr.addPrint("[bpftcplat] %s " % _sysStatStr)
+                    SysMgr.addPrint("[bpftcplat] %s\n" % _sysStatStr)
                     if hist:
                         UtilMgr.printHist(
                             BpfMgr._makeHistTable(hist),
@@ -150475,15 +150727,13 @@ class BpfMgr(object):
                 _time_time = time.time
                 _get_ts = BpfMgr.makeGetTs()
 
-                # PROCCOMMFILTER pattern for Python-level filtering; supports
-                # "!"-prefixed negation via the shared BpfMgr._patOk(), same
-                # convention as doBpftcplifeCmd's drain_tl over the same
-                # sock/inet_sock_set_state tracepoint #
+                """ PROCCOMMFILTER pattern for Python-level filtering; supports "!"-prefixed negation via the shared
+                BpfMgr._patOk(), same convention as doBpftcplifeCmd's drain_tl over the same sock/inet_sock_set_state
+                tracepoint """
                 _proccomm_pats = BpfMgr._collectPats("PROCCOMMFILTER")
 
-                # Process comm cache: tgid → (last_ts, proc_comm string).
-                # TTL-cached (2s) to survive PID reuse across a long -R
-                # duration, mirroring doBpftcplifeCmd's _get_proc_comm #
+                """ Process comm cache: tgid → (last_ts, proc_comm string). TTL-cached (2s) to survive PID reuse across
+                a long -R duration, mirroring doBpftcplifeCmd's _get_proc_comm """
                 _proc_comm_cache = {}  # {tgid: (last_ts, name)}
                 _PROCCOMM_TTL_S = 2.0
                 _proccomm_last_sweep_ts = [0.0]
@@ -150524,9 +150774,9 @@ class BpfMgr(object):
                         if rec_type != PERF_RECORD_SAMPLE or raw_size < 48:
                             continue
                         try:
-                            # Payload:
-                            # [pid_tgid(8)][saddr(4)][daddr(4)]
-                            # [sport(4)][dport(4)][oldstate(4)][newstate(4)][comm(16)]
+                            """Payload: [pid_tgid(8)][saddr(4)][daddr(4)]
+                            [sport(4)][dport(4)][oldstate(4)][newstate(4)][comm(16)]
+                            """
                             pid_tgid = struct.unpack_from("<Q", raw, 0)[0]
                             tid = pid_tgid & 0xFFFFFFFF
                             tgid = pid_tgid >> 32
@@ -151995,9 +152245,8 @@ class BpfMgr(object):
                 server_iface_map_fd=_server_iface_map_fd,
             )
             if _filter:
-                # genBinderSnoopProg's first insn is "R6 = R1 (ctx)".
-                # genFilterPrologue clobbers R1, so save ctx to R6 first,
-                # then skip the now-redundant first insn of snoop_body.
+                """genBinderSnoopProg's first insn is "R6 = R1 (ctx)". genFilterPrologue clobbers R1, so save ctx to R6
+                first, then skip the now-redundant first insn of snoop_body."""
                 _save_ctx = BpfMgr.buildInsn(0xBF, 6, 1, 0, 0)  # R6 = ctx
                 snoop_insns = _save_ctx + _filter + _snoop_body[8:]
             else:
@@ -152356,17 +152605,13 @@ class BpfMgr(object):
             elapsed = 0
 
             _dbgObj = BpfMgr._initDbgObj()
-            # Per-pid comm name / max-thread-limit lookups are relatively
-            # expensive (comm: cmdline/comm file reads; max_limit: binder
-            # proc state file parse) and are re-resolved at most once per
-            # TTL rather than every tick. TTL-cached (not cached forever)
-            # because this command can run for a long -R duration that
-            # spans PID reuse -- an unbounded cache would keep showing
-            # (and, for comm, PROCCOMMFILTER-gating by) a dead process's
-            # stale identity forever for whichever new process the kernel
-            # later recycles that PID to. Mirrors doBpfsnoopCmd's
-            # _get_proc_comm / doBpftcplifeCmd's _get_proc_comm TTL
-            # pattern (2s TTL, swept every 30s, evicted after 60s idle) #
+            """ Per-pid comm name / max-thread-limit lookups are relatively expensive (comm: cmdline/comm file reads;
+            max_limit: binder proc state file parse) and are re-resolved at most once per TTL rather than every tick.
+            TTL-cached (not cached forever) because this command can run for a long -R duration that spans PID reuse --
+            an unbounded cache would keep showing (and, for comm, PROCCOMMFILTER-gating by) a dead process's stale
+            identity forever for whichever new process the kernel later recycles that PID to. Mirrors doBpfsnoopCmd's
+            _get_proc_comm / doBpftcplifeCmd's _get_proc_comm TTL pattern (2s TTL, swept every 30s, evicted after 60s
+            idle) """
             _max_threads_cache = {}  # {pid: (last_ts, int)}
             _name_cache = {}  # {pid: (last_ts, str)}
             _PIDCACHE_TTL_S = 2.0
@@ -153281,13 +153526,10 @@ class BpfMgr(object):
             pid = pid_tgid & 0xFFFFFFFF
             tgid = (pid_tgid >> 32) & 0xFFFFFFFF
 
-            # filter by -g <pid|comm>: numeric matches the owning process
-            # (TGID), comm string matches the sampling THREAD's own comm -
-            # consistent with the non-ADDLOCKADDR path's -g semantics in
-            # _aggregateLatencySamples() (pid_extractor() -> TID, per
-            # BpfMgr._pidTgidExtractors()'s docstring on why a tgid
-            # fallback would let a multi-threaded target's worker threads
-            # leak through a negated filter) #
+            """ filter by -g <pid|comm>: numeric matches the owning process (TGID), comm string matches the sampling
+            THREAD's own comm - consistent with the non-ADDLOCKADDR path's -g semantics in _aggregateLatencySamples()
+            (pid_extractor() -> TID, per BpfMgr._pidTgidExtractors()'s docstring on why a tgid fallback would let a
+            multi-threaded target's worker threads leak through a negated filter) """
             if SysMgr.filterGroup:
                 if pid not in comm_cache:
                     comm_cache[pid] = SysMgr.getComm(pid, default="")
@@ -153749,21 +153991,15 @@ class BpfMgr(object):
                     tgid_extractor(k) if tgid_extractor is not None else pid
                 )
                 if SysMgr.filterGroup:
-                    # -g matches the sampled pid's OWN comm (thread-level,
-                    # same convention as everywhere else -g is used -- see
-                    # the PROCCOMMFILTER comment above). Resolve it via a
-                    # live /proc/<pid>/comm lookup instead of trusting the
-                    # map value's captured comm[16]: for most bpf* stack
-                    # samplers the BPF prog calls bpf_get_current_comm() in
-                    # the very same invocation that resolves pid_tgid, so
-                    # the two already agree, but some producers resolve
-                    # pid_tgid to a *different* task than whatever context
-                    # is actually executing at the capture site -- e.g.
-                    # bpfdroptop's kfree_skb tracepoint attributes drops to
-                    # the socket owner via sock_pid_map, while
-                    # bpf_get_current_comm() there captures the *freeing*
-                    # context (often "ksoftirqd/N"), which silently broke
-                    # "-g <owner_comm>" matching against the wrong comm #
+                    """-g matches the sampled pid's OWN comm (thread-level, same convention as everywhere else -g is
+                    used -- see the PROCCOMMFILTER comment above). Resolve it via a live /proc/<pid>/comm lookup instead
+                    of trusting the map value's captured comm[16]: for most bpf* stack samplers the BPF prog calls
+                    bpf_get_current_comm() in the very same invocation that resolves pid_tgid, so the two already agree,
+                    but some producers resolve pid_tgid to a *different* task than whatever context is actually
+                    executing at the capture site -- e.g. bpfdroptop's kfree_skb tracepoint attributes drops to the
+                    socket owner via sock_pid_map, while bpf_get_current_comm() there captures the *freeing* context
+                    (often "ksoftirqd/N"), which silently broke "-g <owner_comm>" matching against the wrong comm
+                    """
                     if pid not in _pid_comm_cache:
                         _pid_comm_cache[pid] = SysMgr.getComm(pid, default="")
                     if not BpfMgr._matchesFilter(
@@ -153877,10 +154113,9 @@ class BpfMgr(object):
                 "major-fault",
             )
 
-            # major faults always interrupt userspace (ctx->regs is user-mode
-            # at fault time), so bpf_get_stackid() without BPF_F_USER_STACK
-            # always fails for the kernel stack; force user-stack collection
-            # so FAULTSTACK samples aren't discarded as empty chains
+            """ major faults always interrupt userspace (ctx->regs is user-mode at fault time), so bpf_get_stackid()
+            without BPF_F_USER_STACK always fails for the kernel stack; force user-stack collection so FAULTSTACK
+            samples aren't discarded as empty chains """
             show_ustack = "ADDUSERSTACK" in SysMgr.environList or _faultstack
             max_depth = (
                 max(int(SysMgr.depthLevel or 0), 1)
@@ -153912,9 +154147,9 @@ class BpfMgr(object):
                 sys.exit(-1)
 
             if _faultstack:
-                # PERF_TYPE_SOFTWARE=1, PERF_COUNT_SW_PAGE_FAULTS_MAJ=6, period=1:
-                # major faults are disk-bound and fire far less often than the
-                # SW_CPU_CLOCK default, so per-event sampling stays low-overhead.
+                """PERF_TYPE_SOFTWARE=1, PERF_COUNT_SW_PAGE_FAULTS_MAJ=6, period=1: major faults are disk-bound and
+                fire far less often than the SW_CPU_CLOCK default, so per-event sampling stays low-overhead.
+                """
                 BpfMgr.attachSamplerEvent(prog_fd, 1, 6, 1)
             else:
                 BpfMgr.attachSampler(prog_fd, freq)
@@ -155229,9 +155464,8 @@ class BpfMgr(object):
             fname_bytes = func_name.encode() + b"\x00"
             pos = type_start
             type_id = 0
-            # struct btf_type is 12 bytes: name_off(4) + info(4) +
-            # size/type union(4) -- the union member is unused here but
-            # must still be skipped, or every type after the first desyncs #
+            """ struct btf_type is 12 bytes: name_off(4) + info(4) + size/type union(4) -- the union member is unused
+            here but must still be skipped, or every type after the first desyncs """
             while pos + 12 <= type_start + type_len:
                 name_off, info = struct.unpack_from("<II", data, pos)
                 kind = (info >> 24) & 0x1F
@@ -155671,10 +155905,9 @@ class BpfMgr(object):
 
             # Attach kprobes (try newer folio_* variants first) #
             BpfMgr.attachKprobe(hit_fd, "mark_page_accessed", retprobe=False)
-            # MISS: pick the best available symbol in priority order.
-            # On Android 6.1 kernels, add_to_page_cache_lru exists in kallsyms
-            # but is not kprobeable (attaches silently, fires 0 times).
-            # __filemap_add_folio is the actual internal implementation to probe. #
+            """ MISS: pick the best available symbol in priority order. On Android 6.1 kernels, add_to_page_cache_lru
+            exists in kallsyms but is not kprobeable (attaches silently, fires 0 times). __filemap_add_folio is the
+            actual internal implementation to probe. """
             for _miss_sym in (
                 "folio_add_to_page_cache",  # mainline 5.15+
                 "__filemap_add_folio",  # Android 6.1 (GKI) internal impl
@@ -156219,19 +156452,14 @@ class BpfMgr(object):
                     (n >> 24) & 0xFF,
                 )
 
-            # Process comm cache: tgid → (last_ts, proc_comm string).
-            # TTL-cached (2s), matching the established PROCCOMMFILTER
-            # pattern used elsewhere (see doBpfsnoopCmd's _get_proc_comm):
-            # a process's own name essentially never changes, but this
-            # command streams events for the whole -R duration, which can
-            # span PID reuse (a short-lived process exits and the kernel
-            # recycles its tgid for an unrelated process). An unbounded
-            # cache would keep resolving/filtering every later event for
-            # the reused tgid against the OLD process's name forever --
-            # both misattributing the displayed pcomm and, when
-            # PROCCOMMFILTER is active, silently admitting/excluding the
-            # wrong process. commCache=False keeps this independent of
-            # SysMgr.getComm()'s own separately-invalidated global cache #
+            """ Process comm cache: tgid → (last_ts, proc_comm string). TTL-cached (2s), matching the established
+            PROCCOMMFILTER pattern used elsewhere (see doBpfsnoopCmd's _get_proc_comm): a process's own name essentially
+            never changes, but this command streams events for the whole -R duration, which can span PID reuse (a
+            short-lived process exits and the kernel recycles its tgid for an unrelated process). An unbounded cache
+            would keep resolving/filtering every later event for the reused tgid against the OLD process's name forever
+            -- both misattributing the displayed pcomm and, when PROCCOMMFILTER is active, silently admitting/excluding
+            the wrong process. commCache=False keeps this independent of SysMgr.getComm()'s own separately-invalidated
+            global cache """
             _proc_comm_cache = {}  # {tgid: (last_ts, name)}
             _PROCCOMM_TTL_S = 2.0
             _proccomm_last_sweep_ts = [0.0]
@@ -157250,9 +157478,8 @@ class BpfMgr(object):
             if not SysMgr.outPath:
                 SysMgr.setStream()
 
-            # matches the target PROCESS's own name (tgid-level /proc/<tgid>/comm),
-            # not the calling thread's comm -- use -g/THREADCOMMFILTER for that.
-            # Supports "!"-prefixed negation via the shared BpfMgr._patOk() #
+            """ matches the target PROCESS's own name (tgid-level /proc/<tgid>/comm), not the calling thread's comm --
+            use -g/THREADCOMMFILTER for that. Supports "!"-prefixed negation via the shared BpfMgr._patOk() """
             _proccomm_pats = BpfMgr._collectPats("PROCCOMMFILTER")
             _proc_comm_cache = (
                 {}
@@ -157417,9 +157644,8 @@ class BpfMgr(object):
                 if maybe_file and maybe_sym and os.path.exists(maybe_file):
                     file_sym_mode = True
                     n_found = 0
-                    # Resolve symlinks so the filter matches the realpath recorded in
-                    # /proc/<pid>/maps (e.g. /system/lib64/libc.so →
-                    # /apex/com.android.runtime/lib64/bionic/libc.so on Android)
+                    """ Resolve symlinks so the filter matches the realpath recorded in /proc/<pid>/maps (e.g.
+                    /system/lib64/libc.so → /apex/com.android.runtime/lib64/bionic/libc.so on Android) """
                     real_file = os.path.realpath(maybe_file)
                     file_filter_list = (
                         [real_file, maybe_file]
@@ -157602,13 +157828,11 @@ class BpfMgr(object):
 
             _type_str = {v: k for k, v in _type_map.items()}.get(bp_type, "X")
 
-            # -H controls kernel stack display; ADDUSERSTACK controls user stack.
-            # Without -H, kernel stacks for user-VA breakpoints are the kernel
-            # exception handler path (not meaningful) — skip them.
-            # NOTE: SysMgr.depthLevel defaults to 0 (an int, never None -- see
-            # its class-attribute declaration), so a bare "is not None" check
-            # is always True regardless of whether -H was ever given. Match
-            # the sibling doBpfwatchCmd's bool(SysMgr.depthLevel) convention.
+            """ -H controls kernel stack display; ADDUSERSTACK controls user stack. Without -H, kernel stacks for
+            user-VA breakpoints are the kernel exception handler path (not meaningful) — skip them. NOTE:
+            SysMgr.depthLevel defaults to 0 (an int, never None -- see its class-attribute declaration), so a bare "is
+            not None" check is always True regardless of whether -H was ever given. Match the sibling doBpfwatchCmd's
+            bool(SysMgr.depthLevel) convention. """
             show_kstack = bool(SysMgr.depthLevel)
             show_ustack = "ADDUSERSTACK" in SysMgr.environList
             drawflame = "DRAWFLAME" in SysMgr.environList
@@ -158203,24 +158427,17 @@ class BpfMgr(object):
 
             PERF_RECORD_SAMPLE = 9
 
-            # -g selects the attach-time target above, but a single watch
-            # target can still fan out to MULTIPLE real pids: file:symbol
-            # form attaches separately to every process that maps the file
-            # (BpfMgr._parseWatchInputs ignores target_pid there), and
-            # kernel-VA mode attaches system-wide (pid=-1, one fd per CPU).
-            # In both cases events from processes other than the -g target
-            # would otherwise reach the live stream and _summary_stack
-            # accumulator unfiltered -- re-check -g here post-event via the
-            # shared BpfMgr._matchesFilter() helper, same AND-ed convention
-            # as BpfMgr._aggregateStackSamples() (bpfwatchtop's sibling
-            # aggregator, which already applies this check) -- PROCCOMMFILTER
-            # (with "!" negation via the shared BpfMgr._patOk()) is the
-            # second, independent check. Matches the target PROCESS's own
-            # comm (like every other PROCCOMMFILTER site), not the raw
-            # payload 'comm' (thread-level, bpf_get_current_comm() at hit
-            # time) -- a worker thread of a multi-threaded target would
-            # otherwise leak through a negated filter, same bug already
-            # fixed for bpfsyscallsnoop/bpflsmopen #
+            """ -g selects the attach-time target above, but a single watch target can still fan out to MULTIPLE real
+            pids: file:symbol form attaches separately to every process that maps the file (BpfMgr._parseWatchInputs
+            ignores target_pid there), and kernel-VA mode attaches system-wide (pid=-1, one fd per CPU). In both cases
+            events from processes other than the -g target would otherwise reach the live stream and _summary_stack
+            accumulator unfiltered -- re-check -g here post-event via the shared BpfMgr._matchesFilter() helper, same
+            AND-ed convention as BpfMgr._aggregateStackSamples() (bpfwatchtop's sibling aggregator, which already
+            applies this check) -- PROCCOMMFILTER (with "!" negation via the shared BpfMgr._patOk()) is the second,
+            independent check. Matches the target PROCESS's own comm (like every other PROCCOMMFILTER site), not the raw
+            payload 'comm' (thread-level, bpf_get_current_comm() at hit time) -- a worker thread of a multi-threaded
+            target would otherwise leak through a negated filter, same bug already fixed for bpfsyscallsnoop/bpflsmopen
+            """
             _proccomm_pats = BpfMgr._collectPats("PROCCOMMFILTER")
             _proc_comm_cache = {}
 
@@ -159805,9 +160022,8 @@ class BpfMgr(object):
                         break
                     continue
 
-                # Fold into the cross-tick Summary only for ticks that pass
-                # the SAMPCOND gate -- a suppressed tick must not
-                # contribute to the exit-time Summary either #
+                """ Fold into the cross-tick Summary only for ticks that pass the SAMPCOND gate -- a suppressed tick
+                must not contribute to the exit-time Summary either """
                 for b, c in hist.items():
                     total_hist[b] = total_hist.get(b, 0) + c
 
@@ -159847,7 +160063,7 @@ class BpfMgr(object):
                     )
                 else:
                     SysMgr.addPrint(
-                        "[bpfnetlat] %s | iface=%s " % (_sysStatStr, iface)
+                        "[bpfnetlat] %s | iface=%s\n" % (_sysStatStr, iface)
                     )
                     if hist:
                         UtilMgr.printHist(
@@ -161310,19 +161526,14 @@ class BpfMgr(object):
                     _tf_file_pat = (
                         SysMgr.environList.get("FILEFILTER", [None]) or [None]
                     )[0]
-                    # supports "!"-prefixed negation via BpfMgr._patOk();
-                    # matches the target PROCESS's own comm (not the
-                    # record's raw thread-level comm, which is what
-                    # -g/_matchesFilter above uses) #
+                    """ supports "!"-prefixed negation via BpfMgr._patOk(); matches the target PROCESS's own comm (not
+                    the record's raw thread-level comm, which is what -g/_matchesFilter above uses) """
                     _tf_proccomm_pats = BpfMgr._collectPats("PROCCOMMFILTER")
                     _tf_proc_comm_cache = {}
-                    # same filter set the standard/stacked sinks apply to this
-                    # same agg_map: -t/-T syscall selection, ELAPFILTER (avg
-                    # elapsed of this (tid,nr) entry), ERRONLY/ONLYOK (by
-                    # err_count) -- TOPFILE previously only replicated
-                    # _matchesFilter/PROCCOMMFILTER and silently ignored the
-                    # rest, so e.g. "-t open -q TOPFILE" still counted
-                    # read/write activity the main sink would have excluded #
+                    """ same filter set the standard/stacked sinks apply to this same agg_map: -t/-T syscall selection,
+                    ELAPFILTER (avg elapsed of this (tid,nr) entry), ERRONLY/ONLYOK (by err_count) -- TOPFILE previously
+                    only replicated _matchesFilter/PROCCOMMFILTER and silently ignored the rest, so e.g. "-t open -q
+                    TOPFILE" still counted read/write activity the main sink would have excluded """
                     _tf_elap_min_ns, _tf_elap_max_ns, _tf_elap_eq_ns = (
                         UtilMgr.parseElapFilter()
                     )
@@ -162182,9 +162393,8 @@ class BpfMgr(object):
             if not SysMgr.outPath:
                 SysMgr.setStream()
 
-            # matches the target PROCESS's own name (tgid-level /proc/<tgid>/comm),
-            # not the calling thread's comm -- use -g/THREADCOMMFILTER for that.
-            # Supports "!"-prefixed negation via the shared BpfMgr._patOk() #
+            """ matches the target PROCESS's own name (tgid-level /proc/<tgid>/comm), not the calling thread's comm --
+            use -g/THREADCOMMFILTER for that. Supports "!"-prefixed negation via the shared BpfMgr._patOk() """
             _proccomm_pats = BpfMgr._collectPats("PROCCOMMFILTER")
 
             _ustack_cache = {}  # {(ustack_id, tid): [frame, ...]}
@@ -162523,17 +162733,12 @@ class BpfMgr(object):
                             else comm
                         )
 
-                        # RATE should count every event that PASSES the
-                        # erronly/onlyok content filters, independent of
-                        # whether it's actually printed (MUTE) or which
-                        # output format is used (json vs text) -- computed
-                        # once here and reused by both branches below so
-                        # "-q MUTE,RATE" (previously always 0 evt/s, since
-                        # the increment used to live only inside the
-                        # non-json "not mute_events" branch) and JSON mode
-                        # (previously never counted at all) both work. Also
-                        # gates the Call Stack Summary below so ERRONLY/
-                        # ONLYOK-excluded events can't leak into it #
+                        """ RATE should count every event that PASSES the erronly/onlyok content filters, independent of
+                        whether it's actually printed (MUTE) or which output format is used (json vs text) -- computed
+                        once here and reused by both branches below so "-q MUTE,RATE" (previously always 0 evt/s, since
+                        the increment used to live only inside the non-json "not mute_events" branch) and JSON mode
+                        (previously never counted at all) both work. Also gates the Call Stack Summary below so ERRONLY/
+                        ONLYOK-excluded events can't leak into it """
                         _passes_snoop_filters = (
                             not erronly or (not is_entry and ret_val < 0)
                         ) and (not onlyok or (not is_entry and ret_val >= 0))
@@ -162850,16 +163055,14 @@ class BpfMgr(object):
                     continue
                 ts_ns = 0
                 if hdr_sz == 24:
-                    # guider's own compact writer (_canBlfWriteFrame): base
-                    # (16B) is immediately followed by an 8B timestamp with
-                    # no objectFlags/clientIndex/objectVersion fields, so
-                    # objectTimeStamp sits right after the base header.
+                    """guider's own compact writer (_canBlfWriteFrame): base (16B) is immediately followed by an 8B
+                    timestamp with no objectFlags/clientIndex/objectVersion fields, so objectTimeStamp sits right after
+                    the base header."""
                     ts_ns = struct.unpack_from("<Q", buf, p + 16)[0]
                 elif hdr_sz >= 32:
-                    # objectTimeStamp always sits at base(16B)+8B = offset 24,
-                    # for both ObjectHeader (V1, 32B total) and ObjectHeader2
-                    # (V2, 40B total, followed by a separate originalTimeStamp
-                    # field at offset 32)
+                    """objectTimeStamp always sits at base(16B)+8B = offset 24, for both ObjectHeader (V1, 32B total)
+                    and ObjectHeader2 (V2, 40B total, followed by a separate originalTimeStamp field at offset 32)
+                    """
                     ts_ns = struct.unpack_from("<Q", buf, p + 24)[0]
                 pay = p + hdr_sz
                 if obj_type == TYPE_CTR:
@@ -162886,10 +163089,9 @@ class BpfMgr(object):
                         continue
                     ch, flags, dlc, arb_id = CAN_FLD.unpack_from(buf, pay)
                     if obj_type == TYPE_FD:
-                        # In KVASER BLF CAN_FD_MESSAGE, dlc at pay+2 is always 0.
-                        # Actual payload byte count is validDataBytes at pay+14 (uint16).
-                        # Data starts at pay+20 (channel/flags/dlc/id/frameLength/
-                        # extra flags fields + 5B reserved = 20B header).
+                        """In KVASER BLF CAN_FD_MESSAGE, dlc at pay+2 is always 0. Actual payload byte count is
+                        validDataBytes at pay+14 (uint16). Data starts at pay+20 (channel/flags/dlc/id/frameLength/
+                        extra flags fields + 5B reserved = 20B header)."""
                         valid_bytes = (
                             struct.unpack_from("<H", buf, pay + 14)[0]
                             if pay + 16 <= p + obj_sz
@@ -163341,9 +163543,8 @@ class BpfMgr(object):
                     )
                 )
 
-            # -R sets a repeat count, but this loop otherwise only ever
-            # exits via BLF-replay exhaustion or an external signal, so
-            # live-socket mode ran forever regardless of -R #
+            """ -R sets a repeat count, but this loop otherwise only ever exits via BLF-replay exhaustion or an external
+            signal, so live-socket mode ran forever regardless of -R """
             checkRepeat = bool(SysMgr.getOption("R"))
             iterCnt = 0
 
@@ -164510,9 +164711,8 @@ class BpfMgr(object):
                 if cmd != LMK_STAT_KILL_OCC:
                     return None
 
-                # Extended/custom protocol: >=87 bytes, reserved==0 at offset 4,
-                # name_len at offset 82 in range [0,512] — detect regardless of
-                # GETKILLCNT endian (event packets share same endian as GETKILLCNT) #
+                """ Extended/custom protocol: >=87 bytes, reserved==0 at offset 4, name_len at offset 82 in range
+                [0,512] — detect regardless of GETKILLCNT endian (event packets share same endian as GETKILLCNT) """
                 if len(data) >= 87:
                     reserved = _struct.unpack_from(i32u, data, 4)[0]
                     name_len_chk = _struct.unpack_from(i32u, data, 82)[0]
@@ -164956,10 +165156,8 @@ class BpfMgr(object):
                     pass
             _ignore_self = "IGNORESELF" in SysMgr.environList
 
-            # -g / PROCCOMMFILTER: match by sender comm (mirrors
-            # doBpfbindersnoopCmd's from_proc convention for two-actor
-            # events: filter anchors on the process that INITIATED the
-            # event, not the one it happened to)
+            """ -g / PROCCOMMFILTER: match by sender comm (mirrors doBpfbindersnoopCmd's from_proc convention for
+            two-actor events: filter anchors on the process that INITIATED the event, not the one it happened to) """
             if "PROCCOMMFILTER" in SysMgr.environList:
                 BpfMgr._checkProcCommPattern(
                     SysMgr.environList["PROCCOMMFILTER"][0]
@@ -165342,9 +165540,9 @@ class BpfMgr(object):
                         _s_ppid = _s_ppid_bpf or _get_ppid(_s_tgid)
                         _s_frames = []
                         if show_ustack and _s_ustack_id >= 0:
-                            # stack was captured at sched_process_fork, in the
-                            # PARENT's task context (before exec replaces the
-                            # child's memory) — resolve against ppid, not tgid
+                            """stack was captured at sched_process_fork, in the PARENT's task context (before exec
+                            replaces the child's memory) — resolve against ppid, not tgid
+                            """
                             _s_frames = (
                                 BpfMgr.resolveUserStack(
                                     ustack_fd,
@@ -165407,9 +165605,9 @@ class BpfMgr(object):
                                 )
                             )
                             if show_ustack and ustack_id_s >= 0:
-                                # stack was captured at sched_process_fork, in the
-                                # PARENT's task context (before exec replaces the
-                                # child's memory) — resolve against ppid, not tgid
+                                """stack was captured at sched_process_fork, in the PARENT's task context (before exec
+                                replaces the child's memory) — resolve against ppid, not tgid
+                                """
                                 _frames = BpfMgr.resolveUserStack(
                                     ustack_fd, ustack_id_s, ppid, max_udepth
                                 )
@@ -166628,11 +166826,10 @@ class BpfMgr(object):
             iou_agg_map_fd = -1
             if _iouring_enable:
                 try:
-                    # IOURING has its own raw-vs-specific tracepoint decision:
-                    # the generic "syscalls" dir (used for READ/WRITE's
-                    # _use_raw above) can exist while the io_uring_enter
-                    # tracepoint subdirs are still absent, so check them
-                    # directly instead of reusing the shared _use_raw. #
+                    """IOURING has its own raw-vs-specific tracepoint decision: the generic "syscalls" dir (used for
+                    READ/WRITE's _use_raw above) can exist while the io_uring_enter tracepoint subdirs are still absent,
+                    so check them directly instead of reusing the shared _use_raw.
+                    """
                     _iou_use_raw = _use_raw or not (
                         os.path.isdir(
                             "%s/syscalls/sys_enter_io_uring_enter" % tp_base
@@ -167191,16 +167388,13 @@ class BpfMgr(object):
                 elapsed += _actual
                 _sysStatStr = SysMgr.getStatVars(_dbgObj, _actual)[-1]
 
-                # agg_map val: tx_bytes(8)+rx_bytes(8)+tx_pkts(u32)+rx_pkts(u32)+tx_ns(8)+dport(u32)+pad(u32)
-                # NOTE: key by (tgid, sockfd), NOT tgid alone — a single process can
-                # own multiple UDP sockets (e.g. one DNS socket + one data socket),
-                # and merging them under one tgid row would pick an arbitrary sockfd
-                # for DNS/NODNS classification while summing bytes across sockets.
-                # dir=0(tx)/dir=1(rx) entries for the SAME sockfd are still merged.
-                # dport is captured in-kernel at sendto() entry (see genUdpSendEntryProg)
-                # rather than derived from /proc/net/udp's rem_address, because that
-                # column is only populated for connect()'d sockets and stays 0.0.0.0:0
-                # for plain sendto()-only sockets (e.g. typical DNS query sockets).
+                """ agg_map val: tx_bytes(8)+rx_bytes(8)+tx_pkts(u32)+rx_pkts(u32)+tx_ns(8)+dport(u32)+pad(u32) NOTE:
+                key by (tgid, sockfd), NOT tgid alone — a single process can own multiple UDP sockets (e.g. one DNS
+                socket + one data socket), and merging them under one tgid row would pick an arbitrary sockfd for
+                DNS/NODNS classification while summing bytes across sockets. dir=0(tx)/dir=1(rx) entries for the SAME
+                sockfd are still merged. dport is captured in-kernel at sendto() entry (see genUdpSendEntryProg) rather
+                than derived from /proc/net/udp's rem_address, because that column is only populated for connect()'d
+                sockets and stays 0.0.0.0:0 for plain sendto()-only sockets (e.g. typical DNS query sockets). """
                 sock_stats = (
                     {}
                 )  # {(tgid, sockfd): [tx_bytes, rx_bytes, tx_pkts, rx_pkts, tx_ns, comm, dport]}
@@ -167276,10 +167470,9 @@ class BpfMgr(object):
                 ]
                 entries.sort(key=lambda x: -(x[2] + x[3]))
 
-                # single shared filter, used by BOTH the text and JSON output
-                # paths below, so filterGroup / DNS-only / NODNS semantics
-                # cannot diverge between them (see e[0]=tgid, e[1]=comm,
-                # e[8]=dport in the `entries` tuple built above)
+                """ single shared filter, used by BOTH the text and JSON output paths below, so filterGroup / DNS-only /
+                NODNS semantics cannot diverge between them (see e[0]=tgid, e[1]=comm, e[8]=dport in the `entries` tuple
+                built above) """
                 _flt = SysMgr.filterGroup
 
                 def _filterUdptopEntries(_ents):
@@ -167292,11 +167485,9 @@ class BpfMgr(object):
                             or UtilMgr.isValidStr(str(e[0]), _flt)
                         )
                     ]
-                    # DNS / NODNS filter: use dport captured in-kernel at
-                    # sendto() entry (see genUdpSendEntryProg) — /proc/net/udp's
-                    # rem_address is only populated for connect()'d sockets, so
-                    # it cannot be used here for plain sendto()-only sockets
-                    # (e.g. DNS queries)
+                    """ DNS / NODNS filter: use dport captured in-kernel at sendto() entry (see genUdpSendEntryProg) —
+                    /proc/net/udp's rem_address is only populated for connect()'d sockets, so it cannot be used here for
+                    plain sendto()-only sockets (e.g. DNS queries) """
                     if _dns_only or _no_dns:
                         _dns_filtered = []
                         for _e in _filtered:
@@ -167441,6 +167632,8 @@ class BpfMgr(object):
                 )
                 sys.exit(-1)
             _nr_sendto = SysMgr.getNrSyscall("sendto") if _use_raw else -1
+            _nr_sendmsg = SysMgr.getNrSyscall("sendmsg") if _use_raw else -1
+            _nr_sendmmsg = SysMgr.getNrSyscall("sendmmsg") if _use_raw else -1
 
             cpu_list = BpfMgr._getOnlineCpus()
             max_cpu = max(cpu_list) + 1
@@ -167464,6 +167657,36 @@ class BpfMgr(object):
                     prog_fd, "syscalls", "sys_enter_sendto"
                 )
 
+            # sendmsg/sendmmsg: resolvers such as glibc getaddrinfo send the
+            # A/AAAA queries with sendmmsg, which sendto tracing can not see #
+            try:
+                insns = BpfMgr.genUdpDnsSendmsgProg(
+                    perf_map_fd, max_cpu, _nr_sendmsg, _nr_sendmmsg
+                )
+                msg_fd = BpfMgr.loadProg(
+                    BpfMgr.BPF_PROG_TYPE_TRACEPOINT,
+                    insns,
+                    b"GPL",
+                    "udp_snoop_msg",
+                )
+                if msg_fd < 0:
+                    raise Exception("failed to load the sendmsg program")
+
+                if _use_raw:
+                    BpfMgr.attachTracepoint(
+                        msg_fd, "raw_syscalls", "sys_enter"
+                    )
+                else:
+                    for _tp in ("sys_enter_sendmsg", "sys_enter_sendmmsg"):
+                        BpfMgr.attachTracepoint(msg_fd, "syscalls", _tp)
+            except SystemExit:
+                raise
+            except Exception:
+                SysMgr.printWarn(
+                    "bpfudpsnoop: sendmsg/sendmmsg tracing is disabled",
+                    reason=True,
+                )
+
             perf_fds, mmap_bufs = BpfMgr._setupPerfRingBuffers(
                 cpu_list, perf_map_fd, warn_on_fail=False
             )
@@ -167482,14 +167705,16 @@ class BpfMgr(object):
             if not SysMgr.outPath:
                 SysMgr.setStream()
 
-            twoLine = "=" * SysMgr.lineLength
-            oneLine = "-" * SysMgr.lineLength
-            SysMgr.printPipe(twoLine)
-            SysMgr.printPipe(
-                "%-15s  %26s  %8s  %6s  %6s  %-s"
-                % ("TIME", "PROCESS(PID)", "LEN", "DPORT", "SOCKFD", "DNS")
-            )
-            SysMgr.printPipe(oneLine)
+            # print the header only for the text mode #
+            if not SysMgr.jsonEnable:
+                twoLine = "=" * SysMgr.lineLength
+                oneLine = "-" * SysMgr.lineLength
+                SysMgr.printPipe(twoLine)
+                SysMgr.printPipe(
+                    "%-15s  %26s  %8s  %6s  %6s  %-s"
+                    % ("TIME", "PROCESS(PID)", "LEN", "DPORT", "SOCKFD", "DNS")
+                )
+                SysMgr.printPipe(oneLine)
 
             PERF_RECORD_SAMPLE = 9
             _get_ts = BpfMgr.makeGetTs()
@@ -167501,16 +167726,17 @@ class BpfMgr(object):
                         return ""
                     pos = 12
                     labels = []
+                    terminated = False
                     while pos < len(dns_buf):
                         length = dns_buf[pos]
                         if length == 0:
+                            terminated = True
                             break
                         if length > 63:
+                            terminated = True
                             break
                         pos += 1
                         if pos + length > len(dns_buf):
-                            if labels:
-                                labels.append("[...]")
                             break
                         labels.append(
                             dns_buf[pos : pos + length].decode(
@@ -167518,9 +167744,48 @@ class BpfMgr(object):
                             )
                         )
                         pos += length
+                    # the buffer ended before the terminator (or in a label) #
+                    if not terminated and labels:
+                        labels.append("[...]")
                     return ".".join(labels)
                 except Exception:
                     return ""
+
+            def _is_dns_query(dns_buf):
+                """Check whether the payload looks like a DNS query message.
+
+                Resolvers usually connect() the UDP socket and call send(),
+                which reaches sendto() with a NULL dest_addr, so the port can
+                not be used to identify DNS. Validate the header and the first
+                label instead.
+                """
+                try:
+                    buf = bytearray(dns_buf)
+                    if len(buf) < 13:
+                        return False
+                    # QR=0 (query), OPCODE=0 (standard query) #
+                    if buf[2] & 0xF8:
+                        return False
+                    # QDCOUNT=1, ANCOUNT=0, NSCOUNT=0, ARCOUNT<=2 #
+                    if buf[4] != 0 or buf[5] != 1 or buf[11] > 2:
+                        return False
+                    if buf[6] or buf[7] or buf[8] or buf[9] or buf[10]:
+                        return False
+                    # first label must be 1~63 hostname characters #
+                    length = buf[12]
+                    if length < 1 or length > 63:
+                        return False
+                    for ch in buf[13 : 13 + length]:
+                        if not (
+                            48 <= ch <= 57
+                            or 65 <= ch <= 90
+                            or 97 <= ch <= 122
+                            or ch in (45, 95, 42)
+                        ):
+                            return False
+                    return True
+                except Exception:
+                    return False
 
             def drain_one(buf_addr, pg_sz, data_sz):
                 for (
@@ -167557,14 +167822,42 @@ class BpfMgr(object):
                         dest_port = 0
                         if raw_size >= 42:
                             dest_port = struct.unpack_from(">H", raw, 40)[0]
-                        # DNS qname from payload at offset 48
+                        # DNS qname from payload at offset 48 #
+                        # port 0 means NULL dest_addr (connected socket),
+                        # so identify DNS by the payload instead of the port #
                         dns_name = ""
-                        if dest_port == 53 and raw_size >= 96:
-                            dns_name = _decode_dns_qname(raw[48:96])
+                        is_dns = False
+                        if raw_size >= 96 and dest_port in (0, 53):
+                            if dest_port == 53 or _is_dns_query(raw[48:96]):
+                                is_dns = True
+                                dns_name = _decode_dns_qname(raw[48:96])
                         # apply DNS filters
-                        if _dns_only and dest_port != 53:
+                        if _dns_only and not is_dns:
                             continue
-                        if _no_dns and dest_port == 53:
+                        if _no_dns and is_dns:
+                            continue
+                        # JSON mode: one object per line #
+                        if SysMgr.jsonEnable:
+                            # use json.dumps() directly because the output of
+                            # convDict2Str() depends on SysMgr.encodeEnable
+                            # and breaks the one-line-per-event contract #
+                            SysMgr.printPipe(
+                                SysMgr.getPkg("json").dumps(
+                                    {
+                                        "time": SysMgr.getUptime(),
+                                        "pid": int(tgid),
+                                        "tid": int(pid_tgid & 0xFFFFFFFF),
+                                        "comm": comm,
+                                        "len": int(udp_len),
+                                        "dport": int(dest_port),
+                                        "sockfd": int(sockfd),
+                                        "isDns": is_dns,
+                                        "dns": dns_name,
+                                    },
+                                    ensure_ascii=False,
+                                ),
+                                flush=True,
+                            )
                             continue
                         ts = _get_ts()
                         proc_str = "%s(%d)" % (comm, tgid)
@@ -167582,7 +167875,7 @@ class BpfMgr(object):
                         pass
 
             SysMgr.printInfo(
-                "bpfudpsnoop: snooping UDP sendto calls (Ctrl-C to stop)"
+                "bpfudpsnoop: snooping UDP sendto/sendmsg/sendmmsg calls (Ctrl-C to stop)"
             )
             while True:
                 try:
@@ -170266,9 +170559,8 @@ class DbusMgr(object):
                         data = DbusMgr.sentData
                         msgTable = DbusMgr.msgSentTable
                         replyTable = DbusMgr.msgRecvTable
-                        # the call this RETURN answers was recorded (and
-                        # its mname was built) on the opposite side of
-                        # 'data', mirroring replyTable's pairing #
+                        """ the call this RETURN answers was recorded (and its mname was built) on the opposite side of
+                        'data', mirroring replyTable's pairing """
                         replyData = DbusMgr.recvData
                     else:
                         direction = "IN"
@@ -171460,11 +171752,9 @@ class DltAnalyzer(object):
                 if skipFlag:
                     return
 
-            # track the time span of only the messages actually counted
-            # below, so a PRINTSUMMARY [Interval: ...] header built from
-            # this span (see runDltReceiver) matches the same
-            # level/since/until/filterGroup gates as the NrMsg count next
-            # to it, instead of spanning every raw message in the file #
+            """ track the time span of only the messages actually counted below, so a PRINTSUMMARY [Interval: ...]
+            header built from this span (see runDltReceiver) matches the same level/since/until/filterGroup gates as the
+            NrMsg count next to it, instead of spanning every raw message in the file """
             if (
                 DltAnalyzer.summaryStart is None
                 or timestamp < DltAnalyzer.summaryStart
@@ -179969,11 +180259,9 @@ typedef struct {
                         sampleSetList.append(sampleDict)
                         continue
 
-                    # reuse the same filtered loader used for positional
-                    # input files so that LOADSAMPLE'd .out files respect
-                    # -g/PROCCOMMFILTER, include/exclude symbol filters, and
-                    # sample count/percentage thresholds instead of merging
-                    # every sample in unfiltered #
+                    """ reuse the same filtered loader used for positional input files so that LOADSAMPLE'd .out files
+                    respect -g/PROCCOMMFILTER, include/exclude symbol filters, and sample count/percentage thresholds
+                    instead of merging every sample in unfiltered """
                     nrSamples, nrFiles = _loadSamples(sf, nrSamples, nrFiles)
                     if maxSamples and len(callList) > maxSamples:
                         SysMgr.printWarn(
@@ -182839,9 +183127,8 @@ typedef struct {
                     except:
                         return ""
 
-                # Build btList for a given FRAME_SIZE candidate.
-                # Returns (list_of_frames, n_valid_pcs) where valid means the PC
-                # appears in /proc/pid/maps — the key correctness signal.
+                """ Build btList for a given FRAME_SIZE candidate. Returns (list_of_frames, n_valid_pcs) where valid
+                means the PC appears in /proc/pid/maps — the key correctness signal. """
                 FuncPerfMgr._loadMaps(self.pid)
                 _maps = FuncPerfMgr._maps_cache.get(self.pid, [])
 
@@ -182885,9 +183172,8 @@ typedef struct {
                     if best_list and best_valid >= len(best_list) * 0.5:
                         self._luw_frame_size = best_fs
 
-                # Improve unresolved frames via ElfAnalyzer:
-                # libunwindstack only exposes dynsym-visible names; internal
-                # functions and DSO paths come from ElfAnalyzer's full symtab.
+                """ Improve unresolved frames via ElfAnalyzer: libunwindstack only exposes dynsym-visible names;
+                internal functions and DSO paths come from ElfAnalyzer's full symtab. """
                 for _f in self.btList:
                     _pc, _sym, _fname = _f
                     if _sym.startswith("0x") or _fname == "??":
@@ -183866,12 +184152,10 @@ typedef struct {
             filterRes = False
 
         if self.isRealtime:
-            # filterRes is only False here when checkFilterCond() failed but
-            # COMPLETECALL kept processing going (for entry/exit pairing in
-            # the non-realtime print path below); the top-mode aggregation
-            # path has no such pairing need, so a failed filter must still
-            # exclude the call from callTable stats, matching the sibling
-            # non-realtime path's "if not filterRes: return" gate #
+            """filterRes is only False here when checkFilterCond() failed but COMPLETECALL kept processing going (for
+            entry/exit pairing in the non-realtime print path below); the top-mode aggregation path has no such pairing
+            need, so a failed filter must still exclude the call from callTable stats, matching the sibling non-realtime
+            path's "if not filterRes: return" gate"""
             if not filterRes:
                 return isRetBp
 
@@ -184768,10 +185052,9 @@ typedef struct {
 
     def initPyEnv(self):
         if self.pyAddr:
-            # Already initialized.  If inlined-call bp not yet written (injectBp
-            # failed because the target wasn't stopped on the first call),
-            # retry now that the target IS stopped (called from SIGSTOP handler).
-            # Only inject in break mode (pybreak), not pycall mode.
+            """Already initialized. If inlined-call bp not yet written (injectBp failed because the target wasn't
+            stopped on the first call), retry now that the target IS stopped (called from SIGSTOP handler). Only inject
+            in break mode (pybreak), not pycall mode."""
             if (
                 self.isBreakMode
                 and sys.version_info >= (3, 11)
@@ -185153,10 +185436,9 @@ typedef struct {
 
                 results = []
 
-                # Use the RESUME/RESUME_CHECK opcode handlers.
-                # RESUME is the first opcode of every code object in Python 3.12+,
-                # so the handler fires for ALL Python function entries including
-                # both C→Python and Python→Python calls.
+                """ Use the RESUME/RESUME_CHECK opcode handlers. RESUME is the first opcode of every code object in
+                Python 3.12+, so the handler fires for ALL Python function entries including both C→Python and
+                Python→Python calls. """
                 opcodes_to_find = [(RESUME_OPCODE, "resume")]
                 if RESUME_CHECK_OPCODE is not None:
                     opcodes_to_find.append(
@@ -185453,10 +185735,9 @@ typedef struct {
                 framep = struct.unpack("Q", framep)[0]
 
             elif sys.version_info >= (3, 11):
-                # addr is a PyInterpreterState ptr only on the first pass;
-                # on later passes it is the next PyThreadState ptr (nextp),
-                # so reading addr + 16 again would parse the interpreter
-                # struct as a thread state and corrupt cframe (2^64 read) #
+                """addr is a PyInterpreterState ptr only on the first pass; on later passes it is the next
+                PyThreadState ptr (nextp), so reading addr + 16 again would parse the interpreter struct as a thread
+                state and corrupt cframe (2^64 read)"""
                 if nextTstate311:
                     tstate_current = nextTstate311
                 else:
@@ -185652,10 +185933,10 @@ typedef struct {
         f_lineno = 0
 
         if sys.version_info >= (3, 14):
-            # read data from _PyInterpreterFrame #
-            # Python 3.14+ layout (including 3.15+; layout unchanged in 3.15):
-            # 0:f_executable(Q) 8:previous(Q) 16-55:funcobj/globals/builtins/locals/frame_obj/instr_ptr(Q×6)
-            # 64:stackpointer(Q) 72:return_offset(H) 74:owner(c) [5 pad] 80:localsplus
+            """read data from _PyInterpreterFrame # Python 3.14+ layout (including 3.15+; layout unchanged in 3.15):
+            0:f_executable(Q) 8:previous(Q) 16-55:funcobj/globals/builtins/locals/frame_obj/instr_ptr(Q×6)
+            64:stackpointer(Q) 72:return_offset(H) 74:owner(c) [5 pad] 80:localsplus
+            """
             sigstr = "QQQQQQQQQHc"
             dsize = struct.calcsize(sigstr)
             PyInterpreterFrameObject = self.readMem(addr, dsize)
@@ -185823,14 +186104,11 @@ typedef struct {
             ) = struct.unpack(sigstr, PyFrameObject)
 
         if sys.version_info >= (3, 14, 0):
-            # read data #
-            # Python 3.14+ (including 3.15+): ob_refcnt=uint32_t (I, 4 bytes) + 4 pad before ob_type
-            # Layout (offsets verified via C headers; stable through 3.15):
-            # 0:ob_refcnt(I) 4:pad 8:ob_type(Q) 16:ob_size(Q)
-            # 24:co_consts(Q) 32:co_names(Q) 40:co_exceptiontable(Q)
-            # 48:co_flags(i) 52:co_argcount(i) ... 88:co_nfreevars(i) 92:co_version(I)
-            # 96:co_localsplusnames(Q) 104:co_localspluskinds(Q)
-            # 112:co_filename(Q) 120:co_name(Q) 128:co_qualname(Q)
+            """read data # Python 3.14+ (including 3.15+): ob_refcnt=uint32_t (I, 4 bytes) + 4 pad before ob_type
+            Layout (offsets verified via C headers; stable through 3.15): 0:ob_refcnt(I) 4:pad 8:ob_type(Q)
+            16:ob_size(Q) 24:co_consts(Q) 32:co_names(Q) 40:co_exceptiontable(Q) 48:co_flags(i) 52:co_argcount(i) ...
+            88:co_nfreevars(i) 92:co_version(I) 96:co_localsplusnames(Q) 104:co_localspluskinds(Q) 112:co_filename(Q)
+            120:co_name(Q) 128:co_qualname(Q)"""
             sigstr = "I4xQQQQQiiiiiiiiiiiIQQQQQ"
             dsize = struct.calcsize(sigstr)
             PyCodeObject = self.readMem(f_code, dsize)
@@ -186127,12 +186405,10 @@ typedef struct {
             if f_back is None:
                 break
 
-            # read context #
-            # Key on (f_code, co_name) to survive GC address reuse:
-            # transient code objects (e.g. class-body) can be freed and their
-            # address reused by a later code object, making a stale f_code-only
-            # hit return the wrong name.  co_name is a stable unicode pointer
-            # for the lifetime of the code object, so the tuple is unique.
+            """ read context # Key on (f_code, co_name) to survive GC address reuse: transient code objects (e.g.
+            class-body) can be freed and their address reused by a later code object, making a stale f_code-only hit
+            return the wrong name. co_name is a stable unicode pointer for the lifetime of the code object, so the tuple
+            is unique. """
             _cache_key = (f_code, co_name)
             if _cache_key in self.pyFrameCache:
                 name, filename = self.pyFrameCache[_cache_key]
@@ -186183,20 +186459,19 @@ typedef struct {
                 return
         else:
             if self.pyInlinedCallAddr and addr == self.pyInlinedCallAddr:
-                # DISPATCH_INLINED breakpoint – non-specialized CALL path (Python 3.11+):
-                # The non-specialized CALL handler dispatches via DISPATCH_INLINED.
-                # At this breakpoint r15 holds the newly-created _PyInterpreterFrame*.
-                # Read it directly from the register file.
+                """DISPATCH_INLINED breakpoint – non-specialized CALL path (Python 3.11+): The non-specialized CALL
+                handler dispatches via DISPATCH_INLINED. At this breakpoint r15 holds the newly-created
+                _PyInterpreterFrame*. Read it directly from the register file.
+                """
                 framep = (
                     getattr(self.regs, "r15", 0) if self.arch == "x64" else 0
                 )
                 if not framep:
                     return
             elif self.pyInlinedCallAddr2 and addr == self.pyInlinedCallAddr2:
-                # DISPATCH_INLINED breakpoint – specialized CALL path (Python 3.11+):
-                # After the adaptive interpreter specializes CALL (e.g. to
-                # CALL_PY_EXACT_ARGS), the new frame is set up and rcx holds the
-                # newly-created _PyInterpreterFrame* at this breakpoint.
+                """DISPATCH_INLINED breakpoint – specialized CALL path (Python 3.11+): After the adaptive interpreter
+                specializes CALL (e.g. to CALL_PY_EXACT_ARGS), the new frame is set up and rcx holds the newly-created
+                _PyInterpreterFrame* at this breakpoint."""
                 framep = (
                     getattr(self.regs, "rcx", 0) if self.arch == "x64" else 0
                 )
@@ -186237,9 +186512,9 @@ typedef struct {
                     _cur_instr = getattr(self.regs, "r12", 0)
                     _valid_opc = (128, 196, 245)
                 else:  # Python 3.12-3.13
-                    # rbx = next_instr, which points PAST the RESUME opcode after
-                    # dispatch increments it.  Opcode validation is skipped; the
-                    # RESUME handler is only reachable via opcode 149 dispatch.
+                    """rbx = next_instr, which points PAST the RESUME opcode after dispatch increments it. Opcode
+                    validation is skipped; the RESUME handler is only reachable via opcode 149 dispatch.
+                    """
                     pass
             elif self.pyResumeCheckAddr and addr == self.pyResumeCheckAddr:
                 # RESUME_CHECK handler: fired when RESUME specializes to RESUME_CHECK.
@@ -188511,16 +188786,13 @@ typedef struct {
                         )
                     )
                     if self.isBreakMode or statMode:
-                        # Do NOT re-deliver SIGSTOP: ptrace-stop SIGSTOP
-                        # (e.g. from PTRACE_ATTACH) must be eaten, not injected
-                        # back or the target stops again immediately creating
-                        # an infinite SIGSTOP loop.
+                        """Do NOT re-deliver SIGSTOP: ptrace-stop SIGSTOP (e.g. from PTRACE_ATTACH) must be eaten, not
+                        injected back or the target stops again immediately creating an infinite SIGSTOP loop.
+                        """
 
-                        # In pybreak mode, _PyEval_EvalFrameDefault may already
-                        # be executing when we attach, so its entry INT3 never
-                        # fires and initPyEnv() (which injects the inlined-call bp)
-                        # is never called via the normal "ready"+SIGTRAP path.
-                        # Call it here while the target is safely stopped.
+                        """ In pybreak mode, _PyEval_EvalFrameDefault may already be executing when we attach, so its
+                        entry INT3 never fires and initPyEnv() (which injects the inlined-call bp) is never called via
+                        the normal "ready"+SIGTRAP path. Call it here while the target is safely stopped. """
                         if self.mode in ("pycall", "pybreak"):
                             if not self.pyAddr:
                                 self.initPyEnv()
@@ -188532,9 +188804,9 @@ typedef struct {
                                 and not self.pyResumeAddr
                                 and not self.pyResumeCheckAddr
                             ):
-                                # pyAddr is set but inlined-call bp wasn't written
-                                # because the target wasn't stopped yet during
-                                # the first initPyEnv() call.  Retry now.
+                                """pyAddr is set but inlined-call bp wasn't written because the target wasn't stopped
+                                yet during the first initPyEnv() call. Retry now.
+                                """
                                 self.initPyEnv()
 
                         if self.cont(check=True) < 0:
@@ -188848,23 +189120,19 @@ typedef struct {
                     self.waitpid()
         elif self.isBreakMode:
             if self.isRunning:
-                # register breakpoint data #
-                # Use update() instead of assignment so that bps already
-                # added by initPyEnv() (e.g. inlined-call bp) are kept.
+                """register breakpoint data # Use update() instead of assignment so that bps already added by
+                initPyEnv() (e.g. inlined-call bp) are kept."""
                 if bpList:
                     self.bpList.update(bpList)
                 if exceptBpList:
                     self.exceptBpList = exceptBpList
 
-                # Re-inject INT3 bytes for all breakpoints inherited from the
-                # parent.  The parent used PTRACE_POKEDATA which requires
-                # ptrace-attachment, but the parent was *not* attached (it only
-                # stopped the target with SIGSTOP and used process_vm_writev
-                # if available, or PTRACE_POKEDATA which failed without attach).
-                # Now we ARE attached (attach() was called above), so we can
-                # reliably write INT3 via PTRACE_POKEDATA.  Only re-inject
-                # entries where set=True (meaning injectBp registered them) but
-                # where the actual byte may not have been written.
+                """ Re-inject INT3 bytes for all breakpoints inherited from the parent. The parent used PTRACE_POKEDATA
+                which requires ptrace-attachment, but the parent was *not* attached (it only stopped the target with
+                SIGSTOP and used process_vm_writev if available, or PTRACE_POKEDATA which failed without attach). Now we
+                ARE attached (attach() was called above), so we can reliably write INT3 via PTRACE_POKEDATA. Only
+                re-inject entries where set=True (meaning injectBp registered them) but where the actual byte may not
+                have been written. """
                 for _bpAddr, _bpData in list(self.bpList.items()):
                     if _bpData.get("set"):
                         self.writeMem(_bpAddr, self.brkInst, skipCheck=True)
@@ -188959,9 +189227,8 @@ typedef struct {
         ):
             _printTimeline()
 
-            # stop the tracee before detaching so PTRACE_DETACH succeeds;
-            # without this, a running tracee causes PTRACE_DETACH to fail
-            # and the tracee gets SIGKILL when the tracer exits
+            """ stop the tracee before detaching so PTRACE_DETACH succeeds; without this, a running tracee causes
+            PTRACE_DETACH to fail and the tracee gets SIGKILL when the tracer exits """
             if (
                 instance.pid
                 and instance.attached
@@ -190536,9 +190803,8 @@ typedef struct {
             except:
                 reqstr = req
 
-            # PTRACE_CONT on a thread that exited is expected for short-lived
-            # threads (e.g. Binder threads in surfaceflinger). Suppress the
-            # warning to avoid log noise; cont() will report it as "terminated".
+            """ PTRACE_CONT on a thread that exited is expected for short-lived threads (e.g. Binder threads in
+            surfaceflinger). Suppress the warning to avoid log noise; cont() will report it as "terminated". """
             if req == self.contCmd and "ESRCH" in getattr(self, "errmsg", ""):
                 return -1
 
@@ -197751,9 +198017,9 @@ class ElfAnalyzer(object):
             )
 
         for i in range(num_fdes):
-            # FDE record (binutils SFrame ABI): i32 func_start + u32 func_size +
-            # u32 func_start_fre_off + u32 func_num_fres + u8 func_info +
-            # u8 func_rep_size + u16 padding = 20 bytes total #
+            """FDE record (binutils SFrame ABI): i32 func_start + u32 func_size + u32 func_start_fre_off + u32
+            func_num_fres + u8 func_info + u8 func_rep_size + u16 padding = 20 bytes total
+            """
             fd.seek(fde_base + i * fde_stride)
             raw = fd.read(fde_stride)
             if len(raw) < fde_stride:
@@ -199444,9 +199710,8 @@ Section header string table index: %d
             for i in xrange(long(sh_size / sh_entsize)):
                 target = versym_section[i * sh_entsize : (i + 1) * sh_entsize]
                 symidx = struct.unpack("H", target)[0]
-                # mask off VERSYM_HIDDEN(0x8000): a symbol with a
-                # non-default version sets this bit, which must not be
-                # part of the version-index lookup below #
+                """ mask off VERSYM_HIDDEN(0x8000): a symbol with a non-default version sets this bit, which must not be
+                part of the version-index lookup below """
                 self.attr["versymList"].append(symidx & 0x7FFF)
 
         self.attr.setdefault("dynsymTable", {})
@@ -199528,11 +199793,9 @@ Section header string table index: %d
                         vda_name, vda_next = struct.unpack("II", starget)
 
                         if vidx == 0:
-                            # key by the record's own vd_ndx (matches the
-                            # versym index this feeds -- mirrors how the
-                            # verneed walk below keys by vna_other), not a
-                            # synthetic sequential counter: vd_ndx values
-                            # aren't guaranteed contiguous/in-order #
+                            """key by the record's own vd_ndx (matches the versym index this feeds -- mirrors how the
+                            verneed walk below keys by vna_other), not a synthetic sequential counter: vd_ndx values
+                            aren't guaranteed contiguous/in-order"""
                             self.attr["versionTable"][vd_ndx] = self.getString(
                                 dynstr_section, vda_name
                             )
@@ -199681,10 +199944,9 @@ Section header string table index: %d
 
                 # concatenate symbol with its required version #
                 try:
-                    # versymList is indexed 1:1 by the real dynsym index
-                    # 'i'; dynsymList is offset by +1 because of its own
-                    # STN_UNDEF placeholder, so len(dynsymList) is wrong
-                    # here and was pulling the NEXT symbol's version #
+                    """versymList is indexed 1:1 by the real dynsym index 'i'; dynsymList is offset by +1 because of
+                    its own STN_UNDEF placeholder, so len(dynsymList) is wrong here and was pulling the NEXT symbol's
+                    version"""
                     vsIdx = self.attr["versymList"][i]
                     if symbol:
                         symbol = "%s@%s" % (
@@ -201126,10 +201388,8 @@ Section header string table index: %d
                         augstr = ""
                         pos = 1
 
-                    # ehdata (legacy pre-'z' GCC personality pointer,
-                    # lives inline in 'table' right after the augstr NUL,
-                    # not in a separate fd read -- fd is already past
-                    # the whole CIE at this point) #
+                    """ ehdata (legacy pre-'z' GCC personality pointer, lives inline in 'table' right after the augstr
+                    NUL, not in a separate fd read -- fd is already past the whole CIE at this point) """
                     if "eh" in augstr:
                         ehWord = 4 if self.is32Bit else 8
                         ehdata = table[pos : pos + ehWord]
@@ -201327,10 +201587,9 @@ Section header string table index: %d
                     else:
                         augsize = 0
 
-                    # Augmentation Data (e.g. LSDA pointer) #
-                    # must be consumed here regardless of its meaning, or
-                    # these bytes leak into the CFI instruction stream below
-                    # and corrupt opcode decoding for every later byte #
+                    """ Augmentation Data (e.g. LSDA pointer) # must be consumed here regardless of its meaning, or
+                    these bytes leak into the CFI instruction stream below and corrupt opcode decoding for every later
+                    byte """
                     if augsize > 0:
                         augdata = fd.read(augsize)
                         augdatastr = UtilMgr.convStr2Bytes(augdata)
@@ -201885,11 +202144,9 @@ Section header string table index: %d
                     if descszRemain > 0:
                         descsz = descsz + 4 - descszRemain
 
-                    # read the full aligned size to keep the file position
-                    # in sync, but drop the alignment-padding bytes from
-                    # the value itself -- unlike name's NUL-rstrip above,
-                    # slice by the original size since desc is arbitrary
-                    # binary data that may legitimately end in zero bytes #
+                    """ read the full aligned size to keep the file position in sync, but drop the alignment-padding
+                    bytes from the value itself -- unlike name's NUL-rstrip above, slice by the original size since desc
+                    is arbitrary binary data that may legitimately end in zero bytes """
                     desc = fd.read(descsz)[:origDescsz]
 
                     descstr = UtilMgr.convStr2Bytes(desc)
@@ -203361,10 +203618,9 @@ Section header string table index: %d
                             lineState["isa"] = operand
                             _addEntryOldState(op, [operand])
                         else:
-                            # vendor/unknown standard opcode: per spec,
-                            # skip exactly the ULEB128 operand count the
-                            # header declared for it, or the stream
-                            # desyncs for every opcode after this one #
+                            """vendor/unknown standard opcode: per spec, skip exactly the ULEB128 operand count the
+                            header declared for it, or the stream desyncs for every opcode after this one
+                            """
                             for _ in xrange(stdopcode[op - 1]):
                                 _, nsize = decULEB(table, pos)
                                 pos += nsize
@@ -204551,10 +204807,9 @@ class TaskAnalyzer(object):
             classIncFilter = SysMgr.environList.get("CLASSINCFILTER", [])
             classExcFilter = SysMgr.environList.get("CLASSEXCFILTER", [])
 
-            # apply -q CLASSINCFILTER/CLASSEXCFILTER once here so the
-            # "NrProc" header count stays consistent with the table and
-            # JSON output printed below, instead of reporting against
-            # every task while both only show the filtered subset #
+            """ apply -q CLASSINCFILTER/CLASSEXCFILTER once here so the "NrProc" header count stays consistent with the
+            table and JSON output printed below, instead of reporting against every task while both only show the
+            filtered subset """
             if classIncFilter or classExcFilter:
                 for n in list(taskGroup):
                     if classIncFilter and not isValidStr(n, classIncFilter):
@@ -207740,9 +207995,8 @@ class TaskAnalyzer(object):
                         or UtilMgr.isValidStr(str(pid))
                     ):
                         continue
-                    # detect PID reuse via /proc/pid/stat starttime so a new
-                    # process reusing an old PID doesn't inherit (and get
-                    # blamed for) a dead process's growth history #
+                    """ detect PID reuse via /proc/pid/stat starttime so a new process reusing an old PID doesn't
+                    inherit (and get blamed for) a dead process's growth history """
                     startTick = None
                     statBuf = readFile("%s/stat" % pdir, verb=False)
                     if statBuf:
@@ -208269,6 +208523,9 @@ class TaskAnalyzer(object):
 
             SysMgr.checkProgress()
 
+            # before reinitStats(): the stats are still those of this tick #
+            self.drainLLMCmdQueue()
+
             self.reinitStats()
 
             waitTime = max(
@@ -208366,7 +208623,7 @@ class TaskAnalyzer(object):
             if SysMgr.skipCnt:
                 SysMgr.skipCnt -= 1
                 self.reinitStats()
-                time.sleep(SysMgr.intervalEnable)
+                time.sleep(SysMgr.intervalFloat or SysMgr.intervalEnable)
                 SysMgr.updateUptime()
                 continue
 
@@ -208413,7 +208670,7 @@ class TaskAnalyzer(object):
                     _samp_cond,
                     _samp_idle,
                     _samp_nr_cores,
-                    SysMgr.intervalEnable,
+                    SysMgr.intervalFloat or SysMgr.intervalEnable,
                 )
                 if _cond_met:
                     if printFlag:
@@ -208433,12 +208690,17 @@ class TaskAnalyzer(object):
 
             SysMgr.checkProgress()
 
+            # before reinitStats(): the stats are still those of this tick #
+            self.drainLLMCmdQueue()
+
             self.reinitStats()
 
             SysMgr.runProfCmd("AFTER")
 
             waitTime = max(
-                0.000001, SysMgr.intervalEnable - (time.time() - prevTime)
+                0.000001,
+                (SysMgr.intervalFloat or SysMgr.intervalEnable)
+                - (time.time() - prevTime),
             )
             if SysMgr.stackEnable and self.stackTable:
                 self.sampleStack(waitTime)
@@ -209720,9 +209982,9 @@ class TaskAnalyzer(object):
 
                 for item, val in value.items():
                     if UtilMgr.isString(val):
-                        # tokens are usually plain integers, but PSI usage
-                        # strings (e.g. psiUsage) use "some/full" (e.g. "1/0")
-                        # per interval — split those into both numbers
+                        """tokens are usually plain integers, but PSI usage strings (e.g. psiUsage) use "some/full"
+                        (e.g. "1/0") per interval — split those into both numbers
+                        """
                         numList = []
                         for tok in val.split():
                             if "/" in tok:
@@ -210859,7 +211121,7 @@ class TaskAnalyzer(object):
         SysMgr.importPkgItems("pylab")
 
         if not dpi and "DPI" in SysMgr.environList:
-            dpi = long(SysMgr.environList["DPI"])
+            dpi = long(SysMgr.environList["DPI"][0])
         matplotlib.rcParams["figure.dpi"] = (
             dpi if dpi else SysMgr.matplotlibDpi
         )
@@ -211113,11 +211375,10 @@ class TaskAnalyzer(object):
                 "//]]>\n"
                 "</script>"
             )
-            # Use nested <svg> for coordinate isolation:
-            # parent flamegraph SVG uses normalized x=[0,1] coordinate system,
-            # so <g transform="translate(px,px)"> would appear far outside the viewBox.
-            # A nested <svg> with width="%" creates its own px-based coordinate space.
-            # foreignObject enables HTML word-wrap and overflow-y:auto inside SVG.
+            """ Use nested <svg> for coordinate isolation: parent flamegraph SVG uses normalized x=[0,1] coordinate
+            system, so <g transform="translate(px,px)"> would appear far outside the viewBox. A nested <svg> with
+            width="%" creates its own px-based coordinate space. foreignObject enables HTML word-wrap and
+            overflow-y:auto inside SVG. """
             panel = (
                 script
                 + '<svg id="ai-panel" x="0" y="4" width="35%" height="'
@@ -215135,12 +215396,10 @@ class TaskAnalyzer(object):
 
             if stacked:
                 _drawStack(timeline, stackedStats, stackedTexts, self, ax)
-                # Use long names (labelList) for tooltip display.
-                # stackedTexts has short names like "[RB]5.2GB" whose base is ""
-                # so stackplot_data_base_names fails to block the collections loop,
-                # causing duplicate entries. Long names have real bases ("Reclaim BG")
-                # that DO block the collections loop. Also fixes legend highlight
-                # because matchedPlot.name then matches the legend text directly.
+                """ Use long names (labelList) for tooltip display. stackedTexts has short names like "[RB]5.2GB" whose
+                base is "" so stackplot_data_base_names fails to block the collections loop, causing duplicate entries.
+                Long names have real bases ("Reclaim BG") that DO block the collections loop. Also fixes legend
+                highlight because matchedPlot.name then matches the legend text directly. """
                 if hasattr(ax, "_guider_stackplot_data"):
                     n_stacked = len(stackedStats)
                     ax._guider_stackplot_data["labels"] = (
@@ -217050,10 +217309,9 @@ class TaskAnalyzer(object):
                                 continue
                             _tbl_name = _m.group(1)
                             _tbl_fields = _wanted_tables[_tbl_name]
-                            # skip title, twoLine, header, twoLine -- matches
-                            # _printResourceSummaryTable's real top-convention
-                            # layout (title/twoLine/header/twoLine/rows, one
-                            # oneLine after EVERY row, no trailing twoLine) #
+                            """ skip title, twoLine, header, twoLine -- matches _printResourceSummaryTable's real
+                            top-convention layout (title/twoLine/header/twoLine/rows, one oneLine after EVERY row, no
+                            trailing twoLine) """
                             _idx += 4
                             while _idx < len(_lines):
                                 _row = _lines[_idx].rstrip("\n")
@@ -217077,19 +217335,12 @@ class TaskAnalyzer(object):
                                 _name_tokens = _names_part.split()
                                 if not _name_tokens:
                                     continue
-                                # per_thread mode's row is "TCOMM(TID)
-                                # PCOMM(PID)" -- the FIRST token, not the
-                                # last, since the JSONEACH branch above
-                                # groups by "comm": evt.get("tcomm") or
-                                # evt.get("pcomm"), i.e. thread name takes
-                                # priority over process name. Using the
-                                # last token here would silently regroup
-                                # per-thread rows by process name instead,
-                                # desyncing this format from JSONEACH's
-                                # series identity for the same underlying
-                                # data. Non-per_thread rows only ever have
-                                # one token ("PCOMM(PID)"), so this is a
-                                # no-op there #
+                                """ per_thread mode's row is "TCOMM(TID) PCOMM(PID)" -- the FIRST token, not the last,
+                                since the JSONEACH branch above groups by "comm": evt.get("tcomm") or evt.get("pcomm"),
+                                i.e. thread name takes priority over process name. Using the last token here would
+                                silently regroup per-thread rows by process name instead, desyncing this format from
+                                JSONEACH's series identity for the same underlying data. Non-per_thread rows only ever
+                                have one token ("PCOMM(PID)"), so this is a no-op there """
                                 _nm = _re.match(r"(.+)\(", _name_tokens[0])
                                 _comm = (
                                     _nm.group(1).strip()
@@ -218166,21 +218417,14 @@ class TaskAnalyzer(object):
             svg_w = float(vb.group(1))
             svg_h = float(vb.group(2))
 
-            # Collect figure-normalized positions of axes that have
-            # legends -- one entry per Legend artist, not per axes.
-            # ax.get_legend() only ever returns the single "current"
-            # legend an axes was last given via ax.legend(); an axes
-            # with two legend artists (one kept alive via
-            # ax.add_artist() after a second ax.legend() call replaced
-            # it as "current") still only counts once here, so
-            # zip(legend_ids, ax_positions) below would silently drop
-            # the second legend's clip-path and desync every later
-            # axes' clip region if any (found via a caller that put two
-            # legends on one axes; even though that caller was later
-            # removed, this fix stays since it's a real gap in the
-            # shared utility's own assumptions). matplotlib.legend.Legend
-            # children are kept in the order they were added, matching
-            # SVG document order #
+            """ Collect figure-normalized positions of axes that have legends -- one entry per Legend artist, not per
+            axes. ax.get_legend() only ever returns the single "current" legend an axes was last given via ax.legend();
+            an axes with two legend artists (one kept alive via ax.add_artist() after a second ax.legend() call replaced
+            it as "current") still only counts once here, so zip(legend_ids, ax_positions) below would silently drop the
+            second legend's clip-path and desync every later axes' clip region if any (found via a caller that put two
+            legends on one axes; even though that caller was later removed, this fix stays since it's a real gap in the
+            shared utility's own assumptions). matplotlib.legend.Legend children are kept in the order they were added,
+            matching SVG document order """
             from matplotlib.legend import Legend
 
             ax_positions = []
@@ -218687,11 +218931,10 @@ class TaskAnalyzer(object):
                                 else:
                                     # Fallback: extract from polygon
                                     if len(vertices) >= 4:
-                                        # Matplotlib stackplot polygon structure:
-                                        # v[0]: top at starting x
-                                        # v[1] to v[mid]: bottom edge (forward, left to right)
-                                        # v[mid+1] to v[end]: top edge (backward, right to left)
-                                        # Last vertices may be duplicates (closing polygon)
+                                        """Matplotlib stackplot polygon structure: v[0]: top at starting x v[1] to
+                                        v[mid]: bottom edge (forward, left to right) v[mid+1] to v[end]: top edge
+                                        (backward, right to left) Last vertices may be duplicates (closing polygon)
+                                        """
 
                                         # Build a dictionary for quick lookup: x -> (bottom_y, top_y)
                                         data_dict = {}
@@ -243425,12 +243668,10 @@ function isAutoNamedPlot(name) {{
 
                 prevData = self.prevProcData[pid]["stat"]
 
-                # pid reuse: a different starttime means this pid now
-                # belongs to an unrelated new process, not the one sampled
-                # last interval, so diffing utime/stime against prevData
-                # would compute a nonsensical (often negative) CPU usage;
-                # fall through to the except branch's fresh (non-diffed)
-                # calculation instead, same as the totalEnable case above #
+                """ pid reuse: a different starttime means this pid now belongs to an unrelated new process, not the one
+                sampled last interval, so diffing utime/stime against prevData would compute a nonsensical (often
+                negative) CPU usage; fall through to the except branch's fresh (non-diffed) calculation instead, same as
+                the totalEnable case above """
                 if nowData[self.starttimeIdx] != prevData[self.starttimeIdx]:
                     raise Exception()
 
@@ -245732,13 +245973,9 @@ function isAutoNamedPlot(name) {{
                                 if value.startswith(cpuStat2Str):
                                     raise Exception("no usage")
 
-                                # throttled_usec (v2, only present when #
-                                # a quota is set) -- stored under the #
-                                # original "cpu.stat" key (converted to #
-                                # a nanosecond-equivalent rate to match #
-                                # v1's throttled_time units) since "name" #
-                                # is about to be renamed to track usage #
-                                # instead #
+                                """ throttled_usec (v2, only present when # a quota is set) -- stored under the #
+                                original "cpu.stat" key (converted to # a nanosecond-equivalent rate to match # v1's
+                                throttled_time units) since "name" # is about to be renamed to track usage # instead """
                                 try:
                                     curThrottle = _getStatField(
                                         value, "throttled_usec"
@@ -249010,14 +249247,171 @@ function isAutoNamedPlot(name) {{
         "blkio": "io",
     }
 
+    # default upper bound (chars) of the serialized event context sent to
+    # the LLM, roughly 8-9K tokens. 0 disables the bound #
+    _LLM_CTX_MAXCHARS = 32768
+
+    # max number of intervalData series attached as metric_history #
+    _LLM_MAX_HISTORY_KEYS = 40
+
+    # default / upper bound of the metric history ticks sent to the LLM
+    # (-q LLMCTXTICK / inline CTXTICK) #
+    _LLM_CTX_TICKS = 5
+    _LLM_CTX_MAXTICKS = 60
+
+    # context sections dropped (in this order) when the context exceeds
+    # the size bound, least valuable first #
+    _LLM_CTX_DROP_ORDER = (
+        "extended",
+        "metric_history",
+        "network_info",
+        "os_info",
+        "recent_events",
+    )
+
+    @staticmethod
+    def _chatEvent(llm, message, keepHistory=False):
+        """Send an event prompt to the LLM as an independent request.
+
+        The LLM instance is cached per (provider, kwargs) and shared by
+        every event, so chat() would otherwise resend all earlier events'
+        prompts (up to maxHistory messages) on each call. The clear and
+        the chat are held under the instance lock so a concurrent event
+        thread cannot slip its own turn in between #
+        """
+        lock = getattr(llm, "_lock", None)
+        if keepHistory or lock is None:
+            return llm.chat(message)
+
+        with lock:
+            llm.clearHistory()
+            return llm.chat(message)
+
+    @staticmethod
+    def _fitLLMContext(ctx, maxChars):
+        """Serialize ctx compactly and shrink it to fit maxChars.
+
+        Sections are dropped from least to most valuable and the dropped
+        names are listed in ctx["truncated"] so the LLM knows the data is
+        incomplete. maxChars <= 0 means no bound #
+        """
+        json = SysMgr.getPkg("json")
+        if not json:
+            return str(ctx)
+
+        def _dump(obj):
+            # keep non-ASCII text unescaped (fewer tokens); text that cannot
+            # be encoded, e.g. a lone surrogate, falls back to escapes #
+            text = json.dumps(obj, separators=(",", ":"), ensure_ascii=False)
+            try:
+                text.encode("utf-8")
+            except UnicodeError:
+                text = json.dumps(obj, separators=(",", ":"))
+            return text
+
+        ctxStr = _dump(ctx)
+        if maxChars <= 0 or len(ctxStr) <= maxChars:
+            return ctxStr
+
+        ctx = dict(ctx)
+        dropped = []
+
+        def _fit():
+            ctx["truncated"] = list(dropped)
+            return _dump(ctx)
+
+        for key in TaskAnalyzer._LLM_CTX_DROP_ORDER:
+            if key not in ctx:
+                continue
+            del ctx[key]
+            dropped.append(key)
+            ctxStr = _fit()
+            if len(ctxStr) <= maxChars:
+                return ctxStr
+
+        # shrink the process list down to a minimum of 3 entries #
+        procs = ctx.get("top_processes")
+        if isinstance(procs, list) and len(procs) > 3:
+            orig = len(procs)
+            while len(procs) > 3:
+                procs = procs[: max(3, len(procs) // 2)]
+                ctx["top_processes"] = procs
+                dropped_procs = "top_processes(%d->%d)" % (orig, len(procs))
+                ctx["truncated"] = dropped + [dropped_procs]
+                ctxStr = _dump(ctx)
+                if len(ctxStr) <= maxChars:
+                    return ctxStr
+            dropped.append(dropped_procs)
+
+        # last resort: cut the event details (e.g. the whole reportData of
+        # a periodic summary) down to the remaining room #
+        evt = ctx.get("event")
+        if isinstance(evt, dict) and "details" in evt:
+            evt = dict(evt)
+            details = evt.pop("details")
+            ctx["event"] = evt
+            dropped.append("event.details")
+            ctxStr = _fit()
+            room = maxChars - len(ctxStr) - 64
+            text = _dump(details)
+            while room > 0:
+                evt["details"] = {"truncated_text": text[:room]}
+                ctxStr = _fit()
+                if len(ctxStr) <= maxChars:
+                    return ctxStr
+                room = room * 3 // 4
+            evt.pop("details", None)
+            ctxStr = _fit()
+
+        # last resort for bpf* "-q ASKAI" data, which has none of the
+        # sections above: halve the largest list or dict, to 3 at least.
+        # A threshold-event context ("event" key) is left as it is #
+        if "event" in ctx:
+            return ctxStr
+
+        origLen = {}
+        while len(ctxStr) > maxChars:
+            big, bigLen = None, 0
+            for key, val in ctx.items():
+                if key in ("truncated", "event"):
+                    continue
+                if not isinstance(val, (list, dict)) or len(val) <= 3:
+                    continue
+                valLen = len(_dump(val))
+                if valLen > bigLen:
+                    big, bigLen = key, valLen
+
+            if big is None:
+                break
+
+            val = ctx[big]
+            origLen.setdefault(big, len(val))
+            keep = max(3, len(val) // 2)
+            if isinstance(val, list):
+                ctx[big] = val[:keep]
+            else:
+                ctx[big] = dict(list(val.items())[:keep])
+
+            dropped[:] = [d for d in dropped if not d.startswith(big + "(")]
+            dropped.append("%s(%d->%d)" % (big, origLen[big], keep))
+            ctxStr = _fit()
+
+        return ctxStr
+
     @staticmethod
     def _collectLLMEventContext(
-        event, eventData, ctxDepth=10, historyWindow=5
+        event, eventData, ctxDepth=10, historyWindow=None
     ):
         """Collect system context snapshot for LLM event analysis.
         Delegates to SysMgr.sysSnapshot() and SysMgr.topProcs() to avoid
         duplicating the collection logic in the funcall handler.
-        historyWindow: number of recent intervalData ticks to include."""
+        historyWindow: number of recent ticks to include (0 = none); the
+        metric_history length and the recent_events time window
+        (ticks * interval seconds) are both derived from this one value."""
+        ticks = historyWindow
+        if ticks is None:
+            ticks = TaskAnalyzer._LLM_CTX_TICKS
+        ticks = max(0, min(ticks, TaskAnalyzer._LLM_CTX_MAXTICKS))
         # clamp here (the single real consumer) rather than at each
         # CTXDEPTH/LLMCTXDEPTH parse site, so a huge/bad value never
         # embeds hundreds of processes verbatim into the LLM prompt #
@@ -249048,29 +249442,53 @@ function isAutoNamedPlot(name) {{
         # add time-series metric history from intervalData
         try:
             inst = getattr(SysMgr, "topInstance", None)
-            if inst and hasattr(inst, "intervalData"):
+            if ticks and inst and hasattr(inst, "intervalData"):
                 history = {}
-                # snapshot first: new keys (network devices, task/psi
-                # event names) can appear in this dict mid-tick from the
-                # main thread, and up to LLMMAXCONCURRENT worker threads
-                # can now genuinely read it concurrently #
-                for key, vals in dict(inst.intervalData).items():
-                    if isinstance(vals, list) and vals:
-                        history[key] = vals[-historyWindow:]
+                """ snapshot first: new keys (network devices, task/psi event names) can appear in this dict mid-tick
+                from the main thread, and up to LLMMAXCONCURRENT worker threads can now genuinely read it concurrently
+                """
+                series = [
+                    (key, vals)
+                    for key, vals in dict(inst.intervalData).items()
+                    if isinstance(vals, list) and vals
+                ]
+
+                # bound the number of series: keep the ones named in the
+                # event first, then the rest in name order #
+                maxKeys = TaskAnalyzer._LLM_MAX_HISTORY_KEYS
+                omitted = len(series) - maxKeys
+                if omitted > 0:
+                    evtName = str(event).lower()
+                    series.sort(
+                        key=lambda e: (
+                            str(e[0]).lower() not in evtName,
+                            str(e[0]),
+                        )
+                    )
+                    series = series[:maxKeys]
+
+                for key, vals in series:
+                    history[key] = vals[-ticks:]
                 if history:
                     ctx["metric_history"] = history
+                    if omitted > 0:
+                        ctx["metric_history_omitted"] = omitted
         except SystemExit:
             sys.exit(0)
         except:
             pass
-        # add recent correlated events
+        # add recent correlated events: 0 ticks means no history at all,
+        # and the event that fired is already in "event" #
         try:
-            now = SysMgr.uptime
-            recent = {
-                k: [t for t in v if now - t <= historyWindow]
-                for k, v in dict(SysMgr.thrEvtCorrTs).items()
-            }
-            ctx["recent_events"] = {k: v for k, v in recent.items() if v}
+            if ticks:
+                now = SysMgr.uptime
+                # convert the tick count to seconds with the real interval #
+                window = ticks * (SysMgr.intervalEnable or 1)
+                recent = {
+                    k: [t for t in v if now - t <= window]
+                    for k, v in dict(SysMgr.thrEvtCorrTs).items()
+                }
+                ctx["recent_events"] = {k: v for k, v in recent.items() if v}
         except SystemExit:
             sys.exit(0)
         except:
@@ -249078,7 +249496,7 @@ function isAutoNamedPlot(name) {{
         # add OS/kernel information
         try:
             ctx["os_info"] = {
-                "kernel": getattr(SysMgr, "kernelVersion", None),
+                "kernel": SysMgr.getKernelVersion(),
                 "arch": getattr(SysMgr, "arch", None),
             }
         except:
@@ -249156,8 +249574,6 @@ function isAutoNamedPlot(name) {{
             "GETINFO",
             "RESET",
             "CLEAR",
-            "PAUSE",
-            "SLEEP",
             "DISABLE",
             "ENABLE",
             "FILTER",
@@ -249191,7 +249607,6 @@ function isAutoNamedPlot(name) {{
     # kept as a small dict instead of inline text so the prompt below is
     # generated from _LLM_ALLOW_CMDS and can't silently drift out of sync #
     _LLM_CMD_PARAM_HINTS = {
-        "SLEEP": "SLEEP:<SEC>",
         "INTERVAL": "INTERVAL:<SEC>",
         "BUFFER": "BUFFER:<SIZE>",
         "AUTOSCHED": "AUTOSCHED:<POLICY>:<PRI>",
@@ -249219,6 +249634,11 @@ function isAutoNamedPlot(name) {{
             "RELOAD",
             "UPDATE",
             "STOP",
+            # ASKRUN commands now run on the monitoring (main) thread: a
+            # PAUSE/SLEEP would stall the whole tick loop and every other
+            # queued command, even in its timed form #
+            "PAUSE",
+            "SLEEP",
         )
     )
 
@@ -249252,7 +249672,8 @@ function isAutoNamedPlot(name) {{
         "  CPU spikes: prefer AUTOLIMITCPU:<PCT> or AUTOSCHED:B:0 (background class).\n"
         "  OOM risk: prefer AUTOOMADJ:1000 (mark as least-important).\n"
         "  Evidence capture: SAVE (stats), SNAPSHOT (full state), GETDUMP (ANR/crash).\n"
-        "FORBIDDEN commands (never include): EXIT RESTART RELOAD STOP UPDATE."
+        "FORBIDDEN commands (never include): EXIT RESTART RELOAD STOP UPDATE "
+        "PAUSE SLEEP."
     )
 
     @staticmethod
@@ -249319,6 +249740,12 @@ function isAutoNamedPlot(name) {{
             bool: True if allowed, False if blocked
         """
         ocmd = cmd.split(":", 1)[0].split("#", 1)[0].upper()
+
+        # handleEventCmd() drops a leading CMD_ before it dispatches, so
+        # CMD_EXIT is EXIT there: check the name it will really run #
+        if ocmd.startswith("CMD_"):
+            ocmd = ocmd[4:]
+            cmd = cmd[4:]
         if ocmd in TaskAnalyzer._LLM_BLOCK_CMDS:
             return False
         # AUTOSWAPOUT's optional ":<TARGET>" argument bypasses
@@ -249387,30 +249814,6 @@ function isAutoNamedPlot(name) {{
                     and _v.strip().lower() != "true"
                 ):
                     return False
-        # a bare (no duration) PAUSE waits until a human sends RESTART -
-        # but RESTART is unconditionally in _LLM_BLOCK_CMDS above, so
-        # the LLM itself can NEVER undo a PAUSE it triggers; a bare
-        # SLEEP is worse still, looping forever with no wake condition
-        # at all. Either one permanently wedges the entire threshold/
-        # ASKRUN dispatcher (see the printEnable/waitEnable gate near
-        # the top of this function) with zero LLM-reachable recovery -
-        # a categorically bigger blast radius than the rest of
-        # _LLM_ALLOW_CMDS gets. The timed form (PAUSE:<N>/SLEEP:<N>) is
-        # self-bounding (and, since the fix above, self-restoring) so
-        # it stays allowed; only the bare/indefinite form is blocked
-        # here, using the exact same bare-detection the handler itself
-        # uses #
-        if ocmd in ("PAUSE", "SLEEP"):
-            # bare-detection must be case-insensitive since this
-            # validator (unlike the handler) is called on the LLM's
-            # raw, non-canonical-case string BEFORE dispatch-time
-            # normalization - comparing against the already-upper()ed
-            # "ocmd" above requires upper()ing "cmd" the same way #
-            _cmdUpper = cmd.upper()
-            _duration = UtilMgr.lstrip(_cmdUpper, "PAUSE:")
-            _duration = UtilMgr.lstrip(_duration, "SLEEP:")
-            if _cmdUpper == ocmd or not _duration:
-                return False
         if ocmd in TaskAnalyzer._LLM_ALLOW_CMDS:
             return True
         if ocmd in ConfigMgr.RESSET:
@@ -249442,18 +249845,27 @@ function isAutoNamedPlot(name) {{
             json = SysMgr.getPkg("json")
             if not json:
                 return
+
+            # keep non-ASCII text readable when open() can encode it (an
+            # ASCII locale cannot), else write the escaped form #
+            line = json.dumps(entry, ensure_ascii=False)
+            try:
+                line.encode(
+                    SysMgr.getPkg("locale").getpreferredencoding(False)
+                )
+            except Exception:
+                line = json.dumps(entry)
+
             if not SysMgr.writeFile(
-                logPath, json.dumps(entry) + "\n", append=True, verb=False
+                logPath, line + "\n", append=True, verb=False
             ):
                 SysMgr.printWarn(
                     "failed to write LLM audit log entry to '%s'" % logPath
                 )
             else:
-                # this file can contain full LLM prompts/responses and
-                # detailed system diagnostics, and guider is frequently
-                # run as root - writeFile()'s plain open() otherwise
-                # leaves it at the inherited umask (commonly 644, world-
-                # readable); restrict it, best-effort #
+                """this file can contain full LLM prompts/responses and detailed system diagnostics, and guider is
+                frequently run as root - writeFile()'s plain open() otherwise leaves it at the inherited umask (commonly
+                644, world- readable); restrict it, best-effort"""
                 try:
                     os.chmod(logPath, 0o600)
                 except Exception:
@@ -249532,10 +249944,9 @@ function isAutoNamedPlot(name) {{
                 askType.upper(),
                 timeinfo,
             )
-            # append the writer's own PID, same spirit as the PID suffix
-            # SAVE's forked child appends to its own report filename - this
-            # never forks like SAVE does, so it's just the current process,
-            # not a value expected to match a co-triggered SAVE report's #
+            """ append the writer's own PID, same spirit as the PID suffix SAVE's forked child appends to its own report
+            filename - this never forks like SAVE does, so it's just the current process, not a value expected to match
+            a co-triggered SAVE report's """
             base, ext = os.path.splitext(fname)
             fname = "%s_%d%s" % (base, os.getpid(), ext)
 
@@ -249589,9 +250000,8 @@ function isAutoNamedPlot(name) {{
             content = "\n".join(lines) + "\n"
             if not SysMgr.writeFile(path, content, verb=False):
                 raise IOError("failed to write LLM report file '%s'" % path)
-            # same reasoning as _llmAuditLog: this file holds full LLM
-            # prompt/response text and system diagnostics, and guider is
-            # frequently run as root - restrict it, best-effort #
+            """ same reasoning as _llmAuditLog: this file holds full LLM prompt/response text and system diagnostics,
+            and guider is frequently run as root - restrict it, best-effort """
             try:
                 os.chmod(path, 0o600)
             except Exception:
@@ -249710,10 +250120,9 @@ function isAutoNamedPlot(name) {{
             if actualCpuPct is not None and analysis:
                 lowered = analysis.lower()
 
-                # split into rough clauses so a number that belongs to one
-                # metric (io/disk/gpu/...) isn't cross-attributed to a
-                # "cpu" mention that's actually in a neighboring clause,
-                # e.g. "IO wait can spike to 30% when CPU is busy" #
+                """ split into rough clauses so a number that belongs to one metric (io/disk/gpu/...) isn't
+                cross-attributed to a "cpu" mention that's actually in a neighboring clause, e.g. "IO wait can spike to
+                30% when CPU is busy" """
                 clauseBounds = [0]
                 for sep in re.finditer(
                     r"[,;.!?]|\b(?:and|but|when|while|whereas|although|"
@@ -249748,19 +250157,16 @@ function isAutoNamedPlot(name) {{
                             len(lowered), m.end() + 40
                         )
                     ]
-                    # a range/trend description ("from 10% to 90%")
-                    # describes change over time, not a single current-
-                    # state claim - too ambiguous for this conservative
-                    # check to validate #
+                    """ a range/trend description ("from 10% to 90%") describes change over time, not a single current-
+                    state claim - too ambiguous for this conservative check to validate """
                     if re.search(r"\bfrom\b.{0,20}\bto\b", window):
                         continue
 
                     clause = _clauseAt(m.start())
                     if not re.search(r"\bcpu\b", clause):
                         continue
-                    # "cpu.some"/"cpu.full" are PSI pressure-stall
-                    # percentages, a different metric than CPU
-                    # utilization - not comparable #
+                    """ "cpu.some"/"cpu.full" are PSI pressure-stall percentages, a different metric than CPU
+                    utilization - not comparable """
                     if (
                         re.search(r"cpu\s*\.\s*(some|full)", clause)
                         or "psi" in clause
@@ -249771,9 +250177,8 @@ function isAutoNamedPlot(name) {{
                         for kw in TaskAnalyzer._CPU_OTHER_METRIC_KEYWORDS
                     ):
                         continue
-                    # a %-figure scoped to a single core/thread/process
-                    # (e.g. "97% of a single core") isn't comparable to
-                    # the system-wide aggregate cpu_pct #
+                    """ a %-figure scoped to a single core/thread/process (e.g. "97% of a single core") isn't comparable
+                    to the system-wide aggregate cpu_pct """
                     if TaskAnalyzer._CPU_PERCORE_SCOPE_RE.search(clause):
                         continue
 
@@ -249787,6 +250192,83 @@ function isAutoNamedPlot(name) {{
             pass
 
         return {"force_dryrun": bool(reasons), "reasons": reasons}
+
+    @staticmethod
+    def _reqLLMCmds(cmds, source, pickTimeout=None):
+        """Worker side: have the main thread run cmds (in order) and wait.
+
+        Returns a list of booleans, one per command: True only when the
+        main thread ran it and it did not fail. req["state"] (0 queued,
+        1 picked, 2 cancelled) is flipped under req["lock"] by whichever
+        side comes first, so the batch is either run AND reported, or
+        cancelled AND not run - never both. Event.wait()'s return value
+        is not used (it returns None before Python 3.1) #
+        """
+        import threading as _threading
+
+        if SysMgr.llmCmdClosed:
+            SysMgr.printWarn(
+                "[LLM] guider is exiting, %s not run" % str(cmds), True
+            )
+            return []
+
+        req = {
+            "cmds": cmds,
+            "source": source,
+            "started": _threading.Event(),
+            "done": _threading.Event(),
+            "rets": [],
+            "state": 0,
+            "lock": _threading.Lock(),
+        }
+        if pickTimeout is None:
+            pickTimeout = 10 + 2 * (
+                SysMgr.intervalFloat or SysMgr.intervalEnable or 1
+            )
+        SysMgr.llmCmdQueue.append(req)
+        # re-check after the append: _flushLLMCmdQueue() may have run between
+        # the check above and the append, and nobody would ever pick this up #
+        if not SysMgr.llmCmdClosed:
+            req["started"].wait(pickTimeout)
+        req["lock"].acquire()
+        try:
+            if req["state"] == 0:
+                req["state"] = 2
+        finally:
+            req["lock"].release()
+        if req["state"] == 2:
+            SysMgr.printWarn(
+                "[LLM] main thread did not run %s, cancelled" % str(cmds),
+                True,
+            )
+            return []
+        # poll: the main thread may leave without finishing this request #
+        while not req["done"].is_set():
+            req["done"].wait(1)
+            if SysMgr.llmCmdClosed:
+                req["done"].wait(1)
+                break
+        return [ret not in (None, -1) for ret in req["rets"]]
+
+    @staticmethod
+    def _flushLLMCmdQueue():
+        """Exit hook: cancel every queued ASKRUN request so no worker keeps
+        waiting for a main thread that is leaving (must run before
+        BpfMgr._waitBpfAI, which joins the workers) #"""
+        SysMgr.llmCmdClosed = True
+        queue = SysMgr.llmCmdQueue
+        while queue:
+            try:
+                req = queue.pop(0)
+            except IndexError:
+                break
+            req["lock"].acquire()
+            try:
+                if req["state"] == 0:
+                    req["state"] = 2
+            finally:
+                req["lock"].release()
+            req["started"].set()
 
     @staticmethod
     def _runLLMAskThread(askType, prompt, opts, event, eventData):
@@ -249806,6 +250288,7 @@ function isAutoNamedPlot(name) {{
         maxCmd = opts.get("maxCmd", 3)
         timeout = opts.get("timeout", None)
         ctxDepth = opts.get("ctxDepth", 10)
+        ctxTick = opts.get("ctxTick", None)
         auditLog = opts.get("auditLog", None)
         allowRun = opts.get("allowRun", False)
         extraAllow = opts.get("extraAllow", None)
@@ -249817,6 +250300,8 @@ function isAutoNamedPlot(name) {{
         triggerUptime = opts.get("triggerUptime", None)
         triggerTimeinfo = opts.get("triggerTimeinfo", None)
         triggerReportNum = opts.get("triggerReportNum", None)
+        keepHistory = opts.get("keepHistory", False)
+        maxCtxChars = opts.get("maxCtxChars", TaskAnalyzer._LLM_CTX_MAXCHARS)
 
         # rate-limit check
         now = time.time()
@@ -249867,6 +250352,18 @@ function isAutoNamedPlot(name) {{
                 )
                 SysMgr.llmEventPending.pop(event, None)
                 return
+
+            # the slot caps concurrent LLM calls, so it is given back as
+            # soon as the call returns and not held while waiting for the
+            # main thread to run the commands. One-element list: a nested
+            # function cannot rebind it, and it keeps the give-back once #
+            slotHeld = [True]
+
+            def _releaseSlot():
+                if slotHeld[0]:
+                    slotHeld[0] = False
+                    LLMMgr._releaseLLMConcurrencySlot()
+
             try:
                 # capture outer-scope values as local vars (avoids UnboundLocalError
                 # if severity router's conditional assignment is not executed)
@@ -249875,10 +250372,9 @@ function isAutoNamedPlot(name) {{
 
                 # collect context
                 ctx = TaskAnalyzer._collectLLMEventContext(
-                    event, eventData, ctxDepth
+                    event, eventData, ctxDepth, ctxTick
                 )
-                json = SysMgr.getPkg("json")
-                ctxStr = json.dumps(ctx, indent=2) if json else str(ctx)
+                ctxStr = TaskAnalyzer._fitLLMContext(ctx, maxCtxChars)
 
                 # build full prompt
                 if not prompt:
@@ -249916,10 +250412,13 @@ function isAutoNamedPlot(name) {{
                     llm = LLMMgr.getLLM(resolvedProvider, **kwargs)
                     if sysPrompt:
                         llm.setCacheSystemPrompt(sysPrompt)
-                    response = llm.chat(fullPrompt)
+                    response = TaskAnalyzer._chatEvent(
+                        llm, fullPrompt, keepHistory
+                    )
                     _callCost, _cumulativeCost = TaskAnalyzer._recordLlmCost(
                         resolvedProvider, response.model, response.usage, opts
                     )
+                    _releaseSlot()
                 except SystemExit:
                     sys.exit(0)
                 except Exception as ex:
@@ -249951,16 +250450,13 @@ function isAutoNamedPlot(name) {{
                         )
                     return
 
-                # a usable response arrived - reset any consecutive-
-                # failure streak so a transient blip that then recovers
-                # doesn't keep re-triggering the persistent-failure
-                # warning on some later, unrelated failure #
+                """ a usable response arrived - reset any consecutive- failure streak so a transient blip that then
+                recovers doesn't keep re-triggering the persistent-failure warning on some later, unrelated failure """
                 SysMgr.llmEventFailStreak.pop(event, None)
 
                 responseText = response.content
-                # when streaming is on, llm.chat() already wrote this text
-                # to stdout token-by-token; printing it again here would
-                # duplicate it in the log/terminal.
+                """ when streaming is on, llm.chat() already wrote this text to stdout token-by-token; printing it again
+                here would duplicate it in the log/terminal. """
                 if not LLMMgr._isStreamEnabled():
                     SysMgr.printInfo("[LLM:%s] %s" % (askType, responseText))
 
@@ -249972,15 +250468,11 @@ function isAutoNamedPlot(name) {{
                     parsed = TaskAnalyzer._parseLLMResponse(responseText)
                     # severity router: adjust maxCmd and dryRun based on severity
                     if parsed:
-                        # the system prompt only describes the expected
-                        # severity values in prose, not as an enforced
-                        # JSON-schema enum, so a real LLM response can
-                        # plausibly drift in casing/whitespace ("Medium",
-                        # "high ") or vocabulary ("moderate") without
-                        # otherwise deviating from instructions - normalize
-                        # once here and write it back so every downstream
-                        # read (auto-escalation, report display) sees the
-                        # same value #
+                        """the system prompt only describes the expected severity values in prose, not as an enforced
+                        JSON-schema enum, so a real LLM response can plausibly drift in casing/whitespace ("Medium",
+                        "high ") or vocabulary ("moderate") without otherwise deviating from instructions - normalize
+                        once here and write it back so every downstream read (auto-escalation, report display) sees the
+                        same value"""
                         severity = (
                             str(parsed.get("severity", "medium"))
                             .strip()
@@ -249995,22 +250487,18 @@ function isAutoNamedPlot(name) {{
                                 "low": 0,
                             }.get(severity, 1)
                             _maxCmd = opts["maxCmd"]
-                        # fail SAFE by default: only a value explicitly
-                        # recognized as "high"/"critical" skips dry-run -
-                        # anything else (low/medium/an unrecognized new
-                        # word) defaults to dry-run instead of silently
-                        # falling through to real execution, which the
-                        # previous whitelist-style check ("in low/medium")
-                        # did for any value it didn't recognize #
+                        """ fail SAFE by default: only a value explicitly recognized as "high"/"critical" skips dry-run
+                        - anything else (low/medium/an unrecognized new word) defaults to dry-run instead of silently
+                        falling through to real execution, which the previous whitelist-style check ("in low/medium")
+                        did for any value it didn't recognize """
                         if "dryRun" not in opts and severity not in (
                             "high",
                             "critical",
                         ):
                             opts["dryRun"] = True
                             _dryRun = True
-                        # pre-execution hallucination gate: a dry-run
-                        # downgrade (not a hard block), same philosophy as
-                        # the severity router above #
+                        """ pre-execution hallucination gate: a dry-run downgrade (not a hard block), same philosophy as
+                        the severity router above """
                         _gate = TaskAnalyzer._validateAskRunResponse(
                             parsed, ctx, opts
                         )
@@ -250022,15 +250510,12 @@ function isAutoNamedPlot(name) {{
                             if "dryRun" not in opts:
                                 opts["dryRun"] = True
                                 _dryRun = True
-                    # auto-escalation based on guider.conf ASKRUN config -
-                    # isolated in its own try/except so a malformed config
-                    # shape (e.g. ASKRUN/SEVERITY_ACTIONS/SUBSYSTEM_ACTIONS
-                    # not actually a dict - a plausible operator mistake,
-                    # like writing "ASKRUN": "false" instead of
-                    # "AUTO_ESCALATE": "false") only disables escalation
-                    # for this dispatch instead of aborting the LLM's own,
-                    # already-successfully-received valid response before
-                    # the real command-execution loop below ever runs #
+                    """ auto-escalation based on guider.conf ASKRUN config - isolated in its own try/except so a
+                    malformed config shape (e.g. ASKRUN/SEVERITY_ACTIONS/SUBSYSTEM_ACTIONS not actually a dict - a
+                    plausible operator mistake, like writing "ASKRUN": "false" instead of "AUTO_ESCALATE": "false") only
+                    disables escalation for this dispatch instead of aborting the LLM's own,
+                    already-successfully-received valid response before the real command-execution loop below ever runs
+                    """
                     try:
                         _askrun_cfg = LLMMgr._askrunConfig
                         if (
@@ -250089,6 +250574,7 @@ function isAutoNamedPlot(name) {{
                             % str(ex)
                         )
                     if parsed and isinstance(parsed.get("commands"), list):
+                        _pendCmds = []
                         for c in parsed["commands"][:_maxCmd]:
                             if not isinstance(c, str):
                                 continue
@@ -250111,24 +250597,14 @@ function isAutoNamedPlot(name) {{
                                         if inst and hasattr(
                                             inst, "handleEventCmd"
                                         ):
-                                            # _validateLLMCommand() just
-                                            # approved this via its own
-                                            # .upper()-normalized ocmd, but
-                                            # handleEventCmd()'s dispatch
-                                            # does NOT uppercase (it's
-                                            # shared with human-authored
-                                            # guider.conf threshold
-                                            # commands, which are always
-                                            # written in canonical case) -
-                                            # so a non-canonical-case LLM
-                                            # reply (e.g. "save") would
-                                            # pass validation here but
-                                            # match no elif branch and
-                                            # silently no-op. Normalize
-                                            # only the command-name prefix
-                                            # before dispatch, leaving the
-                                            # ':'/'#'-delimited argument
-                                            # or comment text untouched #
+                                            """_validateLLMCommand() just approved this via its own .upper()-normalized
+                                            ocmd, but handleEventCmd()'s dispatch does NOT uppercase (it's shared with
+                                            human-authored guider.conf threshold commands, which are always written in
+                                            canonical case) - so a non-canonical-case LLM reply (e.g. "save") would pass
+                                            validation here but match no elif branch and silently no-op. Normalize only
+                                            the command-name prefix before dispatch, leaving the ':'/'#'-delimited
+                                            argument or comment text untouched
+                                            """
                                             _ocmdRaw = c.split(":", 1)[
                                                 0
                                             ].split("#", 1)[0]
@@ -250136,20 +250612,18 @@ function isAutoNamedPlot(name) {{
                                                 _ocmdRaw.upper()
                                                 + c[len(_ocmdRaw) :]
                                             )
-                                            # include the triggering event
-                                            # name (not just a bare "LLM"
-                                            # literal) so a #SAVE-family
-                                            # follow-up command's report
-                                            # filename stays distinguishable
-                                            # from another, unrelated
-                                            # event's concurrent LLM-
-                                            # triggered follow-up #
-                                            inst.handleEventCmd(
-                                                _dispatchCmd,
-                                                "LLM:%s" % event,
-                                                False,
+                                            """ include the triggering event name (not just a bare "LLM" literal) so a
+                                            #SAVE-family follow-up command's report filename stays distinguishable from
+                                            another, unrelated event's concurrent LLM- triggered follow-up """
+                                            _pendCmds.append((c, _dispatchCmd))
+                                        else:
+                                            # no TaskAnalyzer (e.g. no task
+                                            # monitoring): nothing can run it #
+                                            SysMgr.printWarn(
+                                                "[LLM] no monitoring instance,"
+                                                " '%s' not run" % c,
+                                                True,
                                             )
-                                        executedCmds.append(c)
                                     except SystemExit:
                                         sys.exit(0)
                                     except Exception as ex:
@@ -250162,6 +250636,22 @@ function isAutoNamedPlot(name) {{
                                     "[LLM:BLOCKED] command not allowed: %s" % c
                                 )
                                 blockedCmds.append(c)
+                        if _pendCmds:
+                            try:
+                                _oks = TaskAnalyzer._reqLLMCmds(
+                                    [_pc[1] for _pc in _pendCmds],
+                                    "LLM:%s" % event,
+                                )
+                            except SystemExit:
+                                sys.exit(0)
+                            except Exception as ex:
+                                SysMgr.printErr(
+                                    "[LLM] commands failed: %s" % str(ex)
+                                )
+                                _oks = []
+                            for _idx, _pc in enumerate(_pendCmds):
+                                if _idx < len(_oks) and _oks[_idx]:
+                                    executedCmds.append(_pc[0])
                     elif parsed is None:
                         SysMgr.printWarn(
                             "[LLM] could not parse JSON from ASKRUN response"
@@ -250178,22 +250668,43 @@ function isAutoNamedPlot(name) {{
                     try:
                         time.sleep(feedback)
                         fbCtx = TaskAnalyzer._collectLLMEventContext(
-                            event, eventData, ctxDepth
+                            event, eventData, ctxDepth, ctxTick
                         )
-                        fbCtxStr = (
-                            json.dumps(fbCtx, indent=2) if json else str(fbCtx)
+                        fbCtxStr = TaskAnalyzer._fitLLMContext(
+                            fbCtx, maxCtxChars
                         )
+                        # stand-alone: other events may reuse this LLM
+                        # instance during the wait #
                         fbPrompt = (
+                            "Earlier analysis of event '%s':\n%s\n\n"
                             "After executing %s, the current system state is:\n%s\n"
                             "Was the remediation effective?"
-                            % (str(executedCmds), fbCtxStr)
+                            % (
+                                event,
+                                str(responseText)[:2000],
+                                str(executedCmds),
+                                fbCtxStr,
+                            )
                         )
-                        fbResp = llm.chat(fbPrompt)
+                        # a second LLM call: take a slot again, and skip the
+                        # follow-up when the cap is full (it is optional) #
+                        if LLMMgr._acquireLLMConcurrencySlot():
+                            try:
+                                fbResp = TaskAnalyzer._chatEvent(
+                                    llm, fbPrompt, keepHistory
+                                )
+                            finally:
+                                LLMMgr._releaseLLMConcurrencySlot()
+                        else:
+                            fbResp = None
+                            SysMgr.printWarn(
+                                "[LLM:FEEDBACK] max concurrent LLM calls "
+                                "reached, skipped for event '%s'" % event
+                            )
                         if fbResp and fbResp.content:
                             fbResponseText = fbResp.content
-                        # streaming mode already writes response text
-                        # straight to stdout inside llm.chat(); skip the
-                        # content print below.
+                        """ streaming mode already writes response text straight to stdout inside llm.chat(); skip the
+                        content print below. """
                         if fbResponseText and not LLMMgr._isStreamEnabled():
                             SysMgr.printInfo(
                                 "[LLM:FEEDBACK] %s" % fbResponseText
@@ -250244,10 +250755,11 @@ function isAutoNamedPlot(name) {{
                 # SAVE report (independent of LLMAUDITLOG) #
                 saveOpt = opts.get("save")
                 if saveOpt:
+                    # record what was actually sent (question + context) #
                     TaskAnalyzer._writeLLMReport(
                         askType,
                         event,
-                        prompt,
+                        fullPrompt,
                         responseText,
                         saveOpt,
                         provider=resolvedProvider,
@@ -250273,23 +250785,19 @@ function isAutoNamedPlot(name) {{
                 )
             finally:
                 SysMgr.llmEventPending.pop(event, None)
-                LLMMgr._releaseLLMConcurrencySlot()
+                _releaseSlot()
 
         t = _threading.Thread(target=_worker, name="llm-%s" % event)
         t.daemon = True
         try:
             t.start()
         except Exception as ex:
-            # a real failure mode under thread exhaustion (embedded/
-            # automotive targets often run with a low RLIMIT_NPROC/
-            # pids.max, and a real incident crossing many different
-            # threshold rules in one tick can spawn many of these threads
-            # at once) - if _worker() never actually starts, its own
-            # try/finally (including the concurrency-slot release) never
-            # runs either, so llmEventPending must be cleared here.
-            # Without this guard the exception would also propagate into
-            # handleEventCmd()'s own command-list loop, aborting every
-            # OTHER command still due to run for this same tick #
+            """a real failure mode under thread exhaustion (embedded/ automotive targets often run with a low
+            RLIMIT_NPROC/ pids.max, and a real incident crossing many different threshold rules in one tick can spawn
+            many of these threads at once) - if _worker() never actually starts, its own try/finally (including the
+            concurrency-slot release) never runs either, so llmEventPending must be cleared here. Without this guard the
+            exception would also propagate into handleEventCmd()'s own command-list loop, aborting every OTHER command
+            still due to run for this same tick"""
             SysMgr.llmEventPending.pop(event, None)
             SysMgr.printWarn(
                 "[LLM] failed to start worker thread for event '%s': %s"
@@ -250304,11 +250812,20 @@ function isAutoNamedPlot(name) {{
             _lt for _lt in SysMgr.llmAiThreads if _lt.is_alive()
         ]
         SysMgr.llmAiThreads.append(t)
+        SysMgr.addExitFunc(TaskAnalyzer._flushLLMCmdQueue, redundant=False)
         SysMgr.addExitFunc(BpfMgr._waitBpfAI, [30], redundant=False)
 
     def _getGovState(self, source):
         # return (evtConf, govState, autoTarget, excludeList, targetList) for governor commands #
-        evtConf = self.reportData.get("event", {}).get(source, {})
+        # an ASKRUN command runs as "LLM:<event>": its targets and filters are
+        # the ones configured for <event>, while the governor state stays
+        # under its own key so the event's own commands are not mixed in #
+        evtName = source[4:] if source.startswith("LLM:") else source
+        evtConf = self.reportData.get("event", {}).get(evtName)
+        if evtConf is None:
+            # reportData["event"] is rebuilt every tick: a command that runs
+            # later (ASKRUN) finds the rule of the active event here #
+            evtConf = SysMgr.thrEvtList.get(evtName, {})
         autoTarget = evtConf.get("autoTarget", "topCpu")
         # excludeList: comm names to skip; accept legacy "whiteList" key too #
         excludeList = evtConf.get("excludeList", evtConf.get("whiteList", []))
@@ -250353,6 +250870,23 @@ function isAutoNamedPlot(name) {{
         _evtConf, govState, autoTarget, excludeList, targetList = (
             self._getGovState(source)
         )
+        # a command the AI runs ("LLM:<event>") may only touch the processes
+        # the event names in targetList: without it the top consumers of the
+        # whole system would be picked, whatever they are. Processes this
+        # event's own commands already touched stay valid, so AUTORESTORE
+        # and a follow-up on them still work #
+        if (
+            source.startswith("LLM:")
+            and not targetList
+            and not govState.get("nices")
+        ):
+            SysMgr.llmGovRefused += 1
+            SysMgr.printWarn(
+                "[LLM] the event of '%s' has no targetList, governor "
+                "commands are not run for it" % source,
+                True,
+            )
+            return govState, []
         procs = self._getGovTargets(
             autoTarget, govState, excludeList, targetList
         )
@@ -250399,7 +250933,7 @@ function isAutoNamedPlot(name) {{
                 return val[key]
         return None
 
-    def handleEventCmd(self, cmd, source, user, fork=True):
+    def handleEventCmd(self, cmd, source, user, fork=True, wait=True):
         # strip a redundant CMD_ prefix once, here, so every ocmd-matching
         # branch below sees a normalized bare command regardless of caller.
         # Previously only the event-notify/IPC path stripped this itself
@@ -250495,11 +251029,16 @@ function isAutoNamedPlot(name) {{
             value = None
             path = UtilMgr.lstrip(cmd, "UPDATE:")
 
-            SysMgr.updateThreshold(path)
-
-            SysMgr.printInfo(
-                "updated the threshold data from '%s' %s" % (path, ctxstr)
-            )
+            if SysMgr.updateThreshold(path):
+                SysMgr.printInfo(
+                    "updated the threshold data from '%s' %s" % (path, ctxstr)
+                )
+            else:
+                SysMgr.printWarn(
+                    "failed to update the threshold data from '%s' %s"
+                    % (path, ctxstr),
+                    True,
+                )
         # FILTER #
         elif ocmd == "FILTER":
             if cmd == ocmd:
@@ -250548,29 +251087,20 @@ function isAutoNamedPlot(name) {{
                 return None
 
             try:
-                # 'name' (this resource's scope key, e.g. a free-form
-                # process comm for fdtrace) can itself contain
-                # underscores, unlike log/func's fixed enum-style names
-                # -- a naive fixed-count split (as this used to do:
-                # item, name, target = value.split("_", 2)) wrongly cuts
-                # 'name' short at its first underscore and absorbs the
-                # remainder into 'target' (e.g. "fdtrace_system_server_
-                # >1000" split as item="fdtrace", name="system",
-                # target="server_>1000"), so the 'name != _name:
-                # continue' scan below never matches any registered
-                # entry and the NOTIFY is silently dropped. Match
-                # against the ACTUALLY registered scope keys instead,
-                # preferring the longest match in case one key is
-                # itself a prefix of another. Longest-prefix-wins alone is
-                # still ambiguous when one registered name equals another
-                # name's own "name_target" concatenation (e.g. names "a"
-                # and "a_a_x" both registered, with "a"'s target being
-                # "a_x") -- both are lexically valid splits of the same
-                # joined string, and picking the longer one would silently
-                # misattribute "a"'s event to "a_a_x" and drop it (its
-                # filter won't match the resulting empty target). Cross-
-                # check each candidate split against the real registered
-                # "filter" value(s) for that name to disambiguate #
+                """'name' (this resource's scope key, e.g. a free-form process comm for fdtrace) can itself contain
+                underscores, unlike log/func's fixed enum-style names -- a naive fixed-count split (as this used to do:
+                item, name, target = value.split("_", 2)) wrongly cuts 'name' short at its first underscore and absorbs
+                the remainder into 'target' (e.g. "fdtrace_system_server_ >1000" split as item="fdtrace", name="system",
+                target="server_>1000"), so the 'name != _name: continue' scan below never matches any registered entry
+                and the NOTIFY is silently dropped. Match against the ACTUALLY registered scope keys instead, preferring
+                the longest match in case one key is itself a prefix of another. Longest-prefix-wins alone is still
+                ambiguous when one registered name equals another name's own "name_target" concatenation (e.g. names "a"
+                and "a_a_x" both registered, with "a"'s target being "a_x") -- both are lexically valid splits of the
+                same joined string, and picking the longer one would silently misattribute "a"'s event to "a_a_x" and
+                drop it (its filter won't match the resulting empty target). Cross- check each candidate split against
+                the real registered "filter" value(s) for that name to disambiguate
+                """
+
                 def _getFilters(_cand):
                     _entries = SysMgr.thrData[item].get(_cand)
                     if isinstance(_entries, dict):
@@ -250835,17 +251365,18 @@ function isAutoNamedPlot(name) {{
             SysMgr.thrEvtList = {}
 
             if not SysMgr.loadConfig(path):
+                SysMgr.printWarn(
+                    "failed to reload '%s', the previous threshold "
+                    "is kept %s" % (path, ctxstr),
+                    True,
+                )
                 return None
 
-            # re-apply <init>.OPTION (e.g. AIPERIODIC/LLMPERIOD) so a
-            # RELOAD actually picks up changes to it; this mirrors the
-            # startup-time application at process init, which otherwise
-            # only ever runs once and leaves these values stale until
-            # the process is restarted. Deliberately NOT re-calling
-            # SysMgr.applySelfInit() here: it also re-arms CHILDWATCHDOG,
-            # which spawns its own infinite worker thread, and doing
-            # that on every RELOAD would leak a duplicate watchdog
-            # thread each time rather than just refresh a value #
+            """ re-apply <init>.OPTION (e.g. AIPERIODIC/LLMPERIOD) so a RELOAD actually picks up changes to it; this
+            mirrors the startup-time application at process init, which otherwise only ever runs once and leaves these
+            values stale until the process is restarted. Deliberately NOT re-calling SysMgr.applySelfInit() here: it
+            also re-arms CHILDWATCHDOG, which spawns its own infinite worker thread, and doing that on every RELOAD
+            would leak a duplicate watchdog thread each time rather than just refresh a value """
             init = SysMgr.getConfigItem("init")
             if init:
                 opt = init.get("OPTION")
@@ -250866,17 +251397,12 @@ function isAutoNamedPlot(name) {{
 
             SysMgr.applyThreshold()
 
-            # RELOAD never touches govStateMap, so a governor action
-            # (AUTOSIGNAL/AUTOSCHED/AUTONICE/AUTOIONICE/AUTOOMADJ) still
-            # active WITHOUT restoreOnClear (the opt-in auto-cleanup)
-            # keeps its only real recovery path being a human-issued
-            # AUTORESTORE - if the rule that created it was just removed/
-            # renamed by this very RELOAD, the operator loses the one
-            # config trace that would remind them a process is still
-            # frozen/throttled. Only warn here, never auto-restore: a
-            # rule that survived the reload unchanged is still validly
-            # governing its target, and blindly restoring would be a
-            # regression #
+            """ RELOAD never touches govStateMap, so a governor action
+            (AUTOSIGNAL/AUTOSCHED/AUTONICE/AUTOIONICE/AUTOOMADJ) still active WITHOUT restoreOnClear (the opt-in
+            auto-cleanup) keeps its only real recovery path being a human-issued AUTORESTORE - if the rule that created
+            it was just removed/ renamed by this very RELOAD, the operator loses the one config trace that would remind
+            them a process is still frozen/throttled. Only warn here, never auto-restore: a rule that survived the
+            reload unchanged is still validly governing its target, and blindly restoring would be a regression """
             for _ename, _gstate in SysMgr.govStateMap.items():
                 if _gstate.get("restoreOnClear") != "true":
                     SysMgr.printWarn(
@@ -250929,14 +251455,10 @@ function isAutoNamedPlot(name) {{
                     duration -= 1
                     if duration == 0:
                         SysMgr.printInfo("wake up from sleep mode " + ctxstr)
-                        # a timed PAUSE must actually resume monitoring
-                        # once its duration elapses - nothing else ever
-                        # reset these flags, so even a finite
-                        # "PAUSE:N" previously left the entire
-                        # threshold/ASKRUN dispatcher permanently
-                        # gated closed (see the printEnable/waitEnable
-                        # check near the top of this function) exactly
-                        # like an un-timed PAUSE #
+                        """ a timed PAUSE must actually resume monitoring once its duration elapses - nothing else ever
+                        reset these flags, so even a finite "PAUSE:N" previously left the entire threshold/ASKRUN
+                        dispatcher permanently gated closed (see the printEnable/waitEnable check near the top of this
+                        function) exactly like an un-timed PAUSE """
                         if ocmd == "PAUSE":
                             SysMgr.printEnable = True
                             SysMgr.logEnable = True
@@ -251016,14 +251538,17 @@ function isAutoNamedPlot(name) {{
             if pid < 0:
                 return None
 
-            # RUNTIMEOUT is opt-in (unset by default) - the default
-            # behavior stays "wait until it finishes", matching the
-            # previous os.wait() semantics exactly except for which
-            # child gets reaped (see below) #
+            # wait=False: return at once, the caller must not block. The
+            # child stays in childList, so it is reaped and killed with us #
+            if not wait:
+                return pid
+
+            """ RUNTIMEOUT is opt-in (unset by default) - the default behavior stays "wait until it finishes", matching
+            the previous os.wait() semantics exactly except for which child gets reaped (see below) """
             runTimeout = None
             if "RUNTIMEOUT" in SysMgr.environList:
                 try:
-                    runTimeout = float(SysMgr.environList["RUNTIMEOUT"])
+                    runTimeout = float(SysMgr.environList["RUNTIMEOUT"][0])
                 except SystemExit:
                     sys.exit(0)
                 except:
@@ -251032,13 +251557,10 @@ function isAutoNamedPlot(name) {{
             # ignore signals and wait for children #
             SysMgr.setIgnoreSignal()
             try:
-                # os.wait() reaps whichever child exits first, not
-                # necessarily THIS pid - if guider has any other child
-                # outstanding at the same moment, os.wait() could reap
-                # that one instead and leave the real RUN child as an
-                # unreaped zombie forever. Wait on the specific pid
-                # instead; RUNTIMEOUT additionally bounds how long
-                # we'll wait before giving up and killing it #
+                """os.wait() reaps whichever child exits first, not necessarily THIS pid - if guider has any other
+                child outstanding at the same moment, os.wait() could reap that one instead and leave the real RUN child
+                as an unreaped zombie forever. Wait on the specific pid instead; RUNTIMEOUT additionally bounds how long
+                we'll wait before giving up and killing it"""
                 if runTimeout is None:
                     os.waitpid(pid, 0)
                 else:
@@ -251076,74 +251598,21 @@ function isAutoNamedPlot(name) {{
         # ASKAI / ASKRUN #
         elif ocmd in ("ASKAI", "ASKRUN"):
             # parse prompt and inline options after ASKAI:<PROMPT>#<OPTIONS> #
-            rest = UtilMgr.lstrip(cmd, ocmd)
-            prompt = ""
-            opts = {}
-            if rest.startswith(":"):
-                rest = rest[1:]
-                parts = rest.split("#", 1)
-                prompt = parts[0].strip()
-                if len(parts) > 1:
-                    for kv in parts[1].split(","):
-                        kv = kv.strip()
-                        if not kv:
-                            continue
-                        if ":" in kv:
-                            k, v = kv.split(":", 1)
-                        else:
-                            k, v = kv, "true"
-                        k = k.strip().upper()
-                        v = v.strip()
-                        if k == "TIMEOUT":
-                            try:
-                                opts["timeout"] = int(v)
-                            except:
-                                pass
-                        elif k == "DRYRUN":
-                            opts["dryRun"] = v.lower() in ("true", "1", "yes")
-                        elif k == "MAXCMD":
-                            try:
-                                opts["maxCmd"] = int(v)
-                            except:
-                                pass
-                        elif k == "CTXDEPTH":
-                            try:
-                                opts["ctxDepth"] = int(v)
-                            except:
-                                pass
-                        elif k == "PROVIDER":
-                            opts["provider"] = v
-                        elif k == "MODEL":
-                            opts["model"] = v
-                        elif k == "FEEDBACK":
-                            try:
-                                opts["feedback"] = int(v)
-                            except:
-                                pass
-                        elif k == "APIKEY":
-                            opts["apiKey"] = v
-                        elif k == "BASEURL":
-                            opts["baseUrl"] = v
-                        elif k == "SAVE":
-                            # bare flag -> "true" (auto path), else explicit path #
-                            opts["save"] = v
+            prompt, inline = LLMMgr._parseInlineOpts(UtilMgr.lstrip(cmd, ocmd))
 
             # apply global -q options as defaults (inline opts take priority) #
-            opts = LLMMgr._buildLLMOptsFromEnv(opts)
+            opts = LLMMgr._buildLLMOptsFromEnv(LLMMgr._inlineToOpts(inline))
 
             SysMgr.printInfo(
                 "requesting LLM %s for event '%s' %s" % (ocmd, source, ctxstr)
             )
 
-            # capture the trigger-time uptime/timeinfo/report-number (same
-            # calls/counter handleSaveCmd's setReportPath makes) so a #SAVE
-            # report is named with the same
-            # guider_<nrRun>_<nrReport>_<uptime>_<event>_<type>_<timeinfo>.out
-            # shape as a co-triggered SAVE report. Sharing SysMgr.nrReport
-            # (rather than trying to copy SAVE's own value) means whichever
-            # of SAVE/ASKAI dispatches first in the command list just claims
-            # the lower of two consecutive numbers - correct either way,
-            # with no dependency on command order #
+            """ capture the trigger-time uptime/timeinfo/report-number (same calls/counter handleSaveCmd's setReportPath
+            makes) so a #SAVE report is named with the same
+            guider_<nrRun>_<nrReport>_<uptime>_<event>_<type>_<timeinfo>.out shape as a co-triggered SAVE report.
+            Sharing SysMgr.nrReport (rather than trying to copy SAVE's own value) means whichever of SAVE/ASKAI
+            dispatches first in the command list just claims the lower of two consecutive numbers - correct either way,
+            with no dependency on command order """
             opts["triggerUptime"] = SysMgr.getUptime(conv=True)
             opts["triggerTimeinfo"] = UtilMgr.getTime(
                 "UTCTIME" in SysMgr.environList
@@ -251152,8 +251621,15 @@ function isAutoNamedPlot(name) {{
                 SysMgr.nrReport += 1
                 opts["triggerReportNum"] = SysMgr.nrReport
 
+            # pass the last-tick evidence (e.g. BPF histogram) attached to
+            # this event, if any, so it lands in the context's event details #
+            evtData = {}
+            einfo = self.reportData.get("event", {}).get(source, {})
+            if einfo.get("evidence"):
+                evtData["evidence"] = einfo["evidence"]
+
             # launch async LLM request (non-blocking) #
-            TaskAnalyzer._runLLMAskThread(ocmd, prompt, opts, source, {})
+            TaskAnalyzer._runLLMAskThread(ocmd, prompt, opts, source, evtData)
         # WEBHOOK #
         elif ocmd == "WEBHOOK":
             import threading as _threading
@@ -251189,17 +251665,12 @@ function isAutoNamedPlot(name) {{
                     try:
                         import urllib.request as _ur
 
-                        # _isWebhookTargetSafe() only validated the
-                        # ORIGINAL url before this worker even started -
-                        # the default opener follows 301/302/303
-                        # redirects (converted to a bodyless GET) with
-                        # zero re-validation of the new target, letting
-                        # a malicious server that passes the initial
-                        # check with a public IP deterministically
-                        # redirect this request to an internal/reserved
-                        # address via one static Location header (no
-                        # DNS-rebinding-style race needed). Refuse to
-                        # follow any redirect instead #
+                        """ _isWebhookTargetSafe() only validated the ORIGINAL url before this worker even started - the
+                        default opener follows 301/302/303 redirects (converted to a bodyless GET) with zero
+                        re-validation of the new target, letting a malicious server that passes the initial check with a
+                        public IP deterministically redirect this request to an internal/reserved address via one static
+                        Location header (no DNS-rebinding-style race needed). Refuse to follow any redirect instead """
+
                         class _NoRedirect(_ur.HTTPRedirectHandler):
                             def redirect_request(self, *a, **kw):
                                 return None
@@ -251234,26 +251705,21 @@ function isAutoNamedPlot(name) {{
         elif ocmd == "SNAPSHOT":
             rest = UtilMgr.lstrip(cmd, "SNAPSHOT")
             label = rest[1:].strip() if rest.startswith(":") else ""
-            # label feeds straight into the output filename below with
-            # no path-separator check - a "../"-laden label (from an
-            # LLM-suggested SNAPSHOT:../../etc/cron.d/pwn, since
-            # SNAPSHOT is unconditionally LLM-allowed) would otherwise
-            # let os.path.join()'s result escape outDir entirely. No
-            # legitimate label needs a path separator, so just strip
-            # them rather than reject the whole command #
+            """ label feeds straight into the output filename below with no path-separator check - a "../"-laden label
+            (from an LLM-suggested SNAPSHOT:../../etc/cron.d/pwn, since SNAPSHOT is unconditionally LLM-allowed) would
+            otherwise let os.path.join()'s result escape outDir entirely. No legitimate label needs a path separator, so
+            just strip them rather than reject the whole command """
             label = label.replace("/", "_").replace("\\", "_")
             json = SysMgr.getPkg("json")
             if not json:
                 SysMgr.printErr("json module not available for SNAPSHOT")
                 return None
-            ts = SysMgr.dateTime.replace(" ", "_").replace(":", "-")
-            fname = "guider_snapshot_%s%s.json" % (
-                ts,
-                ("_" + label) if label else "",
-            )
             try:
-                outDir = SysMgr.outPath or "."
-                path = os.path.join(outDir, fname)
+                path = SysMgr.buildEventFilePath(
+                    source,
+                    ("SNAPSHOT-%s" % label) if label else "SNAPSHOT",
+                    "json",
+                )
                 snap = {
                     "timestamp": SysMgr.uptime,
                     "datetime": SysMgr.dateTime,
@@ -251267,15 +251733,80 @@ function isAutoNamedPlot(name) {{
                         snap["psi"] = SysMgr.psiData
                 except:
                     pass
-                if not SysMgr.writeFile(
-                    path, json.dumps(snap, indent=2), verb=False
-                ):
+                if not SysMgr.writeEventFile(path, json.dumps(snap, indent=2)):
                     raise IOError("failed to write snapshot file '%s'" % path)
                 SysMgr.printInfo("saved snapshot to '%s' %s" % (path, ctxstr))
             except SystemExit:
                 sys.exit(0)
             except Exception as ex:
                 SysMgr.printErr("failed to save snapshot: %s" % str(ex), True)
+        # DUMPLOG #
+        elif ocmd == "DUMPLOG":
+            # DUMPLOG:KMSG[:<RECORDS>] | DUMPLOG:FILE:<PATH>[:<BYTES>]
+            # saves the past log; user-written only, FILE reads any path #
+            parts = UtilMgr.lstrip(cmd, "DUMPLOG").lstrip(":").split(":")
+            src = parts[0].strip().upper() if parts and parts[0] else ""
+
+            # reachable by a remote client: reading a file needs ALLOWRUN,
+            # like RUN/KILL/TERM #
+            if src == "FILE" and user and "ALLOWRUN" not in SysMgr.environList:
+                SysMgr.printErr("remote dump of a file is not allowed")
+                return None
+
+            try:
+                if src == "KMSG":
+                    nr = 100
+                    if len(parts) > 1 and parts[1].strip():
+                        nr = min(max(long(parts[1]), 1), 5000)
+                    # cap each line like the DMESG LLM context does #
+                    lines = [line[:500] for line in (LogMgr.getKmsg(nr) or [])]
+                    desc = "kmsg last %d records" % nr
+                elif src == "FILE" and len(parts) > 1 and parts[1].strip():
+                    size = 65536
+                    if len(parts) > 2 and parts[2].strip():
+                        size = min(max(long(parts[2]), 1), 1 << 20)
+                    fpath = parts[1].strip()
+                    # tail a regular file only: a FIFO blocks the open and a
+                    # /dev/zero-like file never reaches EOF #
+                    if not os.path.isfile(fpath):
+                        raise ValueError("not a regular file '%s'" % fpath)
+                    # read raw bytes: a text-mode tail seek can cut a multibyte
+                    # character in half and make the whole read fail #
+                    data = SysMgr.readFile(
+                        fpath,
+                        size,
+                        tail=True,
+                        verb=False,
+                        byte=True,
+                    )
+                    if data and not isinstance(data, str):
+                        data = data.decode("utf-8", "replace")
+                    lines = data.split("\n") if data else []
+                    desc = "file %s last %d bytes" % (parts[1].strip(), size)
+                else:
+                    raise ValueError("need KMSG[:N] or FILE:<PATH>[:N]")
+
+                if not lines:
+                    raise IOError("no data from %s" % src)
+
+                # the source (KMSG/FILE) is part of the name #
+                path = SysMgr.buildEventFilePath(
+                    source, "DUMPLOG-%s" % src, "txt"
+                )
+                head = "# %s\n# event: %s\n# time: %s\n" % (
+                    desc,
+                    source,
+                    SysMgr.dateTime,
+                )
+                if not SysMgr.writeEventFile(
+                    path, head + "\n".join(lines) + "\n"
+                ):
+                    raise IOError("failed to write '%s'" % path)
+                SysMgr.printInfo("saved past log to '%s' %s" % (path, ctxstr))
+            except SystemExit:
+                sys.exit(0)
+            except Exception as ex:
+                SysMgr.printErr("failed to dump log: %s" % str(ex), True)
         # CORR #
         elif ocmd == "CORR":
             rest = UtilMgr.lstrip(cmd, "CORR:")
@@ -251295,56 +251826,32 @@ function isAutoNamedPlot(name) {{
             )
         # ASKMULTI #
         elif ocmd == "ASKMULTI":
-            rest = UtilMgr.lstrip(cmd, "ASKMULTI")
-            prompt = ""
+            prompt, inline = LLMMgr._parseInlineOpts(
+                UtilMgr.lstrip(cmd, "ASKMULTI")
+            )
+
+            # lower-case the names so "Claude" and "claude" share one dedup
+            # key and one cached LLM instance #
             providers = []
-            saveOpt = None
-            if rest.startswith(":"):
-                rest = rest[1:]
-                parts = rest.split("#", 1)
-                prompt = parts[0].strip()
-                if len(parts) > 1:
-                    for kv in parts[1].split(","):
-                        kv = kv.strip()
-                        if not kv:
-                            continue
-                        if ":" in kv:
-                            k, v = kv.split(":", 1)
-                        else:
-                            k, v = kv, "true"
-                        k = k.strip().upper()
-                        v = v.strip()
-                        if k == "PROVIDERS":
-                            # normalize case here so e.g. "Claude" and
-                            # "claude" dedupe/cache as the same
-                            # provider - LLMFactory.create() already
-                            # lower()s before dispatch so the actual
-                            # API call was always correct, but the
-                            # raw, un-normalized string was used as
-                            # both the rate-limit/dedup key ("%s:%s" %
-                            # (source, _prov) below) and the getLLM()
-                            # cache key, so mixed-case duplicates
-                            # bypassed dedup and wasted a second
-                            # cached instance #
-                            providers = [p.lower() for p in v.split(":") if p]
-                        elif k == "SAVE":
-                            # bare flag -> "true" (auto path), else explicit path #
-                            saveOpt = v
+            for p in inline.get("PROVIDERS", "").split(":"):
+                p = p.strip().lower()
+                if p and p not in providers:
+                    providers.append(p)
+
             if not providers:
                 providers = ["claude", "openai", "gemini"]
             SysMgr.printInfo(
                 "requesting ASKMULTI from %s for event '%s' %s"
                 % (", ".join(providers), source, ctxstr)
             )
-            # build base opts from global env vars (mirrors ASKAI handler) #
-            _baseOpts = LLMMgr._buildLLMOptsFromEnv()
-            if saveOpt:
-                _baseOpts["save"] = saveOpt
-            # capture the trigger-time uptime/timeinfo/report-number once for
-            # the whole ASKMULTI dispatch (same calls/counter setReportPath
-            # and the ASKAI/ASKRUN branch use) so every provider's #SAVE
-            # report for this one event shares the same report-number/
-            # timestamp family instead of each claiming its own #
+            # inline options shared by every provider, then the global -q
+            # options as defaults (mirrors ASKAI handler) #
+            _baseOpts = LLMMgr._buildLLMOptsFromEnv(
+                LLMMgr._inlineToOpts(inline, False)
+            )
+            """ capture the trigger-time uptime/timeinfo/report-number once for the whole ASKMULTI dispatch (same
+            calls/counter setReportPath and the ASKAI/ASKRUN branch use) so every provider's #SAVE report for this one
+            event shares the same report-number/ timestamp family instead of each claiming its own """
             _triggerUptime = SysMgr.getUptime(conv=True)
             _triggerTimeinfo = UtilMgr.getTime("UTCTIME" in SysMgr.environList)
             with SysMgr._nrReportLock:
@@ -251356,10 +251863,9 @@ function isAutoNamedPlot(name) {{
                 _opts["triggerUptime"] = _triggerUptime
                 _opts["triggerTimeinfo"] = _triggerTimeinfo
                 _opts["triggerReportNum"] = _triggerReportNum
-                # give each provider its own dedup/rate-limit key -- otherwise
-                # _runLLMAskThread's pending-guard (keyed on this 4th arg)
-                # marks the event pending on the first provider and silently
-                # skips every subsequent one #
+                """ give each provider its own dedup/rate-limit key -- otherwise _runLLMAskThread's pending-guard (keyed
+                on this 4th arg) marks the event pending on the first provider and silently skips every subsequent one
+                """
                 TaskAnalyzer._runLLMAskThread(
                     "ASKAI", prompt, _opts, "%s:%s" % (source, _prov), {}
                 )
@@ -251583,12 +252089,9 @@ function isAutoNamedPlot(name) {{
                     tcomm = proc.get("comm", "")
                     try:
                         os.kill(long(tpid), sigNum)
-                        # any of these 4 signals stops the target by
-                        # default (no custom handler) - not just SIGSTOP -
-                        # so AUTORESTORE's SIGCONT sweep (which only
-                        # covers pids in "frozen") must track all of them
-                        # or e.g. AUTOSIGNAL:SIGTSTP leaves the target
-                        # permanently stopped, AUTORESTORE never runs #
+                        """ any of these 4 signals stops the target by default (no custom handler) - not just SIGSTOP -
+                        so AUTORESTORE's SIGCONT sweep (which only covers pids in "frozen") must track all of them or
+                        e.g. AUTOSIGNAL:SIGTSTP leaves the target permanently stopped, AUTORESTORE never runs """
                         if sigNum in (
                             signal.SIGSTOP,
                             signal.SIGTSTP,
@@ -251704,9 +252207,8 @@ function isAutoNamedPlot(name) {{
                 # get target PIDs - use all AUTONICE targets, or fall back to topProcs #
                 targets = [p["pid"] for p in procs]
 
-                # terminate existing limitcpu subprocesses with SIGINT before
-                # starting new ones so their atexit handlers run and remove
-                # the cgroup directory, lifting the previous CPU quota #
+                """ terminate existing limitcpu subprocesses with SIGINT before starting new ones so their atexit
+                handlers run and remove the cgroup directory, lifting the previous CPU quota """
                 limitPids = govState.get("limitPids", {})
                 for old_tpid, oldLimitPid in list(limitPids.items()):
                     try:
@@ -251754,10 +252256,9 @@ function isAutoNamedPlot(name) {{
             try:
                 govState = SysMgr.govStateMap.pop(source, {})
 
-                # terminate CPU limiter subprocesses with SIGINT so their
-                # atexit handlers run (waitEvent sets SIGINT->defaultHandler
-                # which raises SystemExit, triggering atexit->removeCgroup)
-                # to remove the cgroup directory and lift the CPU quota #
+                """ terminate CPU limiter subprocesses with SIGINT so their atexit handlers run (waitEvent sets
+                SIGINT->defaultHandler which raises SystemExit, triggering atexit->removeCgroup) to remove the cgroup
+                directory and lift the CPU quota """
                 for tpid, limitPid in govState.get("limitPids", {}).items():
                     try:
                         os.kill(long(limitPid), signal.SIGINT)
@@ -251770,9 +252271,8 @@ function isAutoNamedPlot(name) {{
                     except:
                         pass
 
-                # restore original CPU scheduling policy/priority (AUTOSCHED) first,
-                # so that a subsequent AUTONICE nice restore wins over any nice
-                # embedded in setPriority(C/B, param) #
+                """ restore original CPU scheduling policy/priority (AUTOSCHED) first, so that a subsequent AUTONICE
+                nice restore wins over any nice embedded in setPriority(C/B, param) """
                 scheds = govState.get("scheds", {})
                 for tpid, (origSched, origParam) in scheds.items():
                     try:
@@ -251788,10 +252288,9 @@ function isAutoNamedPlot(name) {{
                     except:
                         pass
 
-                # restore original nice values — per-TID if available (AUTONICE all-thread mode),
-                # otherwise fall back to process-level nices.
-                # Must run AFTER scheds restore because setPriority(C/B) also calls
-                # setpriority and would overwrite the restored nice value. #
+                """ restore original nice values — per-TID if available (AUTONICE all-thread mode), otherwise fall back
+                to process-level nices. Must run AFTER scheds restore because setPriority(C/B) also calls setpriority
+                and would overwrite the restored nice value. """
                 tid_nices = govState.get("tid_nices", {})
                 nices = govState.get("nices", {})
                 restore_nices = tid_nices if tid_nices else nices
@@ -251845,14 +252344,10 @@ function isAutoNamedPlot(name) {{
                     except:
                         pass
 
-                # send SIGCONT to processes frozen by AUTOSIGNAL:SIGSTOP -
-                # but not if another still-active event independently
-                # froze the SAME pid too (e.g. a CPU event and a MEM
-                # event both converging on one runaway process's
-                # top-ranked pid, a typical single-root-cause incident
-                # pattern) - this event's condition clearing shouldn't
-                # silently undo a freeze another still-active event still
-                # wants in effect #
+                """ send SIGCONT to processes frozen by AUTOSIGNAL:SIGSTOP - but not if another still-active event
+                independently froze the SAME pid too (e.g. a CPU event and a MEM event both converging on one runaway
+                process's top-ranked pid, a typical single-root-cause incident pattern) - this event's condition
+                clearing shouldn't silently undo a freeze another still-active event still wants in effect """
                 frozen = govState.get("frozen", set())
                 for tpid in frozen:
                     if any(
@@ -251941,6 +252436,90 @@ function isAutoNamedPlot(name) {{
             return None
 
         return True
+
+    def serveLLMCmdQueue(self, timeout=60):
+        """Run the commands of the ASKRUN workers started by this process
+        until they have finished, for a process that has no monitoring loop
+        (the child of a signal command). A worker asks the main thread, so
+        this process must not exit before it has answered #"""
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            self.drainLLMCmdQueue()
+
+            if SysMgr.llmCmdClosed:
+                return
+
+            alive = [t for t in SysMgr.llmAiThreads if t.is_alive()]
+            if not alive and not SysMgr.llmCmdQueue:
+                return
+
+            time.sleep(0.05)
+
+    def drainLLMCmdQueue(self, maxReq=8):
+        """Run the commands requested by ASKRUN worker threads, at most
+        maxReq requests per call so a burst cannot stall one tick #"""
+        queue = SysMgr.llmCmdQueue
+        while queue and maxReq > 0:
+            try:
+                req = queue.pop(0)
+            except IndexError:
+                return
+
+            req["lock"].acquire()
+            try:
+                picked = req["state"] == 0
+                if picked:
+                    req["state"] = 1
+            finally:
+                req["lock"].release()
+            if not picked:
+                continue
+
+            maxReq -= 1
+            req["started"].set()
+            source = req["source"]
+            try:
+                for cmd in req["cmds"]:
+                    ret = None
+                    refused = SysMgr.llmGovRefused
+                    try:
+                        # wait=False: the monitoring loop must never block #
+                        ret = self.handleEventCmd(
+                            cmd, source, False, wait=False
+                        )
+                    except SystemExit:
+                        sys.exit(0)
+                    except Exception as ex:
+                        SysMgr.printErr(
+                            "[LLM] command '%s' failed: %s" % (cmd, str(ex))
+                        )
+                        ret = None
+
+                    # the handler reports success for a command that found no
+                    # target, but it was refused: it did not run #
+                    if refused != SysMgr.llmGovRefused:
+                        ret = None
+
+                    # bool is an int (False == 0): only a real 0 is a child #
+                    isPid = (
+                        ret is not None
+                        and ret is not True
+                        and ret is not False
+                    )
+                    if isPid and ret == 0:
+                        # forked reporter child (SAVE family): createProcess()
+                        # already reset what it inherited #
+                        return
+
+                    if isPid and ret > 0:
+                        # a child must not outlive guider, whatever made it
+                        # (the SAVE family is a daemon, out of childList) #
+                        SysMgr.childList[ret] = True
+                        SysMgr.addEventInfo(source, ret)
+                    req["rets"].append(ret)
+            finally:
+                # a worker must never be left waiting, whatever happened #
+                req["done"].set()
 
     def checkServer(self):
         if not SysMgr.localServObj:
@@ -252201,7 +252780,8 @@ function isAutoNamedPlot(name) {{
 
         def _handleDump(event):
             try:
-                attr = self.reportData["event"].get(event)
+                # no "event" key when no threshold was evaluated this tick #
+                attr = self.reportData.get("event", {}).get(event)
                 if not attr:
                     return
 
@@ -252489,10 +253069,9 @@ function isAutoNamedPlot(name) {{
                     cmd = SysMgr.prevThrData["COMMAND"][cmd]
                     _shortcut_expanded = True
                 else:
-                    # handleEventCmd itself strips a redundant CMD_ prefix
-                    # now, so a literal "CMD_ASKAI:..."/"CMD_SAVE"/etc. here
-                    # dispatches correctly without needing to be normalized
-                    # in this loop too #
+                    """handleEventCmd itself strips a redundant CMD_ prefix now, so a literal
+                    "CMD_ASKAI:..."/"CMD_SAVE"/etc. here dispatches correctly without needing to be normalized in this
+                    loop too"""
                     ret = self.handleEventCmd(cmd, event, False)
                     if ret is True:
                         continue
@@ -252596,10 +253175,9 @@ function isAutoNamedPlot(name) {{
                     cmd = SysMgr.thrData["COMMAND"][cmd]
                 elif cmd in SysMgr.prevThrData.get("COMMAND", {}):
                     cmd = SysMgr.prevThrData["COMMAND"][cmd]
-                # handleEventCmd itself strips a redundant CMD_ prefix now,
-                # so a literal "CMD_ASKAI:..."/"CMD_SAVE"/etc. (whether
-                # written directly or resolved from a COMMAND-dict shortcut
-                # whose value itself has the prefix) dispatches correctly #
+                """ handleEventCmd itself strips a redundant CMD_ prefix now, so a literal
+                "CMD_ASKAI:..."/"CMD_SAVE"/etc. (whether written directly or resolved from a COMMAND-dict shortcut whose
+                value itself has the prefix) dispatches correctly """
                 try:
                     self.handleEventCmd(cmd, group_name, False)
                 except SystemExit:
@@ -252717,9 +253295,8 @@ function isAutoNamedPlot(name) {{
 
             SysMgr.broadcastEvent(list(newList), [SysMgr.pid])
 
-            # for governor escalation events re-entering after refresh, clear stale
-            # subprocess tracking so the next escalation step is not blocked by the
-            # "command is running yet" check in executeEventCommand #
+            """ for governor escalation events re-entering after refresh, clear stale subprocess tracking so the next
+            escalation step is not blocked by the "command is running yet" check in executeEventCommand """
             for _ev in list(newList):
                 _evData = self.reportData["event"].get(_ev, {})
                 if (
@@ -252738,25 +253315,17 @@ function isAutoNamedPlot(name) {{
             )
 
         if "event" in self.reportData:
-            # snapshot via a shallow copy, NOT a bare reference -- this
-            # function can be invoked multiple times back-to-back between
-            # regular polling ticks whenever async NOTIFY-driven
-            # resources (log/func/fdtrace) each dispatch their own
-            # separate handleEventCmd("NOTIFY:...") call. If
-            # SysMgr.thrEvtList aliased the same dict object as
-            # self.reportData["event"], a LATER call's
-            # setThresholdEvent() adding a second, distinct ename (e.g.
-            # a concurrently-active sibling fdtrace entry) mutates that
-            # same object in place -- so by the time THIS call computes
-            # 'prevList = list(SysMgr.thrEvtList)' above, it already
-            # (wrongly) contains the brand-new ename, making
-            # 'newList = nowList - prevList' empty and silently
-            # swallowing that event's "started"/executeEventCommand
-            # dispatch forever (it only ever surfaces later as
-            # "finished", never having "started"). Device-confirmed with
-            # two concurrent fdtrace entries ("*" and a named comm): the
-            # second one to fire while the first was still active never
-            # ran its command at all until this copy was added #
+            """snapshot via a shallow copy, NOT a bare reference -- this function can be invoked multiple times
+            back-to-back between regular polling ticks whenever async NOTIFY-driven resources (log/func/fdtrace) each
+            dispatch their own separate handleEventCmd("NOTIFY:...") call. If SysMgr.thrEvtList aliased the same dict
+            object as self.reportData["event"], a LATER call's setThresholdEvent() adding a second, distinct ename (e.g.
+            a concurrently-active sibling fdtrace entry) mutates that same object in place -- so by the time THIS call
+            computes 'prevList = list(SysMgr.thrEvtList)' above, it already (wrongly) contains the brand-new ename,
+            making 'newList = nowList - prevList' empty and silently swallowing that event's
+            "started"/executeEventCommand dispatch forever (it only ever surfaces later as "finished", never having
+            "started"). Device-confirmed with two concurrent fdtrace entries ("*" and a named comm): the second one to
+            fire while the first was still active never ran its command at all until this copy was added
+            """
             SysMgr.thrEvtList = dict(self.reportData["event"])
         else:
             return
@@ -252764,10 +253333,24 @@ function isAutoNamedPlot(name) {{
         if not self.reportData["event"]:
             return
 
-        estr = UtilMgr.convDict2Str(self.reportData["event"], ignore=True)
+        # keep the per-tick evidence out of this log line #
+        eview = {}
+        for ename, einfo in self.reportData["event"].items():
+            if isinstance(einfo, dict) and "evidence" in einfo:
+                einfo = dict(einfo)
+                einfo.pop("evidence", None)
+            eview[ename] = einfo
+        estr = UtilMgr.convDict2Str(eview, ignore=True)
         SysMgr.printWarn("%s" % estr)
 
     def checkResourceThreshold(self):
+        if SysMgr.trimIntervalEnable:
+            SysMgr.trimIntervalEnable = False
+            limit = long(SysMgr.maxIntervalTick)
+            for key, vals in list(self.intervalData.items()):
+                if len(vals) > limit:
+                    self.intervalData[key] = vals[len(vals) - limit :]
+
         if not SysMgr.thrData:
             return
 
@@ -252814,23 +253397,17 @@ function isAutoNamedPlot(name) {{
                     elif "apply" in data:
                         data["apply"] = "true"
 
-                        # NOTIFY-driven resources (log/func/fdtrace) rely on a
-                        # separate forked watcher process to do the actual
-                        # monitoring, and that process self-terminates
-                        # (os._exit()) the moment its oneshot condition fires --
-                        # flipping 'apply' back to "true" here is not enough to
-                        # bring it back, unlike polling-based resources
-                        # (cpu/mem/psi) whose checkThreshold() re-evaluates
-                        # SysMgr.thrData fresh every tick regardless. Respawn
-                        # just this one entry's watcher via the same init*Watcher
-                        # helper applyThreshold() uses at startup/CMD_RELOAD --
-                        # deliberately NOT calling applyThreshold() itself, which
-                        # would also touch every other already-running watcher #
+                        """ NOTIFY-driven resources (log/func/fdtrace) rely on a separate forked watcher process to do
+                        the actual monitoring, and that process self-terminates (os._exit()) the moment its oneshot
+                        condition fires -- flipping 'apply' back to "true" here is not enough to bring it back, unlike
+                        polling-based resources (cpu/mem/psi) whose checkThreshold() re-evaluates SysMgr.thrData fresh
+                        every tick regardless. Respawn just this one entry's watcher via the same init*Watcher helper
+                        applyThreshold() uses at startup/CMD_RELOAD -- deliberately NOT calling applyThreshold() itself,
+                        which would also touch every other already-running watcher """
                         if resource in ("log", "func", "fdtrace") and name:
-                            # a CMD_RELOAD between registration and expiry
-                            # replaces SysMgr.thrData wholesale, so 'data' may
-                            # no longer be part of the live config -- confirm
-                            # via identity before respawning anything with it #
+                            """a CMD_RELOAD between registration and expiry replaces SysMgr.thrData wholesale, so
+                            'data' may no longer be part of the live config -- confirm via identity before respawning
+                            anything with it"""
                             _liveEntry = SysMgr.thrData.get(resource, {}).get(
                                 name
                             )
@@ -253876,9 +254453,11 @@ function isAutoNamedPlot(name) {{
                     _gstate = SysMgr.govStateMap.get(_ename, {})
                     if _gstate.get("restoreOnClear") != "true":
                         continue
-                    _in_event = _ename in _nowEvent
+                    # "LLM:<event>" lasts as long as <event> does #
+                    _evt = _ename[4:] if _ename.startswith("LLM:") else _ename
+                    _in_event = _evt in _nowEvent
                     _in_refresh = any(
-                        r[1] == _ename for r in SysMgr.thrRefreshList
+                        r[1] == _evt for r in SysMgr.thrRefreshList
                     )
                     if not _in_event and not _in_refresh:
                         SysMgr.printInfo(
@@ -254107,6 +254686,7 @@ function isAutoNamedPlot(name) {{
         lock=False,
         maxcnt=-1,
         skip=0,
+        evidence=None,
     ):
         value = None
 
@@ -254379,11 +254959,10 @@ function isAutoNamedPlot(name) {{
 
             eventList.append("EVENT_ONESHOT_%s" % event)
 
-            # register refresh timer with original comval so refresh can re-enable it;
-            # 'event'/'attr' (this function's own params: resource type e.g. 'fdtrace'
-            # and scope name e.g. 'fdhammer') are carried along so the refresh-expiry
-            # handler in checkResourceThreshold() can respawn a NOTIFY-driven watcher
-            # (log/func/fdtrace) for just this one entry -- see that function for why #
+            """ register refresh timer with original comval so refresh can re-enable it; 'event'/'attr' (this function's
+            own params: resource type e.g. 'fdtrace' and scope name e.g. 'fdhammer') are carried along so the
+            refresh-expiry handler in checkResourceThreshold() can respawn a NOTIFY-driven watcher (log/func/fdtrace)
+            for just this one entry -- see that function for why """
             if refresh:
                 SysMgr.thrRefreshList.append(
                     [refresh, ename, orig_comval, None, event, attr]
@@ -254490,6 +255069,14 @@ function isAutoNamedPlot(name) {{
 
         self.reportData["event"][ename] = dict(comval)
         self.reportData["event"][ename]["run"] = run
+        # attach to the per-event copy only: comval is the shared rule and
+        # also fed pubInfo above, so it must not carry per-tick data #
+        if evidence:
+            # anything that is not a dict is a lazy builder (see
+            # _buildBpfEvidence); callable() is avoided for Python 3.0 #
+            if not isinstance(evidence, dict):
+                evidence = evidence()
+            self.reportData["event"][ename]["evidence"] = evidence
         SysMgr.thrEvtHist.setdefault(ename, None)
 
         EvtCorrelatorMgr.recordEvent(ename)
@@ -254820,6 +255407,51 @@ function isAutoNamedPlot(name) {{
                     skip=skip,
                 )
 
+    @staticmethod
+    def _buildBpfEvidence(metric, comval, buckets=None, **extra):
+        """Return a builder of the last-tick evidence dict of a BPF event.
+
+        Only the tick that produced the event is kept (no history), so the
+        size stays bounded. The log2-ns buckets use the same
+        str(bucket) -> count shape as BpfMgr._triggerBpfAI.
+
+        The dict is built lazily: checkBpfThreshold() calls this on every tick
+        for every applied rule, but an event fires on a tiny fraction of them,
+        so setThresholdEvent() runs the returned builder only for an accepted
+        event. The tick time is captured here, not in the builder #
+        """
+        uptime = SysMgr.uptime
+
+        def _build():
+            last = {}
+            if buckets:
+                hist = dict(
+                    (str(i), int(c)) for i, c in enumerate(buckets) if c
+                )
+                total = sum(hist.values())
+                if total:
+                    last["samples"] = total
+                    last["histogram_log2_ns"] = hist
+                    last["p50_ms"] = BpfMgr.histPct(buckets, 50)[0]
+                    last["p99_ms"] = BpfMgr.histPct(buckets, 99)[0]
+                    last["max_ms"] = BpfMgr.histMax(buckets)[0]
+            last.update(extra)
+            thr = dict(
+                (k, comval[k])
+                for k in ("p50", "p99", "maxlat", "avg", "count")
+                if k in comval
+            )
+            thr["comp"] = comval.get("comp", "big")
+            last["threshold"] = thr
+            return {
+                "kind": "bpf",
+                "metric": metric,
+                "uptime": uptime,
+                "last": last,
+            }
+
+        return _build
+
     def checkBpfThreshold(self):
         """Read BPF maps and fire threshold events each interval.
 
@@ -254939,8 +255571,18 @@ function isAutoNamedPlot(name) {{
                                     lock=lock,
                                     maxcnt=maxcnt,
                                     skip=skip,
+                                    evidence=TaskAnalyzer._buildBpfEvidence(
+                                        "RUNQLAT",
+                                        comval,
+                                        None,
+                                        avg_ms=avg_ms,
+                                        top_task=task_str,
+                                    ),
                                 )
                         buckets = BpfMgr.histRead(hist_fd)
+                        ev = TaskAnalyzer._buildBpfEvidence(
+                            "RUNQLAT", comval, buckets
+                        )
                         if "p50" in comval:
                             val_ms, total = BpfMgr.histPct(buckets, 50)
                             if total > 0:
@@ -254957,6 +255599,7 @@ function isAutoNamedPlot(name) {{
                                     lock=lock,
                                     maxcnt=maxcnt,
                                     skip=skip,
+                                    evidence=ev,
                                 )
                         if "p99" in comval:
                             val_ms, total = BpfMgr.histPct(buckets, 99)
@@ -254974,6 +255617,7 @@ function isAutoNamedPlot(name) {{
                                     lock=lock,
                                     maxcnt=maxcnt,
                                     skip=skip,
+                                    evidence=ev,
                                 )
                         if "maxlat" in comval:
                             val_ms, has_data = BpfMgr.histMax(buckets)
@@ -254991,6 +255635,7 @@ function isAutoNamedPlot(name) {{
                                     lock=lock,
                                     maxcnt=maxcnt,
                                     skip=skip,
+                                    evidence=ev,
                                 )
                         BpfMgr.histReset(hist_fd)
 
@@ -254999,6 +255644,9 @@ function isAutoNamedPlot(name) {{
                         if hist_fd < 0:
                             continue
                         buckets = BpfMgr.histRead(hist_fd)
+                        ev = TaskAnalyzer._buildBpfEvidence(
+                            "BLKLAT", comval, buckets
+                        )
                         if "p99" in comval:
                             val_ms, total = BpfMgr.histPct(buckets, 99)
                             if total > 0:
@@ -255015,6 +255663,7 @@ function isAutoNamedPlot(name) {{
                                     lock=lock,
                                     maxcnt=maxcnt,
                                     skip=skip,
+                                    evidence=ev,
                                 )
                         if "maxlat" in comval:
                             val_ms, has_data = BpfMgr.histMax(buckets)
@@ -255032,6 +255681,7 @@ function isAutoNamedPlot(name) {{
                                     lock=lock,
                                     maxcnt=maxcnt,
                                     skip=skip,
+                                    evidence=ev,
                                 )
                         BpfMgr.histReset(hist_fd)
 
@@ -255094,6 +255744,14 @@ function isAutoNamedPlot(name) {{
                                     lock=lock,
                                     maxcnt=maxcnt,
                                     skip=skip,
+                                    evidence=TaskAnalyzer._buildBpfEvidence(
+                                        "FUNCCOUNT",
+                                        comval,
+                                        None,
+                                        func=func,
+                                        count=total_cnt,
+                                        top_task=task_str,
+                                    ),
                                 )
                         else:
                             cnt_fd = fds[func]
@@ -255115,6 +255773,13 @@ function isAutoNamedPlot(name) {{
                                     lock=lock,
                                     maxcnt=maxcnt,
                                     skip=skip,
+                                    evidence=TaskAnalyzer._buildBpfEvidence(
+                                        "FUNCCOUNT",
+                                        comval,
+                                        None,
+                                        func=func,
+                                        count=cnt,
+                                    ),
                                 )
                             BpfMgr.mapUpdate(
                                 cnt_fd,
@@ -255134,6 +255799,9 @@ function isAutoNamedPlot(name) {{
                         ).get(func, -1)
                         hist_fd = fds[func]
                         buckets = BpfMgr.histRead(hist_fd)
+                        ev = TaskAnalyzer._buildBpfEvidence(
+                            "FUNCLAT", comval, buckets, func=func
+                        )
                         if (
                             process_filter or thread_filter
                         ) and perpid_fd >= 0:
@@ -255196,6 +255864,14 @@ function isAutoNamedPlot(name) {{
                                     lock=lock,
                                     maxcnt=maxcnt,
                                     skip=skip,
+                                    evidence=TaskAnalyzer._buildBpfEvidence(
+                                        "FUNCLAT",
+                                        comval,
+                                        buckets,
+                                        func=func,
+                                        avg_ms=avg_ms,
+                                        top_task=task_str,
+                                    ),
                                 )
                         else:
                             if "avg" in comval:
@@ -255215,6 +255891,7 @@ function isAutoNamedPlot(name) {{
                                         lock=lock,
                                         maxcnt=maxcnt,
                                         skip=skip,
+                                        evidence=ev,
                                     )
                         if "p99" in comval:
                             val_ms, total = BpfMgr.histPct(buckets, 99)
@@ -255233,6 +255910,7 @@ function isAutoNamedPlot(name) {{
                                     lock=lock,
                                     maxcnt=maxcnt,
                                     skip=skip,
+                                    evidence=ev,
                                 )
                         if "maxlat" in comval:
                             val_ms, has_data = BpfMgr.histMax(buckets)
@@ -255251,6 +255929,7 @@ function isAutoNamedPlot(name) {{
                                     lock=lock,
                                     maxcnt=maxcnt,
                                     skip=skip,
+                                    evidence=ev,
                                 )
                         BpfMgr.histReset(hist_fd)
 
@@ -255314,6 +255993,14 @@ function isAutoNamedPlot(name) {{
                                     lock=lock,
                                     maxcnt=maxcnt,
                                     skip=skip,
+                                    evidence=TaskAnalyzer._buildBpfEvidence(
+                                        "FUNCDATA",
+                                        comval,
+                                        None,
+                                        func=func,
+                                        count=total_cnt,
+                                        top_task=task_str,
+                                    ),
                                 )
                         else:
                             vb = BpfMgr.mapLookup(
@@ -255334,6 +256021,13 @@ function isAutoNamedPlot(name) {{
                                     lock=lock,
                                     maxcnt=maxcnt,
                                     skip=skip,
+                                    evidence=TaskAnalyzer._buildBpfEvidence(
+                                        "FUNCDATA",
+                                        comval,
+                                        None,
+                                        func=func,
+                                        count=cnt,
+                                    ),
                                 )
                         BpfMgr.mapUpdate(
                             cnt_fd,
@@ -255909,7 +256603,11 @@ function isAutoNamedPlot(name) {{
                     runtime = convTime(procData[pid]["runtime"])
                     _setDefaultInfo(evtdata[rank], pid, comm, runtime)
 
-                    status = procData[pid]["stat"][self.statIdx]
+                    # the psutil path (-q FORCEPSUTIL) has no raw /proc stat
+                    # list, only the status it read #
+                    status = procData[pid].get("pstatus")
+                    if status is None:
+                        status = procData[pid]["stat"][self.statIdx]
                     evtdata[rank]["status"] = status
 
                     rank += 1
@@ -256252,7 +256950,7 @@ function isAutoNamedPlot(name) {{
             if cond.get("UPTIMEDIFFCOND", -1.0) >= 0:
                 try:
                     _ratio = SysMgr.realUptimeDiff / max(
-                        SysMgr.intervalEnable, 0.001
+                        SysMgr.intervalFloat or SysMgr.intervalEnable, 0.001
                     )
                     result = result and (_ratio >= cond["UPTIMEDIFFCOND"])
                 except:
