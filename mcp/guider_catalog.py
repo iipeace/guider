@@ -536,8 +536,12 @@ CATALOG: dict = {
         "mcp_tool": "networkTrace",
         "semaphore": False,
         "android_only": False,
-        "description": "Real-time UDP sendto event stream (TIME|PID|COMM|LEN|SOCKFD) via perf ring buffer; -q DNSONLY filters to port-53 traffic",
-        "examples": ["guider bpfudpsnoop", "guider bpfudpsnoop -q DNSONLY -R 30"],
+        "description": "Real-time UDP sendto event stream (TIME|PROCESS(PID)|LEN|DPORT|SOCKFD|DNS) via perf ring buffer; decodes DNS query names (sendto, plus sendmsg/sendmmsg for DNS only; first 48 payload bytes, long names end with [...]); -q DNSONLY shows only DNS queries, -q NODNS hides them",
+        "examples": [
+            "guider bpfudpsnoop",
+            "guider bpfudpsnoop -q DNSONLY -R 30",
+            "guider bpfudpsnoop -q DNSONLY -g chrome -R 30",
+        ],
     },
     "bpflocktop": {
         "requires_root": True,
@@ -2988,12 +2992,16 @@ BLOCKED_OPTS: set = {
     # Every remaining ANDCMDLIST key is also read from SysMgr.environList by doPerfetto()'s COMMAND dispatch,
     # so -q smuggles it past the main_arg-only allowlist (WAKESCREEN/SLEEPSCREEN change power state, GET*
     # exfiltrate diagnostics, MEMTOP/OVERLAY arm heap profiling).
-    "GETALARMLIST", "GETANRINFO", "GETBATTERYINFO", "GETCPUINFO",
+    "GETALARMLIST", "GETANRINFO", "GETBATTERYINFO", "GETBROADCASTLIST", "GETCPUINFO",
     "GETDISPLAYINFO", "GETDOZEINFO", "GETFEATURELIST", "GETJOBLIST",
     "GETLIBRARYLIST", "GETPKGLISTINFO", "GETPOWERINFO", "GETPROCSTATS",
     "GETWAKELOCK", "GETSETTINGS", "GETUSERLIST", "GETWINDOWSTAT",
-    "GETTASKSTAT", "GETSERVICESTAT", "MEMTOP", "OVERLAY",
+    "GETTASKSTAT", "GETSERVICESTAT", "GETSURFACESTAT", "MEMTOP", "OVERLAY",
     "RESETGFXSTATS", "SCREENINFO", "SLEEPSCREEN", "WAKESCREEN",
+    # SysMgr.updateThreshold() loads the config file at the given path (_is_accessible_path() is not
+    # enough, the name has no FILE/PATH/DIR) and merges its <threshold> section into thrData, so a
+    # crafted file injects arbitrary threshold rules/actions into any top-family command.
+    "UPDATETHRESHOLD",
     # drawFlame() pickle.loads()s the .sample file given here, ungated (deserialization RCE). The name
     # evades the path heuristic.
     "LOADSAMPLE",

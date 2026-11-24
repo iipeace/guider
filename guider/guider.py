@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.9"
-__revision__ = "261119"
+__revision__ = "261124"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -22630,7 +22630,10 @@ class FunctionAnalyzer(object):
             return False
 
         # block write request event #
-        elif isFixedEvent and func == "writeback_dirty_page":
+        elif isFixedEvent and func in (
+            "writeback_dirty_page",
+            "writeback_dirty_folio",
+        ):
             m = re.match(
                 (
                     r"^\s*bdi\s+(?P<major>[0-9]+):(?P<minor>[0-9]+):\s*"
@@ -26362,9 +26365,9 @@ class FileAnalyzer(object):
             % (
                 "File Usage Info",
                 convNum(len(self.fileList)),
-                convSize(self.profPageCnt * 4 << 10),
-                convSize(self.pgRclmBg * 4 << 10),
-                convSize(self.pgRclmFg * 4 << 10),
+                convSize(self.profPageCnt << (SysMgr.PAGEKBSHIFT + 10)),
+                convSize(self.pgRclmBg << (SysMgr.PAGEKBSHIFT + 10)),
+                convSize(self.pgRclmFg << (SysMgr.PAGEKBSHIFT + 10)),
                 uptime,
                 twoLine,
             )
@@ -27306,9 +27309,9 @@ class FileAnalyzer(object):
             % (
                 "File Process Info",
                 UtilMgr.convNum(len(self.procData)),
-                convert(self.profPageCnt * 4 << 10),
-                convert(self.pgRclmBg * 4 << 10),
-                convert(self.pgRclmFg * 4 << 10),
+                convert(self.profPageCnt << (SysMgr.PAGEKBSHIFT + 10)),
+                convert(self.pgRclmBg << (SysMgr.PAGEKBSHIFT + 10)),
+                convert(self.pgRclmFg << (SysMgr.PAGEKBSHIFT + 10)),
                 uptime,
                 twoLine,
             )
@@ -27428,9 +27431,9 @@ class FileAnalyzer(object):
             % (
                 "File Usage Info",
                 UtilMgr.convNum(nrFileCount),
-                convert(self.profPageCnt * 4 << 10),
-                convert(self.pgRclmBg * 4 << 10),
-                convert(self.pgRclmFg * 4 << 10),
+                convert(self.profPageCnt << (SysMgr.PAGEKBSHIFT + 10)),
+                convert(self.pgRclmBg << (SysMgr.PAGEKBSHIFT + 10)),
+                convert(self.pgRclmFg << (SysMgr.PAGEKBSHIFT + 10)),
                 uptime,
                 twoLine,
             )
@@ -52577,25 +52580,23 @@ trigger_config {
 
     @staticmethod
     def _parseProtoSysStats(data, profile_data):
-        """Parse SysStats proto (TracePacket field 6).
-        cpufreq_khz = field 9: {cpu_id(1), khz(2)}
-        thermal_zone = field 11: {name(1), temp(2) in millidegrees C}
+        """Parse SysStats proto (TracePacket field 7).
+        cpufreq_khz = field 11: repeated varint, the position is the CPU id
+                      (verified against a real trace of Perfetto v34)
+        thermal_zone = field 15: {name(1), temp(2) in millidegrees C}
+                      (not verified against a real trace)
         """
         _pi = UtilMgr._protoIter
         cpufreqs = profile_data.setdefault("cpufreqs", {})
         thermals = profile_data.setdefault("thermals", {})
+        cpuIdx = 0
         for fnum, wt, val in _pi(data):
             try:
-                if fnum == 9 and wt == 2:  # cpufreq_khz
-                    cpu_id = khz = 0
-                    for f2, wt2, v2 in _pi(val):
-                        if f2 == 1 and wt2 == 0:
-                            cpu_id = v2
-                        elif f2 == 2 and wt2 == 0:
-                            khz = v2
-                    if khz > 0:
-                        cpufreqs.setdefault(cpu_id, []).append(khz)
-                elif fnum == 11 and wt == 2:  # thermal_zone
+                if fnum == 11 and wt == 0:  # cpufreq_khz
+                    if val > 0:
+                        cpufreqs.setdefault(cpuIdx, []).append(val)
+                    cpuIdx += 1
+                elif fnum == 15 and wt == 2:  # thermal_zone
                     name = None
                     temp = 0
                     for f2, wt2, v2 in _pi(val):
@@ -52610,8 +52611,11 @@ trigger_config {
 
     @staticmethod
     def _parseProtoJank(data, profile_data):
-        """Parse AndroidFrameTimelineEvent proto (TracePacket field 77).
-        actual_surface_frame_start = field 3: {cookie(1), pid(3), layer_name(4), jank_type(6)}
+        """Parse FrameTimelineEvent proto (TracePacket field 76).
+        Verified against a real trace of Perfetto v34 (Android 14):
+        actual_surface_frame_start = field 4: {cookie(1), token(2),
+            display_frame_token(3), pid(4), layer_name(5), present_type(6),
+            on_time_finish(7), gpu_composition(8), jank_type(9)}
         JankType: 1=NONE, 2=DisplayHAL, 4=AppDeadlineMissed, 8=SfDeadlineMissed,
                   16=BufferStuffing, 32=Unknown, 64=SfScheduling, 128=PredictionError,
                   256=SfSurfaceScheduling, 512=AppDeadlineMissedLegacy, 1024=SfStuffing,
@@ -52634,13 +52638,13 @@ trigger_config {
         layers = profile_data.setdefault("jank_layers", {})
         for fnum, wt, val in _pi(data):
             try:
-                if fnum == 3 and wt == 2:  # actual_surface_frame_start
+                if fnum == 4 and wt == 2:  # actual_surface_frame_start
                     layer = None
                     jank_type = 0
                     for f2, wt2, v2 in _pi(val):
-                        if f2 == 4 and wt2 == 2:
+                        if f2 == 5 and wt2 == 2:
                             layer = v2.decode("utf-8", errors="replace")
-                        elif f2 == 6 and wt2 == 0:
+                        elif f2 == 9 and wt2 == 0:
                             jank_type = v2
                     if layer is not None:
                         r = layers.setdefault(
@@ -53219,13 +53223,13 @@ trigger_config {
                         AndroidMgr._parseProtoPerfSample(v2, profile_data)
                     elif fn2 == 12 and wt2 == 2:  # interned_data
                         AndroidMgr._parseProtoInternedData(v2, intern_state)
-                    elif fn2 == 6 and wt2 == 2:  # sys_stats (CPUFREQ/THERMAL)
+                    elif fn2 == 7 and wt2 == 2:  # sys_stats (CPUFREQ/THERMAL)
                         if (
                             "CPUFREQ" in SysMgr.environList
                             or "THERMAL" in SysMgr.environList
                         ):
                             AndroidMgr._parseProtoSysStats(v2, profile_data)
-                    elif fn2 == 77 and wt2 == 2:  # frame_timeline_event (JANK)
+                    elif fn2 == 76 and wt2 == 2:  # frame_timeline_event (JANK)
                         if (
                             "ANALYZEJANK" in SysMgr.environList
                             or "JANK" in SysMgr.environList
@@ -54739,6 +54743,13 @@ class SysMgr(object):
     except:
         PAGESIZE = 4096
 
+    # page count -> KB is "<< PAGEKBSHIFT" and page count -> MB is
+    # ">> PAGEMBSHIFT" (4KB page: 2 and 8, 16KB page: 4 and 6) #
+    PAGEKBSHIFT = 2
+    while (1 << (PAGEKBSHIFT + 10)) < PAGESIZE:
+        PAGEKBSHIFT += 1
+    PAGEMBSHIFT = 10 - PAGEKBSHIFT
+
     try:
         commSig = signal.SIGRTMIN + 5
     except:
@@ -55242,6 +55253,7 @@ class SysMgr(object):
 
     maxFd = 512
     maxKeepFd = maxFd - 16
+    dirCountCache = {}
     batteryFd = None
     cmdFd = None
     diskStatsFd = None
@@ -55755,6 +55767,41 @@ Commands:
         return ret
 
     @staticmethod
+    def countDirFiles(path, name=None, exceptList=None):
+        """Count the files in a directory, rescanning it only when changed"""
+        sig = None
+
+        try:
+            stat = os.stat(path)
+            key = (path, repr(name), repr(exceptList))
+            sig = (stat.st_mtime, stat.st_ino, stat.st_size)
+            cache = SysMgr.dirCountCache.get(key)
+
+            # a directory mtime can have a coarse resolution, so trust the
+            # cache only when the directory was not changed recently #
+            settled = time.time() - sig[0] > 2
+            if cache and cache[0] == sig and settled:
+                return cache[1]
+        except SystemExit:
+            sys.exit(0)
+        except:
+            sig = None
+            settled = False
+
+        nrFiles = len(
+            UtilMgr.getFiles(
+                path, name=name, recursive=False, exceptList=exceptList
+            )
+        )
+
+        # a count made right after a change can miss a later change that
+        # shares the same mtime, so remember only the settled one #
+        if sig and settled:
+            SysMgr.dirCountCache[key] = (sig, nrFiles)
+
+        return nrFiles
+
+    @staticmethod
     def getNrANR(retDir=False):
         dirList = []
 
@@ -55765,7 +55812,7 @@ Commands:
                 if not os.path.isdir(path):
                     continue
                 dirList.append(path)
-                customNrANR += len(UtilMgr.getFiles(path, recursive=False))
+                customNrANR += SysMgr.countDirFiles(path)
 
             for path, name, exceptList in (
                 ("/data/anr", ["*"], []),  # android #
@@ -55774,11 +55821,7 @@ Commands:
                     continue
 
                 dirList.append(path)
-                nrANR = len(
-                    UtilMgr.getFiles(
-                        path, name=name, recursive=False, exceptList=exceptList
-                    )
-                )
+                nrANR = SysMgr.countDirFiles(path, name, exceptList)
 
                 if retDir:
                     return (nrANR + customNrANR, dirList)
@@ -55805,7 +55848,7 @@ Commands:
                 if not os.path.isdir(path):
                     continue
                 dirList.append(path)
-                customNrCrash += len(UtilMgr.getFiles(path, recursive=False))
+                customNrCrash += SysMgr.countDirFiles(path)
 
             totalCrash = 0
             addTombstone = "ADDTOMBSTONE" in SysMgr.environList
@@ -55827,11 +55870,7 @@ Commands:
                     continue
 
                 dirList.append(path)
-                totalCrash += len(
-                    UtilMgr.getFiles(
-                        path, name=name, recursive=False, exceptList=exceptList
-                    )
-                )
+                totalCrash += SysMgr.countDirFiles(path, name, exceptList)
 
             if totalCrash:
                 if retDir:
@@ -56292,7 +56331,22 @@ Commands:
         hlim = 1048576
 
         try:
+            # a task without the privilege to raise the hard limit would
+            # fail with a warning, so raise only the soft limit up to the
+            # current hard limit in that case #
+            if not SysMgr.isRoot():
+                try:
+                    resource = SysMgr.getPkg("resource", False, True)
+                    curHard = resource.getrlimit(resource.RLIMIT_NOFILE)[1]
+                    if curHard != resource.RLIM_INFINITY and curHard < hlim:
+                        slim = hlim = curHard
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    pass
+
             ret = SysMgr.chRlimit(os.getpid(), rtype, slim, hlim)
+
             if not ret:
                 raise Exception("N/A")
 
@@ -68153,8 +68207,12 @@ Commands:
 
     @staticmethod
     def readSchedFeatures():
-        try:
+        # sched_features moved to sched/features on kernel 5.13+
+        path = "/sys/kernel/debug/sched/features"
+        if not os.path.isfile(path):
             path = "/sys/kernel/debug/sched_features"
+
+        try:
             fd = open(path, "r")
             return sorted(fd.readline().split())
         except SystemExit:
@@ -76965,11 +77023,12 @@ Options:
 Notes:
     - Supported on Linux and Android (kernel 4.7+ with BPF kprobe support); requires root privilege
     - Attaches kprobes to:
-        HIT:   mark_page_accessed
+        HIT:   folio_mark_accessed / mark_page_accessed
         MISS:  folio_add_to_page_cache / __filemap_add_folio / filemap_add_folio /
                add_to_page_cache_lru  (auto-selected by kallsyms scan)
         DIRTY: folio_account_dirtied / account_page_dirtied /
-               __set_page_dirty_nobuffers + mark_buffer_dirty
+               filemap_dirty_folio / __set_page_dirty_nobuffers
+               + mark_buffer_dirty
     - Android GKI 6.1 uses __filemap_add_folio as MISS symbol (auto-detected)
     - HITRATIO = HITS / (HITS + MISSES) * 100
     - Stack mode (-H): all enabled event types merged into one ranked table;
@@ -92099,6 +92158,14 @@ Key Value List:
                 del SysMgr.addrListForPrint[addr]
 
     @staticmethod
+    def getJsonStatFilter():
+        # keys dropped from each process entry in the JSON report #
+        if "ALLJSONSTAT" in SysMgr.environList:
+            return lambda x: x.endswith(("Orig", "Fd"))
+        else:
+            return lambda x: x.startswith(("stat", "io"))
+
+    @staticmethod
     def printTopStats():
         if (
             "LIVEGRAPH" in SysMgr.environList
@@ -92119,10 +92186,7 @@ Key Value List:
                         if not UtilMgr.isValidStr(name, jsonFilter):
                             SysMgr.jsonData.pop(name)
 
-                if "ALLJSONSTAT" in SysMgr.environList:
-                    _checkItem = lambda x: x.endswith(("Orig", "Fd"))
-                else:
-                    _checkItem = lambda x: x.startswith(("stat", "io"))
+                _checkItem = SysMgr.getJsonStatFilter()
 
                 for pid in list(SysMgr.jsonData.get("process", {})):
                     for k in list(SysMgr.jsonData["process"][pid]):
@@ -115785,7 +115849,7 @@ Key Value List:
             elif SysMgr.ussEnable and value.get("uss"):
                 rss = value.get("uss", 0) >> 20
             else:
-                rss = long(value["stat"][obj.rssIdx]) >> 8
+                rss = long(value["stat"][obj.rssIdx]) >> SysMgr.PAGEMBSHIFT
 
             obj.saveUserData(idx)
             user = value["user"]
@@ -119043,7 +119107,16 @@ Key Value List:
         self.cmdList["block/block_bio_complete"] = bioFlag
         """
         self.cmdList["block/block_rq_complete"] = bioFlag
-        self.cmdList["writeback/writeback_dirty_page"] = bioFlag
+        # writeback_dirty_page was renamed to _folio on kernel 5.16+ #
+        wbPath = SysMgr.getTraceEventPath()
+        wbFolio = bool(
+            wbPath
+            and os.path.isdir("%s/writeback/writeback_dirty_folio" % wbPath)
+        )
+        self.cmdList["writeback/writeback_dirty_page"] = (
+            bioFlag and not wbFolio
+        )
+        self.cmdList["writeback/writeback_dirty_folio"] = bioFlag and wbFolio
         self.cmdList["filemap/mm_filemap_add_to_page_cache"] = bioFlag
 
         # fs #
@@ -119620,21 +119693,34 @@ Key Value List:
                 )
                 SysMgr.writeTraceCmd("block/block_bio_queue/filter", blkCmd)
                 SysMgr.writeTraceCmd("block/block_bio_queue/enable", "1")
-                SysMgr.writeTraceCmd(
-                    "writeback/writeback_dirty_page/filter", cmd
-                )
-                SysMgr.writeTraceCmd(
-                    "writeback/writeback_dirty_page/enable", "1"
-                )
+                for wbEvent in (
+                    "writeback_dirty_page",
+                    "writeback_dirty_folio",
+                ):
+                    if self.cmdList.get("writeback/%s" % wbEvent):
+                        SysMgr.writeTraceCmd(
+                            "writeback/%s/filter" % wbEvent, cmd
+                        )
+                        SysMgr.writeTraceCmd(
+                            "writeback/%s/enable" % wbEvent, "1"
+                        )
                 """
                 SysMgr.writeTraceCmd('writeback/wbc_writepage/filter', cmd)
                 SysMgr.writeTraceCmd('writeback/wbc_writepage/enable', '1')
                 """
             else:
                 SysMgr.writeTraceCmd("block/block_bio_queue/enable", "0")
-                SysMgr.writeTraceCmd(
-                    "writeback/writeback_dirty_page/enable", "0"
-                )
+                for wbEvent in (
+                    "writeback_dirty_page",
+                    "writeback_dirty_folio",
+                ):
+                    if os.path.isdir(
+                        "%s/writeback/%s"
+                        % (SysMgr.getTraceEventPath(), wbEvent)
+                    ):
+                        SysMgr.writeTraceCmd(
+                            "writeback/%s/enable" % wbEvent, "0"
+                        )
 
             # special events #
             _writeCommonCmd()
@@ -126991,7 +127077,7 @@ class FuncPerfMgr(object):
                 SysMgr.printErr(
                     "mmap failed for %s — try: echo %d > "
                     "/proc/sys/kernel/perf_event_mlock_kb"
-                    % (label, (actual_pages + 1) * 4)
+                    % (label, (actual_pages + 1) * page_size // 1024)
                 )
                 os.close(fd)
                 continue
@@ -155149,7 +155235,18 @@ class BpfMgr(object):
             dev_filter_fd = -1
             if _devfilter_v:
                 try:
-                    _target_dev = os.stat("/dev/%s" % _devfilter_v).st_rdev
+                    _rdev = os.stat("/dev/%s" % _devfilter_v).st_rdev
+                    # tracepoint dev is kernel MKDEV (major<<20|minor), not
+                    # the userspace st_rdev encoding (major<<8|minor)
+                    # os.major()/minor() are not provided before Python 3.3 #
+                    if hasattr(os, "major"):
+                        _maj, _min = os.major(_rdev), os.minor(_rdev)
+                    else:
+                        _maj = ((_rdev >> 8) & 0xFFF) | (
+                            (_rdev >> 32) & 0xFFFFF000
+                        )
+                        _min = (_rdev & 0xFF) | ((_rdev >> 12) & 0xFFFFFF00)
+                    _target_dev = (_maj << 20) | _min
                     # ARRAY map: key=u32 index (4B), val=u32 dev_t (4B), 1 entry
                     dev_filter_fd = BpfMgr.createMap(
                         ConfigMgr.BPF_MAP_ARRAY_IDX, 4, 4, 1, "blk_devflt"
@@ -155904,7 +156001,16 @@ class BpfMgr(object):
                 sys.exit(-1)
 
             # Attach kprobes (try newer folio_* variants first) #
-            BpfMgr.attachKprobe(hit_fd, "mark_page_accessed", retprobe=False)
+            """ HIT: mark_page_accessed() is only a compat wrapper around folio_mark_accessed() since 5.16
+            (mm/folio-compat.c), and the page cache code calls the folio function directly, so the wrapper
+            sees almost nothing on newer kernels. The probe programs only count events and never read the
+            arguments, so either symbol can be used. """
+            _hit_sym = "mark_page_accessed"
+            for _cand_sym in ("folio_mark_accessed", "mark_page_accessed"):
+                if BpfMgr._kallsymExists(_cand_sym):
+                    _hit_sym = _cand_sym
+                    break
+            BpfMgr.attachKprobe(hit_fd, _hit_sym, retprobe=False)
             """ MISS: pick the best available symbol in priority order. On Android 6.1 kernels, add_to_page_cache_lru
             exists in kallsyms but is not kprobeable (attaches silently, fires 0 times). __filemap_add_folio is the
             actual internal implementation to probe. """
@@ -155919,14 +156025,24 @@ class BpfMgr(object):
             BpfMgr.attachKprobe(miss_fd, _miss_sym, retprobe=False)
             # DIRTY: try folio_account_dirtied (6.0+), then account_page_dirtied
             # (pre-5.15), then __set_page_dirty_nobuffers (5.15 Ubuntu fallback) #
-            for _dirty_sym in (
+            # filemap_dirty_folio (exported, 5.18+) replaces the removed
+            # __set_page_dirty_nobuffers wrapper on newer kernels #
+            _dirty_sym = None
+            for _cand_sym in (
                 "folio_account_dirtied",
                 "account_page_dirtied",
+                "filemap_dirty_folio",
                 "__set_page_dirty_nobuffers",
             ):
-                if BpfMgr._kallsymExists(_dirty_sym):
+                if BpfMgr._kallsymExists(_cand_sym):
+                    _dirty_sym = _cand_sym
                     break
-            BpfMgr.attachKprobe(dirty_fd, _dirty_sym, retprobe=False)
+            if _dirty_sym:
+                BpfMgr.attachKprobe(dirty_fd, _dirty_sym, retprobe=False)
+            else:
+                SysMgr.printWarn(
+                    "bpfcachetop: no kprobe symbol for page dirtying", True
+                )
             BpfMgr.attachKprobe(dirty2_fd, "mark_buffer_dirty", retprobe=False)
 
             interval, total_time = BpfMgr._computeIntervalParams(
@@ -177985,7 +178101,11 @@ typedef struct {
         PAGESIZE = SysMgr.PAGESIZE
         size = long((size + PAGESIZE - 1) / PAGESIZE) * PAGESIZE
 
-        if not self.tempPage or size > 4096 or "STRPAGE" in SysMgr.environList:
+        if (
+            not self.tempPage
+            or size > PAGESIZE
+            or "STRPAGE" in SysMgr.environList
+        ):
             self.tempPage = self.mmap(size=size)
             if self.tempPage < 0:
                 self.tempPage = None
@@ -207836,8 +207956,8 @@ class TaskAnalyzer(object):
                         convSize(comprBytes) if comprBytes else "-",
                         comprRatioStr,
                         savedStr,
-                        convSize(int(swapInRate * 4096)),
-                        convSize(int(swapOutRate * 4096)),
+                        convSize(int(swapInRate * SysMgr.PAGESIZE)),
+                        convSize(int(swapOutRate * SysMgr.PAGESIZE)),
                         twoLine,
                     ),
                     newline=2,
@@ -209065,8 +209185,8 @@ class TaskAnalyzer(object):
 
                 try:
                     reclaim = sline[7].strip().split("/", 1)
-                    reclaimBg.append(long(reclaim[0]) << 2)
-                    reclaimDr.append(long(reclaim[1]) << 2)
+                    reclaimBg.append(long(reclaim[0]) << SysMgr.PAGEKBSHIFT)
+                    reclaimDr.append(long(reclaim[1]) << SysMgr.PAGEKBSHIFT)
                 except:
                     reclaimBg.append(0)
                     reclaimDr.append(0)
@@ -225751,14 +225871,18 @@ function isAutoNamedPlot(name) {{
 
             if SysMgr.memEnable:
                 usedMem = "%4d" % (
-                    (value["nrPages"] >> 8) + (value["remainKmem"] >> 20)
+                    (value["nrPages"] >> SysMgr.PAGEMBSHIFT)
+                    + (value["remainKmem"] >> 20)
                 )
-                userMem = "%3d" % (value["userPages"] >> 8)
-                cacheMem = "%3d" % (value["cachePages"] >> 8)
+                userMem = "%3d" % (value["userPages"] >> SysMgr.PAGEMBSHIFT)
+                cacheMem = "%3d" % (value["cachePages"] >> SysMgr.PAGEMBSHIFT)
                 kernelMem = "%3d" % (
-                    (value["kernelPages"] >> 8) + (value["remainKmem"] >> 20)
+                    (value["kernelPages"] >> SysMgr.PAGEMBSHIFT)
+                    + (value["remainKmem"] >> 20)
                 )
-                reclaimedMem = "%3d" % (value["reclaimedPages"] >> 8)
+                reclaimedMem = "%3d" % (
+                    value["reclaimedPages"] >> SysMgr.PAGEMBSHIFT
+                )
                 wastedMem = "%3d" % (value["wasteKmem"] >> 20)
                 if precise:
                     dreclaimedTime = "%4.6f" % value["dReclaimWait"]
@@ -226014,24 +226138,30 @@ function isAutoNamedPlot(name) {{
                 totalWriteBlock = "-"
 
             if SysMgr.memEnable:
-                usedMem = (value["nrPages"] >> 8) + (value["remainKmem"] >> 20)
+                usedMem = (value["nrPages"] >> SysMgr.PAGEMBSHIFT) + (
+                    value["remainKmem"] >> 20
+                )
                 totalUsedMem += usedMem
                 usedMem = "%4d" % usedMem
 
-                userMem = "%3d" % (value["userPages"] >> 8)
-                totalUserMem += value["userPages"] >> 8
+                userMem = "%3d" % (value["userPages"] >> SysMgr.PAGEMBSHIFT)
+                totalUserMem += value["userPages"] >> SysMgr.PAGEMBSHIFT
 
-                cacheMem = "%3d" % (value["cachePages"] >> 8)
-                totalCacheMem += value["cachePages"] >> 8
+                cacheMem = "%3d" % (value["cachePages"] >> SysMgr.PAGEMBSHIFT)
+                totalCacheMem += value["cachePages"] >> SysMgr.PAGEMBSHIFT
 
-                kernelMem = (value["kernelPages"] >> 8) + (
+                kernelMem = (value["kernelPages"] >> SysMgr.PAGEMBSHIFT) + (
                     value["remainKmem"] >> 20
                 )
                 totalKernelMem += kernelMem
                 kernelMem = "%3d" % kernelMem
 
-                reclaimedMem = "%3d" % (value["reclaimedPages"] >> 8)
-                totalReclaimedMem += value["reclaimedPages"] >> 8
+                reclaimedMem = "%3d" % (
+                    value["reclaimedPages"] >> SysMgr.PAGEMBSHIFT
+                )
+                totalReclaimedMem += (
+                    value["reclaimedPages"] >> SysMgr.PAGEMBSHIFT
+                )
 
                 wastedMem = "%3d" % (value["wasteKmem"] >> 20)
                 totalWastedMem += value["wasteKmem"] >> 20
@@ -228791,7 +228921,10 @@ function isAutoNamedPlot(name) {{
 
             try:
                 timeLine += "%3d " % (
-                    (self.intData[icount]["toTal"]["totalMem"] >> 8)
+                    (
+                        self.intData[icount]["toTal"]["totalMem"]
+                        >> SysMgr.PAGEMBSHIFT
+                    )
                     + (self.intData[icount]["toTal"]["totalKmem"] >> 20)
                 )
             except:
@@ -229297,7 +229430,8 @@ function isAutoNamedPlot(name) {{
             ):
                 if (
                     not SysMgr.showAll
-                    and (value["nrPages"] >> 8) + (value["remainKmem"] >> 20)
+                    and (value["nrPages"] >> SysMgr.PAGEMBSHIFT)
+                    + (value["remainKmem"] >> 20)
                     < 1
                 ):
                     break
@@ -229344,7 +229478,10 @@ function isAutoNamedPlot(name) {{
                         newFlag = nowVal["new"]
                         dieFlag = nowVal["die"]
 
-                    memUsage = self.intData[icount][key]["memUsage"] >> 8
+                    memUsage = (
+                        self.intData[icount][key]["memUsage"]
+                        >> SysMgr.PAGEMBSHIFT
+                    )
                     kmemUsage = self.intData[icount][key]["kmemUsage"] >> 20
                     timeLine += "%4s" % (
                         newFlag + str(memUsage + kmemUsage) + dieFlag
@@ -236979,7 +237116,7 @@ function isAutoNamedPlot(name) {{
                     [thread, access, did, inode, ofs, SysMgr.PAGESIZE]
                 )
 
-        elif func == "writeback_dirty_page":
+        elif func in ("writeback_dirty_page", "writeback_dirty_folio"):
             m = re.match(
                 (
                     r"^\s*bdi\s+(?P<major>[0-9]+):(?P<minor>[0-9]+):\s*"
@@ -240440,10 +240577,16 @@ function isAutoNamedPlot(name) {{
         lastDict = {}
 
         for line in buf:
+            isAttr = line[0].isupper()
+
+            # skip useless attributes before splitting the line #
+            if isAttr and not vmflags and not line.startswith(checklist):
+                continue
+
             tmplist = line.split()
 
             # memory map info #
-            if not line[0].isupper():
+            if not isAttr:
                 perm = tmplist[1]
 
                 """
@@ -241019,6 +241162,8 @@ function isAutoNamedPlot(name) {{
             if SysMgr.maxKeepFd < fd:
                 os.close(fd)
                 self.procData[tid]["statFd"] = None
+                # the closed number may be reused by another task #
+                self.procFdData.pop(tid, None)
                 self.reclaimFds()
 
             return statBuf
@@ -241331,6 +241476,10 @@ function isAutoNamedPlot(name) {{
 
                     val[item] = None
                     nrRclm += 1
+
+                    # keep procFdData in sync with the closed statFd #
+                    if item == "statFd":
+                        self.procFdData.pop(pid, None)
                 except SystemExit:
                     sys.exit(0)
                 except:
@@ -241408,11 +241557,11 @@ function isAutoNamedPlot(name) {{
             pgAnon = vmData["nr_anon_pages"]
             anonMemDiff = pgAnon - prevVmData["nr_anon_pages"]
             if kbunit:
-                totalAnonMem = pgAnon << 2
-                anonMemDiff = anonMemDiff << 2
+                totalAnonMem = pgAnon << SysMgr.PAGEKBSHIFT
+                anonMemDiff = anonMemDiff << SysMgr.PAGEKBSHIFT
             else:
-                totalAnonMem = pgAnon >> 8
-                anonMemDiff = anonMemDiff >> 8
+                totalAnonMem = pgAnon >> SysMgr.PAGEMBSHIFT
+                anonMemDiff = anonMemDiff >> SysMgr.PAGEMBSHIFT
         except SystemExit:
             sys.exit(0)
         except:
@@ -241431,11 +241580,11 @@ function isAutoNamedPlot(name) {{
             )
             fileMemDiff = pgFile - prevPgFile
             if kbunit:
-                totalFileMem = pgFile << 2
-                fileMemDiff = fileMemDiff << 2
+                totalFileMem = pgFile << SysMgr.PAGEKBSHIFT
+                fileMemDiff = fileMemDiff << SysMgr.PAGEKBSHIFT
             else:
-                totalFileMem = pgFile >> 8
-                fileMemDiff = fileMemDiff >> 8
+                totalFileMem = pgFile >> SysMgr.PAGEMBSHIFT
+                fileMemDiff = fileMemDiff >> SysMgr.PAGEMBSHIFT
         except SystemExit:
             sys.exit(0)
         except:
@@ -241479,11 +241628,11 @@ function isAutoNamedPlot(name) {{
             slabMemDiff = slabReclmDiff + slabUnReclmDiff
 
             if kbunit:
-                totalSlabMem = totalSlabMem << 2
-                slabMemDiff = slabMemDiff << 2
+                totalSlabMem = totalSlabMem << SysMgr.PAGEKBSHIFT
+                slabMemDiff = slabMemDiff << SysMgr.PAGEKBSHIFT
             else:
-                totalSlabMem = totalSlabMem >> 8
-                slabMemDiff = slabMemDiff >> 8
+                totalSlabMem = totalSlabMem >> SysMgr.PAGEMBSHIFT
+                slabMemDiff = slabMemDiff >> SysMgr.PAGEMBSHIFT
         except SystemExit:
             sys.exit(0)
         except:
@@ -241550,11 +241699,11 @@ function isAutoNamedPlot(name) {{
             swapInMem = vmData["pswpin"] - prevVmData["pswpin"]
             swapOutMem = vmData["pswpout"] - prevVmData["pswpout"]
             if kbunit:
-                swapInMem = swapInMem << 2
-                swapOutMem = swapOutMem << 2
+                swapInMem = swapInMem << SysMgr.PAGEKBSHIFT
+                swapOutMem = swapOutMem << SysMgr.PAGEKBSHIFT
             else:
-                swapInMem = swapInMem >> 8
-                swapOutMem = swapOutMem >> 8
+                swapInMem = swapInMem >> SysMgr.PAGEMBSHIFT
+                swapOutMem = swapOutMem >> SysMgr.PAGEMBSHIFT
         except SystemExit:
             sys.exit(0)
         except:
@@ -241703,8 +241852,8 @@ function isAutoNamedPlot(name) {{
 
         """
         try:
-            shMem = vmData['nr_shmem'] >> 8
-            pageTableMem = vmData['nr_page_table_pages'] >> 8
+            shMem = vmData['nr_shmem'] >> SysMgr.PAGEMBSHIFT
+            pageTableMem = vmData['nr_page_table_pages'] >> SysMgr.PAGEMBSHIFT
             kernelStackMem = vmData['nr_kernel_stack'] * 8 >> 10
         except:
             failedStat.append('MemShm')
@@ -243635,9 +243784,9 @@ function isAutoNamedPlot(name) {{
 
         # set memory size shift factor #
         if "KBUNIT" in SysMgr.environList:
-            _memFactorPG = lambda x: x << 2
+            _memFactorPG = lambda x: x << SysMgr.PAGEKBSHIFT
         else:
-            _memFactorPG = lambda x: x >> 8
+            _memFactorPG = lambda x: x >> SysMgr.PAGEMBSHIFT
 
         for pid, value in self.procData.items():
             try:
@@ -244841,7 +244990,9 @@ function isAutoNamedPlot(name) {{
                 UtilMgr.convSize2Unit(item * SysMgr.PAGESIZE),
             )
             if isReport:
-                SysMgr.jsonData["lmk"][threshold[idx]] = item >> 8
+                SysMgr.jsonData["lmk"][threshold[idx]] = (
+                    item >> SysMgr.PAGEMBSHIFT
+                )
 
         SysMgr.addPrint(lmkstr[:-2] + "]\n")
 
@@ -245686,7 +245837,7 @@ function isAutoNamedPlot(name) {{
 
                 def _getMemStat(e):
                     return (
-                        (long(e[1]["stat"][self.rssIdx]) << 2)
+                        (long(e[1]["stat"][self.rssIdx]) << SysMgr.PAGEKBSHIFT)
                         + long(
                             e[1]["status"].get("VmSwap", "0").split(None, 1)[0]
                         )
@@ -246896,7 +247047,7 @@ function isAutoNamedPlot(name) {{
             if not SysMgr.sort or SysMgr.sort == "c":
                 target = value["ttime"]
             elif SysMgr.sort == "m":
-                target = long(stat[self.rssIdx]) >> 8
+                target = long(stat[self.rssIdx]) >> SysMgr.PAGEMBSHIFT
                 try:
                     if (
                         "SORTINCSWAP" not in SysMgr.environList
@@ -247395,8 +247546,15 @@ function isAutoNamedPlot(name) {{
             jtype = mode.lower()
             SysMgr.jsonData.setdefault(jtype, {})
             jsonData = SysMgr.jsonData[jtype]
+
+            # printTopStats() drops these keys from process entries only #
+            if jtype == "process":
+                jsonSkip = SysMgr.getJsonStatFilter()
+            else:
+                jsonSkip = None
         else:
             jsonData = {}
+            jsonSkip = None
 
         self.printTick += 1
 
@@ -247498,11 +247656,11 @@ function isAutoNamedPlot(name) {{
         if "KBUNIT" in SysMgr.environList:
             memFactorKB = 0
             memFactorMB = 10
-            _memFactorPG = lambda x: x << 2
+            _memFactorPG = lambda x: x << SysMgr.PAGEKBSHIFT
         else:
             memFactorKB = 10
             memFactorMB = 20
-            _memFactorPG = lambda x: x >> 8
+            _memFactorPG = lambda x: x >> SysMgr.PAGEMBSHIFT
 
         # print resource usage of tasks #
         procCnt = 0
@@ -247577,12 +247735,18 @@ function isAutoNamedPlot(name) {{
                         self.stackTable.pop(idx, None)
 
             # add task data into JSON repo #
-            if SysMgr.jsonEnable:
-                jsonData.setdefault(
-                    idx,
-                    UtilMgr.convStr2Dict(
-                        UtilMgr.convDict2Str(value, ignore=True)
-                    ),
+            if SysMgr.jsonEnable and idx not in jsonData:
+                # skip the keys printTopStats() would drop anyway, so the
+                # snapshot round trip does not convert them #
+                if jsonSkip:
+                    snap = dict(
+                        (k, v) for k, v in value.items() if not jsonSkip(k)
+                    )
+                else:
+                    snap = value
+
+                jsonData[idx] = UtilMgr.convStr2Dict(
+                    UtilMgr.convDict2Str(snap, ignore=True)
                 )
 
             if initWss:
@@ -248647,11 +248811,11 @@ function isAutoNamedPlot(name) {{
         if "KBUNIT" in SysMgr.environList:
             memFactorKB = 0
             memFactorMB = 10
-            _memFactorPG = lambda x: x << 2
+            _memFactorPG = lambda x: x << SysMgr.PAGEKBSHIFT
         else:
             memFactorKB = 10
             memFactorMB = 20
-            _memFactorPG = lambda x: x >> 8
+            _memFactorPG = lambda x: x >> SysMgr.PAGEMBSHIFT
 
         try:
             userLen = long(SysMgr.environList.get("USERLEN", [6])[0])
@@ -256468,7 +256632,10 @@ function isAutoNamedPlot(name) {{
                         pass
 
                     try:
-                        shm = long(data["statm"][self.shrIdx]) >> 8
+                        shm = (
+                            long(data["statm"][self.shrIdx])
+                            >> SysMgr.PAGEMBSHIFT
+                        )
                         evtdata[rank]["shared"] = shm
                         self.reportData["mem"]["procs"][pid]["shared"] = shm
                     except:
@@ -256864,7 +257031,7 @@ function isAutoNamedPlot(name) {{
             processData["cpu"]["total"]["pct"] = data["ttime"]
             processData["cpu"]["runtime"] = UtilMgr.convTime(data["runtime"])
 
-            rss = long(data["stat"][self.rssIdx]) >> 8
+            rss = long(data["stat"][self.rssIdx]) >> SysMgr.PAGEMBSHIFT
 
             text = (
                 long(data["stat"][self.ecodeIdx])
