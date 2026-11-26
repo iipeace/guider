@@ -2931,7 +2931,7 @@ BLOCKED_OPTS: set = {
     # Same bypass; single-target state changes: pm clear, force-stop, wifi/bluetooth toggle, dumpheap to a
     # caller-chosen path, vehicle key injection, rotation.
     "CLEARDATA", "FORCECLOSE", "TOGGLEWIFI", "TOGGLEBT", "DUMPHEAP",
-    "CARKEY", "SETORIENTATION",
+    "CARKEY", "SETORIENTATION", "TASKCTL",
     # Read-only, but outside andcmd's 6-entry diagnostic allowlist; blocking keeps that allowlist's intent true.
     "GETGFXINFO", "GETWINDOWINFO", "GETACTLIST", "GETACTSTAT",
     "GETPERMLIST", "GETDUMPLIST",

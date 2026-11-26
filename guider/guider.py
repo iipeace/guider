@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.9"
-__revision__ = "261124"
+__revision__ = "261126"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -234,6 +234,7 @@ class ConfigMgr(object):
         "STARTSERVICE",
         "STOPSERVICE",
         "STOPPKGLIST",
+        "TASKCTL",
         "TOGGLEBT",
         "TOGGLEWIFI",
         "UNINSTALLPKG",
@@ -39258,6 +39259,84 @@ class AndroidMgr(object):
         "Cmdline:",
     )
     settings = {}
+    # TaskCtl helper dex, base64(zlib). Source and build steps are in
+    # tools/taskctl/ (build.sh), dex sha256 below. app_process runs it #
+    TASKCTL_DEX_SHA256 = (
+        "1702eb907d2308868522bc8347859a7bfd1ebd5b5e69f0a6ba038074b7b1cba6"
+    )
+    TASKCTL_DEX = (
+        "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"
+    )
 
     @staticmethod
     def getEnforce():
@@ -45012,6 +45091,579 @@ class AndroidMgr(object):
         SysMgr.executeCmdSync(cmd)
 
     @staticmethod
+    def taskCtl(val):
+        """
+        - desc: control a Task (bounds, z-order and forced hidden state)
+        - arg: val is "<taskId|pkg>:<action>[:<args>]"
+        """
+
+        fmt = (
+            "format: <taskId|pkg>:bounds:<left>:<top>:<right>:<bottom> | "
+            "<taskId|pkg>:top|bottom|hide|show|focus|unbounds|remove | list"
+        )
+
+        if not val or val == "SET":
+            SysMgr.printErr("no valid input for taskctl (%s)" % fmt)
+            return
+
+        # a read-only listing needs no target #
+        if val.lower() == "list":
+            AndroidMgr._listTasks()
+            return
+
+        items = val.split(":")
+        if len(items) < 2:
+            SysMgr.printErr("wrong input '%s' for taskctl (%s)" % (val, fmt))
+            return
+
+        target = items[0]
+        action = items[1].lower()
+        args = items[2:]
+
+        if action == "bounds":
+            if len(args) != 4:
+                SysMgr.printErr(
+                    "wrong input '%s' for taskctl (%s)" % (val, fmt)
+                )
+                return
+
+            try:
+                bounds = [int(n) for n in args]
+            except ValueError:
+                SysMgr.printErr(
+                    "wrong bounds '%s' for taskctl (%s)"
+                    % (":".join(args), fmt)
+                )
+                return
+
+            if bounds[0] >= bounds[2] or bounds[1] >= bounds[3]:
+                SysMgr.printErr(
+                    "wrong bounds %s for taskctl (left < right and "
+                    "top < bottom are required)" % bounds
+                )
+                return
+        elif action in (
+            "top",
+            "bottom",
+            "hide",
+            "show",
+            "focus",
+            "unbounds",
+            "remove",
+        ):
+            if args:
+                SysMgr.printErr(
+                    "wrong input '%s' for taskctl (%s)" % (val, fmt)
+                )
+                return
+        else:
+            SysMgr.printErr(
+                "wrong action '%s' for taskctl (supported: bounds, unbounds, "
+                "top, bottom, hide, show, focus, remove, list)" % action
+            )
+            return
+
+        # a state change must never be based on a saved dump #
+        if AndroidMgr.hasDumpInput():
+            SysMgr.printErr("taskctl does not support -I option")
+            return
+
+        found = AndroidMgr._findTask(target)
+        if not found:
+            return
+        taskId, taskData = found
+
+        if action == "bounds":
+            AndroidMgr._setTaskBounds(taskId, taskData[taskId], bounds)
+        elif action == "remove":
+            AndroidMgr._removeTask(taskId, taskData)
+        else:
+            AndroidMgr._setTaskState(taskId, taskData, action)
+
+    @staticmethod
+    def _listTasks():
+        """
+        - desc: print the tasks reported by the activity task service
+        """
+
+        ok, msg, lines = AndroidMgr._runTaskCtlHelper("list", None, True)
+        if not ok:
+            SysMgr.printErr("failed to list tasks (%s)" % msg)
+            return
+
+        for line in lines:
+            if line.startswith("TASK\t"):
+                SysMgr.printPipe(line[5:].replace("\t", "  "))
+            elif line.startswith("CHILD\t"):
+                # indent a child line under its root task #
+                SysMgr.printPipe("    " + line[6:].replace("\t", "  "))
+
+    @staticmethod
+    def _removeTask(taskId, taskData):
+        """
+        - desc: close one task with "am stack remove", unlike FORCECLOSE it
+                keeps the other tasks and the process of the application
+        - note: the task can not be brought back, the application state in
+                it is lost, so it needs -q CONFIRM, and a task the system
+                depends on needs -q FORCE too
+        """
+
+        info = taskData[taskId]
+        pkg = info.get("package")
+
+        # the reasons why the task is risky to close #
+        risks = []
+        if info.get("type") == "home":
+            risks.append("it is a home task")
+        if info.get("createdByOrganizer"):
+            risks.append("it was created by the task organizer")
+        if info.get("parentTaskId"):
+            risks.append(
+                "it is a child of task %s, which is removed with it"
+                % info.get("parentTaskId")
+            )
+
+        lines = AndroidMgr._readDump(["activity", "activities"])
+        focusId = None
+        if lines:
+            focusId = AndroidMgr.parseActivityDump(lines)[1].get(
+                "topFocusedTaskId"
+            )
+        if focusId is not None and str(focusId) == str(taskId):
+            risks.append("it is the focused task")
+
+        summary = "task %s(%s) type=%s visible=%s" % (
+            taskId,
+            pkg,
+            info.get("type"),
+            info.get("visible"),
+        )
+
+        if "RESTORE" in SysMgr.environList:
+            SysMgr.printWarn(
+                "RESTORE is not supported for 'remove', a removed task can "
+                "not be brought back",
+                True,
+            )
+
+        if "CONFIRM" not in SysMgr.environList:
+            SysMgr.printWarn(
+                "nothing was removed: %s, add '-q CONFIRM' to remove it "
+                "(it can not be undone and the state of the task is lost)"
+                % summary,
+                True,
+            )
+            return
+
+        if risks and "FORCE" not in SysMgr.environList:
+            SysMgr.printErr(
+                "refused to remove %s because %s, add '-q FORCE' too if "
+                "it is really wanted" % (summary, " and ".join(risks))
+            )
+            return
+
+        ret = SysMgr.executeCmdSync(
+            ["am", "stack", "remove", str(taskId)], rederr=True
+        )
+        if ret and any(
+            "Exception occurred" in l or l.startswith("Error:") for l in ret
+        ):
+            SysMgr.printErr(
+                "failed to remove %s (%s)"
+                % (summary, next((l for l in ret if l), ret[-1]))
+            )
+            return
+
+        # the command does not tell whether the task was really closed #
+        gone = False
+        for _ in range(3):
+            lines = AndroidMgr._readDump(["activity", "activities"])
+            if (
+                lines
+                and str(taskId) not in AndroidMgr.parseActivityDump(lines)[0]
+            ):
+                gone = True
+                break
+            time.sleep(0.3)
+
+        if gone:
+            SysMgr.printInfo("removed %s" % summary)
+        else:
+            SysMgr.printWarn(
+                "%s is still there after the request (it may be ignored "
+                "for this task)" % summary,
+                True,
+            )
+
+    @staticmethod
+    def _getRootTaskBounds(taskId):
+        """
+        - desc: read the bounds of a root task from the activity task service
+        - return: [left, top, right, bottom] or None
+        """
+
+        ok, msg, lines = AndroidMgr._runTaskCtlHelper("list", None, True)
+        if not ok:
+            return None
+
+        # a TASK line is "TASK<tab>id<tab>...<tab>bounds=Rect(l, t - r, b)" #
+        pat = re.compile(r"bounds=Rect\((-?\d+), (-?\d+) - (-?\d+), (-?\d+)\)")
+        for line in lines:
+            items = line.split("\t")
+            if len(items) < 2 or items[0] != "TASK" or items[1] != str(taskId):
+                continue
+
+            m = pat.search(line)
+            return [int(n) for n in m.groups()] if m else None
+
+        return None
+
+    @staticmethod
+    def _runTaskCtlHelper(action, taskId, withLines=False):
+        """
+        - desc: run the embedded TaskCtl helper with app_process
+        - return: (ok, message) or (ok, message, outputLines) with withLines
+        """
+
+        def _ret(ok, msg, lines=None):
+            return (ok, msg, lines or []) if withLines else (ok, msg)
+
+        zlib = SysMgr.getPkg("zlib", False)
+        if not zlib:
+            return _ret(False, "failed to import zlib")
+
+        path = "%s/guider_taskctl_%s.dex" % (
+            SysMgr.tmpPath,
+            AndroidMgr.TASKCTL_DEX_SHA256[:12],
+        )
+
+        # a dex that exists with the same name is the same build #
+        if not os.path.isfile(path):
+            dex = UtilMgr.decodeBase64("".join(AndroidMgr.TASKCTL_DEX))
+            if not isinstance(dex, bytes):
+                return _ret(False, "failed to decode the embedded helper")
+
+            try:
+                dex = zlib.decompress(dex)
+            except SystemExit:
+                sys.exit(0)
+            except:
+                return _ret(False, "failed to decompress the embedded helper")
+
+            # write to a private name first so that a half written file
+            # is never executed, then rename it #
+            tmp = "%s.%d" % (path, os.getpid())
+            if not SysMgr.writeFile(tmp, dex, errval=False, byte=True):
+                return _ret(False, "failed to write the helper to '%s'" % tmp)
+
+            # android refuses to load a writable dex #
+            try:
+                os.chmod(tmp, 0o444)
+                os.rename(tmp, path)
+            except SystemExit:
+                sys.exit(0)
+            except:
+                return _ret(False, "failed to prepare the helper '%s'" % path)
+
+        cmd = [
+            "app_process",
+            "-Djava.class.path=%s" % path,
+            "/system/bin",
+            "TaskCtl",
+            action,
+        ]
+        if taskId is not None:
+            cmd.append(str(taskId))
+        ret = SysMgr.executeCmdSync(cmd, rederr=True) or []
+
+        # the helper prints one OK or ERR line, anything else is the
+        # runtime complaining #
+        for line in reversed(ret):
+            if line.startswith("OK "):
+                return _ret(True, line[3:], ret)
+            elif line.startswith("ERR "):
+                return _ret(False, line[4:], ret)
+
+        return _ret(
+            False, next((l for l in ret if l), "no output from the helper")
+        )
+
+    @staticmethod
+    def _setTaskState(taskId, taskData, action):
+        info = taskData[taskId]
+        pkg = info.get("package")
+
+        # reorder only changes the position inside the parent, which is
+        # the display order for a root task only #
+        parent = info.get("parentTaskId")
+        if action in ("top", "bottom") and parent:
+            SysMgr.printWarn(
+                "task %s(%s) is a child of task %s, so only its order "
+                "inside the parent is changed (use the root task %s for "
+                "the display order)"
+                % (taskId, pkg, parent, info.get("rootTaskId")),
+                True,
+            )
+
+        # a reorder moves the other tasks too (device-verified: raising
+        # one task shifts every task above its old place down by one), so
+        # the previous order can not be restored from the task alone #
+        if "RESTORE" in SysMgr.environList and action != "hide":
+            SysMgr.printWarn(
+                "RESTORE is only supported for bounds and hide, so '%s' "
+                "will not be restored (the other tasks are moved too, "
+                "so raise them again in the order wanted)" % action,
+                True,
+            )
+
+        before = info.get("bounds")
+        ok, msg = AndroidMgr._runTaskCtlHelper(action, taskId)
+        if not ok:
+            SysMgr.printErr(
+                "failed to %s task %s(%s) (%s)" % (action, taskId, pkg, msg)
+            )
+            return
+
+        SysMgr.printInfo("%s task %s(%s)" % (action, taskId, pkg))
+
+        # the service ignores a focus request for a task it does not run
+        # and drops the override of a task that has none, both without
+        # any error, so check what changed #
+        if action == "focus":
+            lines = AndroidMgr._readDump(["activity", "activities"])
+            focusId = None
+            if lines:
+                focusId = AndroidMgr.parseActivityDump(lines)[1].get(
+                    "topFocusedTaskId"
+                )
+
+            if focusId is None:
+                SysMgr.printWarn(
+                    "unable to verify the focus of task %s(%s)"
+                    % (taskId, pkg),
+                    True,
+                )
+            elif focusId != taskId:
+                SysMgr.printWarn(
+                    "task %s(%s) is not focused after the request, the "
+                    "focused task is %s (the task may have no running "
+                    "activity, or it is a child of the focused root task)"
+                    % (taskId, pkg, focusId),
+                    True,
+                )
+        elif action == "unbounds":
+            # a task without an override has no standalone mBounds line in
+            # the dump, so read the bounds from the service itself #
+            after = AndroidMgr._getRootTaskBounds(taskId)
+            if after is None:
+                SysMgr.printWarn(
+                    "unable to verify bounds of task %s(%s) after the "
+                    "reset (only a root task can be read back)"
+                    % (taskId, pkg),
+                    True,
+                )
+            elif after == before:
+                SysMgr.printWarn(
+                    "bounds of task %s(%s) are still %s (the task had no "
+                    "override or the reset was ignored)"
+                    % (taskId, pkg, after),
+                    True,
+                )
+            else:
+                SysMgr.printInfo(
+                    "bounds of task %s(%s) are now %s" % (taskId, pkg, after)
+                )
+                # the override may have been set by the system or the app,
+                # and the task now follows its parent instead of going
+                # back to it (device-verified) #
+                if before:
+                    SysMgr.printWarn(
+                        "the bounds %s the task had just before are not "
+                        "restored, use 'taskctl:%s:bounds:%s' to set them "
+                        "again"
+                        % (before, taskId, ":".join(str(n) for n in before)),
+                        True,
+                    )
+
+        if action == "hide":
+            SysMgr.printWarn(
+                "task %s(%s) stays hidden until 'taskctl:%s:show' is "
+                "run, even after this process exits" % (taskId, pkg, taskId),
+                True,
+            )
+            if "RESTORE" in SysMgr.environList:
+                # show also raises the task to the top, so the previous
+                # position is not restored #
+                SysMgr.printWarn(
+                    "RESTORE shows task %s again but raises it to the top, "
+                    "not to its previous position" % taskId,
+                    True,
+                )
+                SysMgr.addExitFunc(
+                    AndroidMgr.restoreTaskState, [taskId, "show"], True, False
+                )
+                SysMgr.printInfo(
+                    "wait for a signal to show task %s again" % taskId
+                )
+                SysMgr.waitEvent(exit=True)
+
+    @staticmethod
+    def restoreTaskState(taskId, action):
+        ok, msg = AndroidMgr._runTaskCtlHelper(action, taskId)
+        if not ok:
+            SysMgr.printErr(
+                "failed to %s task %s on exit (%s)" % (action, taskId, msg)
+            )
+            return
+
+        SysMgr.printInfo("restored task %s by '%s'" % (taskId, action))
+
+    @staticmethod
+    def _findTask(target):
+        """
+        - desc: resolve a taskId or a package pattern to one Task
+        - return: (taskId, taskData) or None after printing the reason
+        """
+
+        lines = AndroidMgr._readDump(["activity", "activities"])
+        if not lines:
+            SysMgr.printErr("failed to get activity info")
+            return None
+        if AndroidMgr._checkDumpsysDenied(lines, "activity activities"):
+            return None
+
+        taskData, _ = AndroidMgr.parseActivityDump(lines)
+
+        # numeric target is a taskId, otherwise a package substring #
+        if target.isdigit():
+            if target not in taskData:
+                SysMgr.printErr("no task %s" % target)
+                return None
+            return target, taskData
+
+        # substring match unless the target has a wildcard, which
+        # isValidStr handles as prefix, suffix or both-end match #
+        inc = "*" not in target
+        candList = [
+            tid
+            for tid, info in taskData.items()
+            if info.get("package")
+            and UtilMgr.isValidStr(info["package"], [target], inc)
+        ]
+        visList = [tid for tid in candList if taskData[tid]["visible"]]
+        candList = visList if visList else candList
+        if not candList:
+            SysMgr.printErr("no task for '%s'" % target)
+            return None
+        elif len(candList) > 1:
+            SysMgr.printErr(
+                "multiple tasks for '%s' (%s), use a taskId instead"
+                % (target, ", ".join(sorted(candList)))
+            )
+            return None
+
+        return candList[0], taskData
+
+    @staticmethod
+    def _setTaskBounds(taskId, info, bounds):
+        orig = info.get("bounds")
+
+        # "am task resize" takes 4 separate args, not "L,T,R,B" #
+        cmd = ["am", "task", "resize", taskId] + [str(n) for n in bounds]
+        ret = SysMgr.executeCmdSync(cmd, rederr=True)
+
+        # a failure is returned as ordinary output lines, not raised #
+        if ret and any(
+            "Exception occurred" in l or l.startswith("Error:") for l in ret
+        ):
+            SysMgr.printErr(
+                "failed to resize task %s (%s)"
+                % (taskId, next((l for l in ret if l), ret[-1]))
+            )
+            return
+
+        # "am task resize" prints nothing and exits normally even if the
+        # platform ignores it (e.g., an unresizeable task), so read the
+        # bounds back to see whether it was really applied #
+        newBounds = None
+        for _ in range(3):
+            newBounds = AndroidMgr._getTaskBounds(taskId)
+            if newBounds == bounds:
+                break
+            time.sleep(0.3)
+
+        pkg = info.get("package")
+        if newBounds == bounds:
+            SysMgr.printInfo(
+                "set bounds of task %s(%s) to %s" % (taskId, pkg, bounds)
+            )
+        elif newBounds is None:
+            SysMgr.printWarn(
+                "unable to verify bounds of task %s(%s), requested %s"
+                % (taskId, pkg, bounds),
+                True,
+            )
+        else:
+            SysMgr.printWarn(
+                "bounds of task %s(%s) are %s, not the requested %s "
+                "(the resize may have been ignored)"
+                % (taskId, pkg, newBounds, bounds),
+                True,
+            )
+            # nothing to restore if the bounds are still the same #
+            if newBounds == orig:
+                return
+
+        if "RESTORE" not in SysMgr.environList:
+            return
+
+        # the task has no override bounds originally, so restoring means
+        # resizing back to its previous effective bounds #
+        if not orig:
+            SysMgr.printWarn(
+                "failed to get the previous bounds of task %s, "
+                "so it will not be restored" % taskId,
+                True,
+            )
+            return
+
+        SysMgr.addExitFunc(
+            AndroidMgr.restoreTaskBounds, [taskId, orig], True, False
+        )
+        SysMgr.printInfo(
+            "wait for a signal to restore bounds of task %s to %s"
+            % (taskId, orig)
+        )
+        SysMgr.waitEvent(exit=True)
+
+    @staticmethod
+    def _getTaskBounds(taskId):
+        lines = AndroidMgr._readDump(["activity", "activities"])
+        if not lines or AndroidMgr._checkDumpsysDenied(
+            lines, "activity activities"
+        ):
+            return None
+
+        taskData, _ = AndroidMgr.parseActivityDump(lines)
+        return taskData.get(taskId, {}).get("bounds")
+
+    @staticmethod
+    def restoreTaskBounds(taskId, bounds):
+        cmd = ["am", "task", "resize", taskId] + [str(n) for n in bounds]
+        ret = SysMgr.executeCmdSync(cmd, rederr=True)
+
+        if ret and any(
+            "Exception occurred" in l or l.startswith("Error:") for l in ret
+        ):
+            SysMgr.printErr(
+                "failed to restore bounds of task %s to %s (%s)"
+                % (taskId, bounds, next((l for l in ret if l), ret[-1]))
+            )
+            return
+
+        SysMgr.printInfo("restored bounds of task %s to %s" % (taskId, bounds))
+
+    @staticmethod
     def toggleWifi(val):
         if not val or val == "SET":
             SysMgr.printErr(
@@ -47770,6 +48422,7 @@ class AndroidMgr(object):
                 AndroidMgr.getBroadcastList,
             ),
             ("SETORIENTATION", "orientation", AndroidMgr.setOrientation),
+            ("TASKCTL", "taskctl", AndroidMgr.taskCtl),
             ("TOGGLEWIFI", "togglewifi", AndroidMgr.toggleWifi),
             ("TOGGLEBT", "togglebt", AndroidMgr.toggleBt),
             ("FORCECLOSE", "forceclose", AndroidMgr.forceClose),
@@ -78755,6 +79408,21 @@ Examples:
     - Set screen orientation (0=portrait, 1=landscape, 2=reverse portrait, 3=reverse landscape)
         # {0:1} {1:1} setorientation:0
         # {0:1} {1:1} setorientation:1
+
+    - Control a task (taskId or package; top, show and focus raise the task and push the others down, the hide state stays until show, unbounds clears the override so the task follows its parent, remove closes only this task and needs -q CONFIRM (home, organizer created and focused tasks also need -q FORCE) and can not be undone; bounds and hide are restored on exit with RESTORE)
+        # {0:1} {1:1} taskctl:1200017:bounds:900:200:2400:1100
+        # {0:1} {1:1} taskctl:com.autoever.navi:bounds:900:200:2400:1100 -q RESTORE
+        # {0:1} {1:1} taskctl:"com.autoever.*":bounds:900:200:2400:1100
+        # {0:1} {1:1} taskctl:1200017:top
+        # {0:1} {1:1} taskctl:1200017:bottom
+        # {0:1} {1:1} taskctl:1200017:hide -q RESTORE
+        # {0:1} {1:1} taskctl:1200017:show
+        # {0:1} {1:1} taskctl:1200017:focus
+        # {0:1} {1:1} taskctl:1200017:unbounds
+        # {0:1} {1:1} taskctl:1200017:remove -q CONFIRM
+
+    - Print the root tasks and their child tasks read from the activity task service (unlike gettaskstat, no dumpsys parsing, and the bounds are always printed)
+        # {0:1} {1:1} taskctl:list
 
     - Toggle Wi-Fi / Bluetooth
         # {0:1} {1:1} togglewifi:enable
